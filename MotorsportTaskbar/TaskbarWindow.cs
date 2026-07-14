@@ -66,7 +66,7 @@ public sealed class TaskbarWindow : Window
         _root.Children.Add(_raceContext); _root.Children.Add(_strip); _root.Children.Add(_alert); Content = _root;
         _host = new(this); SourceInitialized += (_, _) => _host.Attach();
         _host.PositionChanged += visible => { if (!visible) _flyout.Hide(); else if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
-        MouseEnter += (_, _) => ShowFlyout(); MouseLeave += (_, _) => _flyout.ScheduleClose();
+        MouseLeftButtonUp += (_, _) => ShowFlyout(); MouseLeave += (_, _) => _flyout.ScheduleClose();
         _flyout.PointerEntered += (_, _) => _flyout.CancelClose();
         _reattach = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => _host.Reattach(), Dispatcher); _reattach.Start();
     }
