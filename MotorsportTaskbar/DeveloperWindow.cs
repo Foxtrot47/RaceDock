@@ -14,7 +14,8 @@ public sealed class DeveloperWindow : Window
     private readonly Slider _speed = new() { Minimum = .25, Maximum = 20, Value = 4, Width = 240, TickFrequency = .25 };
     public DeveloperWindow(AppController controller)
     {
-        _controller = controller; Title = "MotorsportTaskbar Developer"; Width = 720; Height = 520; WindowStartupLocation = WindowStartupLocation.CenterScreen; Background = new SolidColorBrush(Color.FromRgb(30, 30, 34)); Foreground = Brushes.White;
+        _controller = controller; Title = "MotorsportTaskbar Developer"; Width = 720; Height = 520; WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        SetResourceReference(BackgroundProperty, "SolidBackgroundFillColorBaseBrush"); SetResourceReference(ForegroundProperty, "TextFillColorPrimaryBrush"); SetResourceReference(FontFamilyProperty, "MotorsportFontFamily");
         var root = new StackPanel { Margin = new(18) }; _status.Margin = new(0, 0, 0, 12); root.Children.Add(_status);
         root.Children.Add(new TextBlock { Text = "Deterministic scenario", FontWeight = FontWeights.Bold, FontSize = 16 });
         var transport = new WrapPanel { Margin = new(0, 8, 0, 8) };
@@ -24,9 +25,9 @@ public sealed class DeveloperWindow : Window
         var alerts = new WrapPanel(); foreach (var command in Enum.GetValues<ScenarioCommand>()) alerts.Children.Add(Button(Label(command), () => _controller.Scenario?.Trigger(command))); root.Children.Add(alerts);
         root.Children.Add(new TextBlock { Text = "Top five (CODE:GAP; missing gap is shown as —)", Margin = new(0, 16, 0, 4) });
         var edit = new WrapPanel(); edit.Children.Add(_topFive); edit.Children.Add(Button("Apply", ApplyTopFive)); root.Children.Add(edit);
-        var diagnostic = new CheckBox { Content = "Record bounded raw live feed (max 2 MiB, no credentials)", Margin = new(0, 18, 0, 0), Foreground = Brushes.White };
+        var diagnostic = new CheckBox { Content = "Record bounded raw live feed (max 2 MiB, no credentials)", Margin = new(0, 18, 0, 0) };
         diagnostic.Checked += (_, _) => _controller.SetDiagnosticRecording(true); diagnostic.Unchecked += (_, _) => _controller.SetDiagnosticRecording(false); root.Children.Add(diagnostic);
-        root.Children.Add(new TextBlock { Text = "Enable test mode from the tray before using scenario controls.", Foreground = Brushes.Gray, Margin = new(0, 12, 0, 0) }); Content = root;
+        var note = new TextBlock { Text = "Enable test mode from the tray before using scenario controls.", Margin = new(0, 12, 0, 0) }; note.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush"); root.Children.Add(note); Content = root;
         Closing += (_, e) => { e.Cancel = true; Hide(); };
     }
     public void UpdateSnapshot(TimingSnapshot snapshot) => _status.Text = $"{snapshot.ConnectionState} · {snapshot.Meeting} {snapshot.Session} · Lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"} · {snapshot.TrackCondition}";

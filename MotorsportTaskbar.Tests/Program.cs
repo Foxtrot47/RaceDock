@@ -67,11 +67,11 @@ static void Throttling()
 static void GeometryAndRecovery()
 {
     var mapped = TaskbarGeometry.MapWindowRegion(new(100, 900, 2020, 948), new(8, 4, 436, 44)); Equal(new PixelRect(108, 904, 536, 944), mapped);
-    var g = TaskbarGeometry.CalculateLeftChild(new(0, 0, 1920, 48), 96)!.Value; Equal(8, g.X); Equal(420, g.Width); Equal(40, g.Height); Equal(4, g.Y);
+    var g = TaskbarGeometry.CalculateLeftChild(new(0, 0, 1920, 48), 96)!.Value; Equal(8, g.X); Equal(520, g.Width); Equal(40, g.Height); Equal(4, g.Y);
     var afterWidgets = TaskbarGeometry.CalculateLeftChild(new(0, 0, 1920, 48), 96, [new(0, 0, 52, 48)])!.Value; Equal(56, afterWidgets.X);
-    var skipsHostedApp = TaskbarGeometry.CalculateLeftChild(new(0, 0, 1920, 48), 96, [new(0, 0, 52, 48), new(56, 0, 500, 48)])!.Value; Equal(504, skipsHostedApp.X);
+    var skipsHostedApp = TaskbarGeometry.CalculateLeftChild(new(0, 0, 2400, 48), 96, [new(0, 0, 52, 48), new(56, 0, 500, 48)])!.Value; Equal(504, skipsHostedApp.X);
     var noSafeGap = TaskbarGeometry.CalculateLeftChild(new(0, 0, 1280, 48), 96, [new(0, 0, 240, 48)]); Equal<(int X, int Y, int Width, int Height)?>(null, noSafeGap);
-    var hi = TaskbarGeometry.CalculateLeftChild(new(0, 0, 3840, 96), 192)!.Value; Equal(16, hi.X); Equal(840, hi.Width); Equal(80, hi.Height);
+    var hi = TaskbarGeometry.CalculateLeftChild(new(0, 0, 3840, 96), 192)!.Value; Equal(16, hi.X); Equal(1040, hi.Width); Equal(80, hi.Height);
     True(TaskbarRecovery.NeedsReattach(10, 0, false)); True(TaskbarRecovery.NeedsReattach(10, 10, true)); False(TaskbarRecovery.NeedsReattach(10, 10, false));
 }
 

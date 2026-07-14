@@ -14,7 +14,7 @@ public static class TaskbarGeometry
 
     public static (int X, int Y, int Width, int Height)? CalculateLeftChild(
         PixelRect taskbar, uint dpi, IEnumerable<PixelRect>? occupied = null,
-        double logicalWidth = 420, double logicalHeight = 40)
+        double logicalWidth = 520, double logicalHeight = 40)
     {
         var scale = Math.Max(1, dpi) / 96d;
         var width = (int)Math.Round(logicalWidth * scale); var height = Math.Min(taskbar.Height, (int)Math.Round(logicalHeight * scale));
