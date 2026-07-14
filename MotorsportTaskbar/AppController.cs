@@ -45,8 +45,7 @@ public sealed class AppController : IAsyncDisposable
         var logs = Path.Combine(AppContext.BaseDirectory, "Logs"); Directory.CreateDirectory(logs);
         _source = scenario ? new ScenarioTimingSource(_processor, _clock) : new ScheduledLiveTimingSource(() => new F1LiveTimingSource(_processor, _clock, logs) { DiagnosticRecordingEnabled = _diagnosticRecording }, _clock);
         Attach(_source); await _source.StartAsync(_lifetime.Token);
-        if (_source is ITimingScenarioSource scripted) scripted.Resume();
-        Log($"Source started: {(scenario ? "scenario" : "F1 live")}");
+        Log($"Source started: {(scenario ? "scenario (paused)" : "F1 live")}");
     }
 
     private void Attach(ILiveTimingSource source)
@@ -68,9 +67,20 @@ public sealed class AppController : IAsyncDisposable
         _developer?.UpdateSnapshot(snapshot);
     }
 
-    public void ShowDeveloper()
+    public void ShowDeveloper() => _ = ShowDeveloperAsync();
+
+    private async Task ShowDeveloperAsync()
     {
-        _dispatcher.Invoke(() => { _developer ??= new DeveloperWindow(this); _developer.Show(); _developer.Activate(); });
+        if (!_dispatcher.CheckAccess())
+        {
+            await _dispatcher.InvokeAsync(ShowDeveloperAsync).Task.Unwrap();
+            return;
+        }
+
+        if (!_testMode) await SetTestModeAsync(true);
+        _developer ??= new DeveloperWindow(this);
+        _developer.Show();
+        _developer.Activate();
     }
 
     public void OpenLogs()

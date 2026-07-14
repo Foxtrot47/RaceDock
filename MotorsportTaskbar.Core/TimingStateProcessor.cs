@@ -22,6 +22,8 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         Publish(Current with { ConnectionState = state, FreshnessTimestamp = state == ConnectionState.Connected ? clock.UtcNow : Current.FreshnessTimestamp });
     }
 
+    public void ClearAlerts() => alerts.Clear();
+
     public void ProcessInitial(JsonObject initial)
     {
         _topics.Clear(); _raceControlKeys.Clear(); _lastBestLap.Clear(); _fastestDriver = null; _fastestSeconds = null;

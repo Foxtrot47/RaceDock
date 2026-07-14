@@ -38,7 +38,7 @@ public sealed class ScenarioTimingSource(TimingStateProcessor processor, IClock 
 
     public void Pause() => IsPaused = true;
     public void Resume() { IsPaused = false; _advance.Release(); }
-    public void Restart() { _step = 0; processor.ProcessInitial(CreateInitial()); _advance.Release(); }
+    public void Restart() { IsPaused = true; _step = 0; processor.ClearAlerts(); processor.ProcessInitial(CreateInitial()); _advance.Release(); }
     public void Step() { IsPaused = true; ApplyStep(_step++ % 12); }
     public void Trigger(ScenarioCommand command) => ApplyCommand(command);
     public void SetTopFive(IReadOnlyList<ManualStanding> standings)
