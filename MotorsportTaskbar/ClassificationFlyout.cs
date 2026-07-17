@@ -231,19 +231,20 @@ public sealed class ClassificationFlyout : Window
         var driver = new StackPanel
         {
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(3, 0, 8, 0),
+            Margin = new Thickness(4, 0, 8, 0),
             ToolTip = string.IsNullOrWhiteSpace(standing.Name) ? null : standing.Name
         };
         var driverLine = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
-        var code = new TextBlock
+        var driverName = new TextBlock
         {
-            Text = string.IsNullOrWhiteSpace(standing.Code) ? "—" : standing.Code,
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold
+            Text = string.IsNullOrWhiteSpace(standing.Name) ? standing.Code : standing.Name,
+            FontSize = 11.5,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis
         };
-        code.SetResourceReference(TextBlock.ForegroundProperty,
+        driverName.SetResourceReference(TextBlock.ForegroundProperty,
             standing.Retired ? "TextFillColorTertiaryBrush" : "TextFillColorPrimaryBrush");
-        driverLine.Children.Add(code);
+        driverLine.Children.Add(driverName);
         if (standing.IsOverallFastest)
         {
             driverLine.Children.Add(new TextBlock
@@ -257,7 +258,7 @@ public sealed class ClassificationFlyout : Window
         }
         var team = new TextBlock
         {
-            Text = string.IsNullOrWhiteSpace(standing.Team) ? standing.Name : standing.Team,
+            Text = standing.Team,
             FontSize = 9.5,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
@@ -345,7 +346,7 @@ public sealed class ClassificationFlyout : Window
         {
             CornerRadius = new CornerRadius(7),
             Padding = new Thickness(7, 3, 7, 3),
-            Margin = new Thickness(0, 0, 8, 0),
+            Margin = new Thickness(4, 0, 8, 0),
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
             Background = background,
@@ -391,12 +392,12 @@ public sealed class ClassificationFlyout : Window
     {
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(42) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(145) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(82) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(82) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(45) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(72) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(58) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(64) });
         return grid;
     }
 
@@ -408,7 +409,8 @@ public sealed class ClassificationFlyout : Window
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
             TextAlignment = alignment,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(column == 0 ? 5 : 4, 0, 8, 0),
         };
         label.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
         Grid.SetColumn(label, column);
@@ -427,7 +429,7 @@ public sealed class ClassificationFlyout : Window
             TextAlignment = alignment,
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            Margin = new Thickness(0, 0, 8, 0)
+            Margin = new Thickness(4, 0, 8, 0)
         };
         value.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
         Grid.SetColumn(value, column);

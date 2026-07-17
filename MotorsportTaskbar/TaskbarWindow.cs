@@ -56,7 +56,7 @@ public sealed class TaskbarWindow : Window
         _root.Background = Brushes.Transparent;
         _alert.BorderBrush = new SolidColorBrush(Color.FromArgb(72, 255, 255, 255));
         _alert.Child = _alertText;
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) });
+        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 150 });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _raceText.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
         _lapText.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
