@@ -82,11 +82,8 @@ public sealed class TaskbarWindow : Window
     public void UpdateSnapshot(TimingSnapshot snapshot)
     {
         _snapshot = snapshot;
-        var fullMeeting = string.IsNullOrWhiteSpace(snapshot.Meeting)
-            ? (string.IsNullOrWhiteSpace(snapshot.Circuit) ? "F1" : snapshot.Circuit)
-            : snapshot.Meeting;
-        _raceText.Text = ShortenRaceName(fullMeeting);
-        _raceText.ToolTip = fullMeeting;
+        _raceText.Text = ChampionshipDisplay.CompactEvent(snapshot);
+        _raceText.ToolTip = ChampionshipDisplay.FullEvent(snapshot);
         _lapText.Text = FormatSessionProgress(snapshot);
         _strip.Children.Clear();
         foreach (var standing in snapshot.Competitors.Take(5)) _strip.Children.Add(CreateCell(standing));
@@ -94,7 +91,7 @@ public sealed class TaskbarWindow : Window
         _flyout.UpdateSnapshot(snapshot);
     }
 
-    private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
+    private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Championship == Championship.WorldRallyChampionship || snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
     private static string FormatSessionProgress(TimingSnapshot snapshot)
     {
         if (IsRallySnapshot(snapshot)) return snapshot.Session;
@@ -131,9 +128,6 @@ public sealed class TaskbarWindow : Window
         TimeSpan.TryParse(value, out var remaining)
             ? remaining.ToString(remaining.TotalHours >= 1 ? @"h\:mm\:ss" : @"mm\:ss")
             : value;
-
-    private static string ShortenRaceName(string meeting) =>
-        meeting.Replace("Grand Prix", "GP", StringComparison.OrdinalIgnoreCase);
 
     public void SetAlert(RaceAlert? alert)
     {

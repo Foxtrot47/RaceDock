@@ -169,7 +169,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         var lifecycle = standings.Count == 0 ? SessionLifecycle.OffSession : ended ? SessionLifecycle.Ended : SessionLifecycle.Live;
         Publish(new(JsonSupport.String(meeting?["Name"]) ?? "F1", JsonSupport.String(info?["Name"]) ?? "Live Session",
             JsonSupport.String(meeting?["Circuit"]?["ShortName"]) ?? "", JsonSupport.Int(lapCount?["CurrentLap"]) ?? standings.FirstOrDefault()?.Lap ?? 0,
-            JsonSupport.Int(lapCount?["TotalLaps"]), _track, standings, timestamp ?? clock.UtcNow, lifecycle, _connection));
+            JsonSupport.Int(lapCount?["TotalLaps"]), _track, standings, timestamp ?? clock.UtcNow, lifecycle, _connection, null, Championship.Formula1));
     }
 
     private static string? LatestSessionStatus(JsonNode? series) => series switch

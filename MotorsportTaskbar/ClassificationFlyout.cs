@@ -113,7 +113,7 @@ public sealed class ClassificationFlyout : Window
 
     public void UpdateSnapshot(TimingSnapshot snapshot)
     {
-        _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : snapshot.Meeting;
+        _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : ChampionshipDisplay.FullEvent(snapshot);
         var rally = IsRallySnapshot(snapshot);
         _tyreHeader.Text = rally ? "TIME" : "TYRE";
         _categoryHeader.Text = rally ? "CLASS" : "LAP";
@@ -140,7 +140,7 @@ public sealed class ClassificationFlyout : Window
 
     public void CancelClose() => _closeTimer.Stop();
 
-    private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
+    private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Championship == Championship.WorldRallyChampionship || snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
     private static string SessionProgress(TimingSnapshot snapshot)
     {
         if (IsRallySnapshot(snapshot)) return snapshot.Session;

@@ -15,6 +15,7 @@ var tests = new (string Name, Action Run)[]
     ("scenario timeline integration", ScenarioIntegration),
     ("active feeds rotate at the display interval", FeedRotation),
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
+    ("championship labels use compact taskbar and full flyout names", ChampionshipLabels),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
     ("WRC stage timing preserves live API values", WrcStageTiming),
@@ -238,6 +239,19 @@ static void F3QualifyingSnapshot()
     Equal("Qualifying", snapshot.Session);
     Equal(SessionLifecycle.Live, snapshot.Lifecycle);
     Equal("TST", snapshot.Competitors[0].Code);
+}
+
+static void ChampionshipLabels()
+{
+    var now = DateTimeOffset.UtcNow;
+    var f1 = new TimingSnapshot("Belgian Grand Prix", "Race", "Spa-Francorchamps", 1, 44,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Formula1);
+    var wrc = new TimingSnapshot("Rally Estonia", "SS1", "", 0, null,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.WorldRallyChampionship);
+    Equal("F1 Spa", ChampionshipDisplay.CompactEvent(f1));
+    Equal("Formula 1 · Belgian Grand Prix", ChampionshipDisplay.FullEvent(f1));
+    Equal("WRC Estonia", ChampionshipDisplay.CompactEvent(wrc));
+    Equal("World Rally Championship · Rally Estonia", ChampionshipDisplay.FullEvent(wrc));
 }
 
 static void EndedFeedsClearSelection()

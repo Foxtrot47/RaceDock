@@ -18,6 +18,7 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
 
     private readonly JsonObject _lines = [];
     private readonly string _baseUrl = BaseUrlFor(series);
+    private readonly Championship _championship = series == "F3" ? Championship.Formula3 : Championship.Formula2;
     private CancellationTokenSource? _runCts;
     private Task? _run;
     private HttpClient? _http;
@@ -258,7 +259,7 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
         if (standings.Count == 0) return;
         var lifecycle = SessionLifecycleFor(_sessionStatus);
         SnapshotReceived?.Invoke(new(_meeting, _session, _circuit, standings.Max(x => x.Lap), null,
-            _trackCondition, standings, clock.UtcNow, lifecycle, _connection, _timeRemaining));
+            _trackCondition, standings, clock.UtcNow, lifecycle, _connection, _timeRemaining, _championship));
     }
     internal static SessionLifecycle SessionLifecycleFor(string? status) => status switch
     {

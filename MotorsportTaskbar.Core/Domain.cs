@@ -5,6 +5,7 @@ namespace MotorsportTaskbar.Core;
 
 public enum ConnectionState { Disconnected, Connecting, Connected, Stale, Faulted }
 public enum SessionLifecycle { OffSession, PreSession, Live, Ended }
+public enum Championship { Unknown, Formula1, Formula2, Formula3, WorldRallyChampionship }
 public enum TrackCondition { Unknown, AllClear, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, RedFlag }
 public enum AlertKind { Information, SessionStart, FastestLap, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, Chequered, RedFlag }
 
@@ -18,7 +19,8 @@ public sealed record TimingSnapshot(
     string Meeting, string Session, string Circuit, int CurrentLap, int? TotalLaps,
     TrackCondition TrackCondition, IReadOnlyList<CompetitorStanding> Competitors,
     DateTimeOffset FreshnessTimestamp, SessionLifecycle Lifecycle,
-    ConnectionState ConnectionState = ConnectionState.Connected, string? TimeRemaining = null)
+    ConnectionState ConnectionState = ConnectionState.Connected, string? TimeRemaining = null,
+    Championship Championship = Championship.Unknown)
 {
     public static TimingSnapshot Hidden(DateTimeOffset now) =>
         new("", "", "", 0, null, TrackCondition.Unknown, [], now, SessionLifecycle.OffSession, ConnectionState.Disconnected);

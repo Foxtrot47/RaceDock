@@ -139,7 +139,7 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
             alerts.Accept(new(AlertKind.SessionStart, 10, false, $"{code} STARTED", location, null, clock.UtcNow, $"wrc:stage:start:{stageId}", TimeSpan.FromSeconds(4)));
             _lastStageId = stageId; _lastStageStatus = status;
         }
-        Publish(new(_meeting, $"{code}  {location}", "", 0, null, TrackCondition.AllClear, standings, clock.UtcNow, SessionLifecycle.Live, ConnectionState.Connected));
+        Publish(new(_meeting, $"{code}  {location}", "", 0, null, TrackCondition.AllClear, standings, clock.UtcNow, SessionLifecycle.Live, ConnectionState.Connected, null, Championship.WorldRallyChampionship));
     }
 
     internal static bool Wrc1ResultsComplete(IReadOnlyDictionary<int, JsonObject> entries, JsonArray times, JsonArray finalResults)
@@ -185,7 +185,7 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
             var driver = entry["driver"] as JsonObject;
             return new CompetitorStanding(JsonSupport.String(entry["entryId"]) ?? index.ToString(CultureInfo.InvariantCulture), index + 1, JsonSupport.String(driver?["code"]) ?? JsonSupport.String(entry["identifier"]) ?? "—", JsonSupport.String(driver?["fullName"]) ?? "", JsonSupport.String(entry["manufacturer"]?["name"]) ?? "", index == 0 ? "LEAD" : null, null, null, 0, false, false, false, false);
         }).ToList();
-        Publish(new(_meeting, "SHAKEDOWN  Kastre", "Kastre", 0, null, TrackCondition.AllClear, standings, now, SessionLifecycle.Live, ConnectionState.Connected));
+        Publish(new(_meeting, "SHAKEDOWN  Kastre", "Kastre", 0, null, TrackCondition.AllClear, standings, now, SessionLifecycle.Live, ConnectionState.Connected, null, Championship.WorldRallyChampionship));
     }
 
     internal static IReadOnlyList<CompetitorStanding> BuildStandings(IReadOnlyDictionary<int, JsonObject> entries, JsonArray times)
