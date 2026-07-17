@@ -112,12 +112,20 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
         if (now < _shakedownStart || now >= _eventEnd) { Publish(TimingSnapshot.Hidden(now)); return; }
         if (now < _shakedownEnd) { PublishShakedown(now); return; }
         var stages = await GetAsync<JsonArray>($"events/{_eventId}/stages.json", ct) ?? [];
-        var stage = stages.OfType<JsonObject>().FirstOrDefault(x => JsonSupport.String(x["status"]) == "Running")
-            ?? stages.OfType<JsonObject>().Where(x => JsonSupport.String(x["status"]) == "Completed").LastOrDefault()
-            ?? stages.OfType<JsonObject>().FirstOrDefault();
+        var stageList = stages.OfType<JsonObject>().ToList();
+        var stage = stageList
+            .Select(value => (Value: value, Start: StageStartUtc(value)))
+            .Where(item => item.Start.HasValue && item.Start.Value <= now)
+            .OrderByDescending(item => item.Start)
+            .Select(item => item.Value)
+            .FirstOrDefault()
+            ?? stageList.Where(x => JsonSupport.String(x["status"]) == "Running").OrderByDescending(x => JsonSupport.Int(x["number"]) ?? 0).FirstOrDefault()
+            ?? stageList.Where(x => JsonSupport.String(x["status"]) == "Completed").OrderByDescending(x => JsonSupport.Int(x["number"]) ?? 0).FirstOrDefault()
+            ?? stageList.FirstOrDefault();
         if (stage is null) { Publish(TimingSnapshot.Hidden(clock.UtcNow)); return; }
         var stageId = JsonSupport.Int(stage["stageId"]) ?? 0;
-        var status = JsonSupport.String(stage["status"]) ?? "ToRun";
+        var apiStatus = JsonSupport.String(stage["status"]) ?? "ToRun";
+        var status = apiStatus == "ToRun" && StageStartUtc(stage) <= now ? "Running" : apiStatus;
         DeltaReceived?.Invoke(new("WrcStage", stage.DeepClone(), now));
         if (status is not ("Running" or "Completed")) { Publish(TimingSnapshot.Hidden(now)); return; }
         var code = JsonSupport.String(stage["code"]) ?? "SS";
@@ -134,6 +142,14 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
             _lastStageId = stageId; _lastStageStatus = status;
         }
         Publish(new(_meeting, $"{code}  {location}", "", 0, null, TrackCondition.AllClear, standings, clock.UtcNow, lifecycle, ConnectionState.Connected));
+    }
+
+    private static DateTimeOffset? StageStartUtc(JsonObject stage)
+    {
+        var raw = (stage["controls"] as JsonArray)?.OfType<JsonObject>()
+            .FirstOrDefault(control => JsonSupport.String(control["type"]) == "StageStart")?["firstCarDueDateTime"];
+        return DateTimeOffset.TryParse(JsonSupport.String(raw), CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var start) ? start : null;
     }
 
     private void PublishShakedown(DateTimeOffset now)
