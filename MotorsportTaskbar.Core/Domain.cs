@@ -17,7 +17,7 @@ public sealed record TimingSnapshot(
     string Meeting, string Session, string Circuit, int CurrentLap, int? TotalLaps,
     TrackCondition TrackCondition, IReadOnlyList<CompetitorStanding> Competitors,
     DateTimeOffset FreshnessTimestamp, SessionLifecycle Lifecycle,
-    ConnectionState ConnectionState = ConnectionState.Connected)
+    ConnectionState ConnectionState = ConnectionState.Connected, string? TimeRemaining = null)
 {
     public static TimingSnapshot Hidden(DateTimeOffset now) =>
         new("", "", "", 0, null, TrackCondition.Unknown, [], now, SessionLifecycle.OffSession, ConnectionState.Disconnected);

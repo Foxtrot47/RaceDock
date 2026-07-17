@@ -116,7 +116,7 @@ public sealed class ClassificationFlyout : Window
         {
             snapshot.Session,
             snapshot.Circuit,
-            $"Lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}"
+            SessionProgress(snapshot)
         }.Where(value => !string.IsNullOrWhiteSpace(value)));
 
         UpdateConnectionBadge(snapshot.ConnectionState);
@@ -134,6 +134,15 @@ public sealed class ClassificationFlyout : Window
     }
 
     public void CancelClose() => _closeTimer.Stop();
+
+    private static string SessionProgress(TimingSnapshot snapshot)
+    {
+        if ((snapshot.Session.Contains("Practice", StringComparison.OrdinalIgnoreCase) ||
+             snapshot.Session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase)) &&
+            !string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
+            return $"Time remaining {snapshot.TimeRemaining}";
+        return $"Lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}";
+    }
 
     private Grid CreateSessionHeader()
     {

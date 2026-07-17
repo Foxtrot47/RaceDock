@@ -20,6 +20,7 @@ public sealed class AppController : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private bool _testMode;
     private bool _diagnosticRecording;
+    private bool _snapshotLogged;
     private bool _disposed;
     public event Action<ConnectionState>? StatusChanged;
     public ITimingScenarioSource? Scenario => _source as ITimingScenarioSource;
@@ -42,10 +43,12 @@ public sealed class AppController : IAsyncDisposable
     {
         if (_source is not null) { Detach(_source); await _source.DisposeAsync(); }
         _alerts.Clear(); _processor.ProcessInitial(new System.Text.Json.Nodes.JsonObject());
-        var logs = Path.Combine(AppContext.BaseDirectory, "Logs"); Directory.CreateDirectory(logs);
-        _source = scenario ? new ScenarioTimingSource(_processor, _clock) : new ScheduledLiveTimingSource(() => new F1LiveTimingSource(_processor, _clock, logs) { DiagnosticRecordingEnabled = _diagnosticRecording }, _clock);
+        _snapshotLogged = false;
+        _source = scenario
+            ? new ScenarioTimingSource(_processor, _clock)
+            : new F2LiveTimingSource(_clock, _alerts);
         Attach(_source); await _source.StartAsync(_lifetime.Token);
-        Log($"Source started: {(scenario ? "scenario (paused)" : "F1 live")}");
+        Log($"Source started: {(scenario ? "scenario (paused)" : "F2 live")}");
     }
 
     private void Attach(ILiveTimingSource source)
@@ -56,7 +59,13 @@ public sealed class AppController : IAsyncDisposable
     {
         source.SnapshotReceived -= OnSnapshot; source.ConnectionChanged -= OnConnection; source.Failed -= OnFailure;
     }
-    private void OnSnapshot(TimingSnapshot snapshot) => _pending = snapshot;
+    private void OnSnapshot(TimingSnapshot snapshot)
+    {
+        _pending = snapshot;
+        if (_snapshotLogged || snapshot.Competitors.Count == 0) return;
+        _snapshotLogged = true;
+        Log($"Live snapshot: {snapshot.Meeting} — {snapshot.Session}; {snapshot.Competitors.Count} competitors; leader {snapshot.Competitors[0].Code}; time remaining {snapshot.TimeRemaining ?? "—"}");
+    }
     private void OnConnection(ConnectionState state) { StatusChanged?.Invoke(state); Log($"Connection: {state}"); }
     private void OnFailure(FeedFailure failure) => Log($"Feed failure: {failure.Message}");
     private void RenderPending()

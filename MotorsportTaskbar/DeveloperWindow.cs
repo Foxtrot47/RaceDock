@@ -142,7 +142,9 @@ public sealed class DeveloperWindow : Window
     public void UpdateSnapshot(TimingSnapshot snapshot)
     {
         var mode = _controller.Scenario?.IsPaused == true ? "PAUSED" : "RUNNING";
-        _status.Text = $"{snapshot.ConnectionState} · {snapshot.Meeting} {snapshot.Session} · Lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"} · {snapshot.TrackCondition} · {mode}";
+        var timed = snapshot.Session.Contains("Practice", StringComparison.OrdinalIgnoreCase) || snapshot.Session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase);
+        var progress = timed && !string.IsNullOrWhiteSpace(snapshot.TimeRemaining) ? $"Time {snapshot.TimeRemaining}" : $"Lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}";
+        _status.Text = $"{snapshot.ConnectionState} · {snapshot.Meeting} {snapshot.Session} · {progress} · {snapshot.TrackCondition} · {mode}";
         SyncState(snapshot);
     }
 

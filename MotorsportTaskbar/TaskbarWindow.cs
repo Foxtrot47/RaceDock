@@ -79,14 +79,48 @@ public sealed class TaskbarWindow : Window
             : snapshot.Meeting;
         _raceText.Text = ShortenRaceName(fullMeeting);
         _raceText.ToolTip = fullMeeting;
-        _lapText.Text = snapshot.CurrentLap > 0
-            ? $"LAP {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}"
-            : "LAP —";
+        _lapText.Text = FormatSessionProgress(snapshot);
         _strip.Children.Clear();
         foreach (var standing in snapshot.Competitors.Take(5)) _strip.Children.Add(CreateCell(standing));
         while (_strip.Children.Count < 5) _strip.Children.Add(CreateEmptyCell(_strip.Children.Count + 1));
         _flyout.UpdateSnapshot(snapshot);
     }
+
+    private static string FormatSessionProgress(TimingSnapshot snapshot)
+    {
+        var session = ShortSessionName(snapshot.Session);
+        if (IsTimedSession(snapshot.Session) && !string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
+            return $"{session} {CompactTime(snapshot.TimeRemaining)}";
+        return snapshot.CurrentLap > 0
+            ? $"{session} {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}"
+            : session;
+    }
+
+    private static string ShortSessionName(string session) => session switch
+    {
+        "Free Practice" or "Free Practice 1" or "Practice" or "Practice 1" => "FP1",
+        "Free Practice 2" or "Practice 2" => "FP2",
+        "Free Practice 3" or "Practice 3" => "FP3",
+        "Sprint Qualifying" or "Sprint Qualifying 1" or "Sprint Shootout" or "Sprint Shootout 1" => "SQ1",
+        "Sprint Qualifying 2" or "Sprint Shootout 2" => "SQ2",
+        "Sprint Qualifying 3" or "Sprint Shootout 3" => "SQ3",
+        "Sprint" or "Sprint Race" => "SPR",
+        "Feature Race" => "FEA",
+        "Qualifying" or "Qualifying 1" => "Q1",
+        "Qualifying 2" => "Q2",
+        "Qualifying 3" => "Q3",
+        "Race" => "RAC",
+        _ => session.ToUpperInvariant()
+    };
+
+    private static bool IsTimedSession(string session) =>
+        session.Contains("Practice", StringComparison.OrdinalIgnoreCase) ||
+        session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase);
+
+    private static string CompactTime(string value) =>
+        TimeSpan.TryParse(value, out var remaining)
+            ? remaining.ToString(remaining.TotalHours >= 1 ? @"h\:mm\:ss" : @"mm\:ss")
+            : value;
 
     private static string ShortenRaceName(string meeting) =>
         meeting.Replace("Grand Prix", "GP", StringComparison.OrdinalIgnoreCase);
