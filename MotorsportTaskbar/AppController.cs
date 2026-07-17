@@ -44,11 +44,15 @@ public sealed class AppController : IAsyncDisposable
         if (_source is not null) { Detach(_source); await _source.DisposeAsync(); }
         _alerts.Clear(); _processor.ProcessInitial(new System.Text.Json.Nodes.JsonObject());
         _snapshotLogged = false;
+        var logs = Path.Combine(AppContext.BaseDirectory, "Logs"); Directory.CreateDirectory(logs);
         _source = scenario
             ? new ScenarioTimingSource(_processor, _clock)
-            : new WrcLiveTimingSource(TimingSnapshot.Hidden(_clock.UtcNow), _clock, _alerts);
+            : new CompositeLiveTimingSource([
+                () => new F1LiveTimingSource(_processor, _clock, logs) { DiagnosticRecordingEnabled = _diagnosticRecording },
+                () => new WrcLiveTimingSource(TimingSnapshot.Hidden(_clock.UtcNow), _clock, _alerts)
+            ], _clock, TimeSpan.FromSeconds(5));
         Attach(_source); await _source.StartAsync(_lifetime.Token);
-        Log($"Source started: {(scenario ? "scenario (paused)" : "WRC live")}");
+        Log($"Source started: {(scenario ? "scenario (paused)" : "F1 + WRC rotating live")}");
     }
 
     private void Attach(ILiveTimingSource source)

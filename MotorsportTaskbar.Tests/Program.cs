@@ -12,7 +12,11 @@ var tests = new (string Name, Action Run)[]
     ("render throttling keeps newest immediate state", Throttling),
     ("DPI geometry and Explorer recovery", GeometryAndRecovery),
     ("stale and off-session transitions", FreshnessAndVisibility),
-    ("scenario timeline integration", ScenarioIntegration)
+    ("scenario timeline integration", ScenarioIntegration),
+    ("active feeds rotate at the display interval", FeedRotation),
+    ("WRC categories follow championship eligibility", WrcCategoryEligibility),
+    ("F1 practice timing derives missing live gaps", F1PracticeTiming),
+    ("WRC stage timing preserves live API values", WrcStageTiming)
 };
 var failures = 0;
 foreach (var test in tests)
@@ -80,7 +84,11 @@ static void FreshnessAndVisibility()
     var (clock, _, p) = Fixture(); Equal(SessionLifecycle.OffSession, p.Current.Lifecycle); p.ProcessInitial(BaseState()); Equal(SessionLifecycle.Live, p.Current.Lifecycle);
     clock.Advance(TimeSpan.FromSeconds(13)); p.MarkStale(TimeSpan.FromSeconds(12)); Equal(ConnectionState.Stale, p.Current.ConnectionState);
     p.ProcessInitial(new JsonObject()); Equal(SessionLifecycle.OffSession, p.Current.Lifecycle);
+    p.ProcessInitial(BaseState());
+    p.ProcessDelta("SessionData", new JsonObject { ["StatusSeries"] = new JsonArray(new JsonObject { ["SessionStatus"] = "Finished" }) }, clock.UtcNow);
+    Equal(SessionLifecycle.Ended, p.Current.Lifecycle);
 }
+
 
 static void ScenarioIntegration()
 {
@@ -94,6 +102,92 @@ static void ScenarioIntegration()
     s.DisposeAsync().AsTask().GetAwaiter().GetResult();
 }
 
+static void FeedRotation()
+{
+    var clock = new FakeClock();
+    var first = new FakeTimingSource(Snapshot("F1"));
+    var second = new FakeTimingSource(Snapshot("WRC"));
+    var source = new CompositeLiveTimingSource([() => first, () => second], clock, TimeSpan.FromMilliseconds(25));
+    List<string> meetings = [];
+    source.SnapshotReceived += snapshot => meetings.Add(snapshot.Meeting);
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    Thread.Sleep(90);
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    True(meetings.Count >= 4);
+    Equal("F1", meetings[0]);
+    True(meetings.Zip(meetings.Skip(1)).Any(pair => pair.First != pair.Second));
+}
+
+static void WrcCategoryEligibility()
+{
+    static JsonObject Entry(string group, string eligibility, string eventClass) => new()
+    {
+        ["group"] = new JsonObject { ["name"] = group },
+        ["eligibility"] = eligibility,
+        ["eventClasses"] = new JsonArray(new JsonObject { ["name"] = eventClass })
+    };
+
+    Equal("WRC2", WrcLiveTimingSource.RallyCategory(Entry("Rally2", "WRC2 (DC/CC)", "RC2")));
+    Equal("RC2", WrcLiveTimingSource.RallyCategory(Entry("Rally2", "", "RC2")));
+    Equal("WRC3", WrcLiveTimingSource.RallyCategory(Entry("Rally3", "WRC3", "RC3")));
+    Equal("RC3", WrcLiveTimingSource.RallyCategory(Entry("Rally3", "", "RC3")));
+    Equal("WRC1", WrcLiveTimingSource.RallyCategory(Entry("Rally1", "", "RC1")));
+}
+
+static void F1PracticeTiming()
+{
+    var (_, _, processor) = Fixture();
+    processor.ProcessInitial(JsonNode.Parse("""
+        {"DriverList":{"1":{"Tla":"AAA"},"2":{"Tla":"BBB"},"3":{"Tla":"CCC"}},
+         "TimingData":{"Lines":{
+           "1":{"Position":1,"NumberOfLaps":10,"BestLapTime":{"Value":"1:47.000"}},
+           "2":{"Position":2,"NumberOfLaps":11,"BestLapTime":{"Value":"1:47.250"}},
+           "3":{"Position":3,"NumberOfLaps":9,"BestLapTime":{"Value":"1:47.800"}}}},
+         "TimingAppData":{"Lines":{"2":{"Stints":[{"Compound":"MEDIUM"},{"Compound":"SOFT"}]}}}}
+        """)!.AsObject());
+    Equal("LEAD", processor.Current.Competitors[0].GapToLeader);
+    Equal("+0.250", processor.Current.Competitors[1].GapToLeader);
+    Equal("+0.250", processor.Current.Competitors[1].IntervalToPositionAhead);
+    Equal("+0.800", processor.Current.Competitors[2].GapToLeader);
+    Equal("+0.550", processor.Current.Competitors[2].IntervalToPositionAhead);
+    Equal("SOFT", processor.Current.Competitors[1].Tyre);
+}
+
+static void WrcStageTiming()
+{
+    static JsonObject Entry(int id, string code, int order) => new()
+    {
+        ["entryId"] = id,
+        ["entryListOrder"] = order,
+        ["driver"] = new JsonObject { ["code"] = code, ["fullName"] = code },
+        ["manufacturer"] = new JsonObject { ["name"] = "Test" },
+        ["group"] = new JsonObject { ["name"] = "Rally1" }
+    };
+    Dictionary<int, JsonObject> entries = new()
+    {
+        [1] = Entry(1, "AAA", 1),
+        [2] = Entry(2, "BBB", 2),
+        [3] = Entry(3, "CCC", 3)
+    };
+    var times = JsonNode.Parse("""
+        [{"entryId":1,"position":2,"status":"Completed","elapsedDurationMs":516600,"diffFirstMs":4100,"diffPrevMs":2100},
+         {"entryId":2,"position":1,"status":"Completed","elapsedDurationMs":512500,"diffFirstMs":0,"diffPrevMs":0},
+         {"entryId":3,"status":"ToRun"}]
+        """)!.AsArray();
+    var standings = WrcLiveTimingSource.BuildStandings(entries, times);
+    Equal("BBB", standings[0].Code);
+    Equal("8:32.5", standings[0].ResultTime);
+    Equal("AAA", standings[1].Code);
+    Equal("+0:04.1", standings[1].GapToLeader);
+    Equal("+0:02.1", standings[1].IntervalToPositionAhead);
+    Equal("8:36.6", standings[1].ResultTime);
+    Equal("DUE", standings[2].StatusLabel);
+}
+
+static TimingSnapshot Snapshot(string meeting) => new(meeting, "Live", "Test", 0, null, TrackCondition.AllClear,
+    [new CompetitorStanding("1", 1, "AAA", "Driver", "Team", "LEAD", null, null, 0, false, false, false, false)],
+    DateTimeOffset.UtcNow, SessionLifecycle.Live);
+
 static (FakeClock clock, AlertArbiter alerts, TimingStateProcessor processor) Fixture() { var c = new FakeClock(); var a = new AlertArbiter(c); return (c, a, new TimingStateProcessor(c, a)); }
 static JsonObject BaseState() => JsonNode.Parse("""{"SessionInfo":{"Name":"Race","Meeting":{"Name":"Test","Circuit":{"ShortName":"Ring"}}},"TrackStatus":{"Status":"1"},"DriverList":{"1":{"Tla":"AAA"},"2":{"Tla":"BBB"}},"TimingData":{"Lines":{"1":{"Position":1,"NumberOfLaps":1},"2":{"Position":2,"GapToLeader":"+1.0","NumberOfLaps":1}}}}""")!.AsObject();
 static void Track(TimingStateProcessor p, string status) => p.ProcessDelta("TrackStatus", new JsonObject { ["Status"] = status }, DateTimeOffset.UtcNow);
@@ -105,4 +199,20 @@ sealed class FakeClock : IClock
 {
     public DateTimeOffset UtcNow { get; private set; } = new(2026, 7, 14, 12, 0, 0, TimeSpan.Zero);
     public void Advance(TimeSpan duration) => UtcNow += duration;
+}
+
+sealed class FakeTimingSource(TimingSnapshot snapshot) : ILiveTimingSource
+{
+    public event Action<TimingSnapshot>? SnapshotReceived;
+    public event Action<TimingDelta>? DeltaReceived { add { } remove { } }
+    public event Action<ConnectionState>? ConnectionChanged;
+    public event Action<FeedFailure>? Failed { add { } remove { } }
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        ConnectionChanged?.Invoke(ConnectionState.Connected);
+        SnapshotReceived?.Invoke(snapshot);
+        return Task.CompletedTask;
+    }
+    public Task StopAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

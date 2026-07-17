@@ -120,12 +120,16 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         var drivers = _topics.GetValueOrDefault("DriverList");
         var appLines = _topics.GetValueOrDefault("TimingAppData")?["Lines"] as JsonObject;
         List<CompetitorStanding> standings = [];
+        Dictionary<string, double> bestLaps = [];
         if (lines is not null)
         {
             foreach (var pair in lines)
             {
                 if (pair.Value is not JsonObject line) continue;
                 var meta = drivers?[pair.Key] as JsonObject;
+                var bestLap = JsonSupport.TimingValue(line["BestLapTime"]);
+                var bestSeconds = bestLap is null ? null : ParseLapSeconds(bestLap);
+                if (bestSeconds.HasValue) bestLaps[pair.Key] = bestSeconds.Value;
                 var pos = JsonSupport.Int(line["Position"]) ?? int.MaxValue;
                 var status = JsonSupport.Int(line["Status"]);
                 standings.Add(new(pair.Key, pos, JsonSupport.String(meta?["Tla"]) ?? pair.Key,
@@ -138,10 +142,28 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
             }
         }
         standings = [.. standings.Where(x => x.Position > 0 && x.Position < int.MaxValue).OrderBy(x => x.Position)];
+        if (standings.Count > 0 && bestLaps.TryGetValue(standings[0].DriverId, out var leaderBest))
+        {
+            for (var index = 0; index < standings.Count; index++)
+            {
+                var standing = standings[index];
+                if (!bestLaps.TryGetValue(standing.DriverId, out var best)) continue;
+                var gap = standing.GapToLeader;
+                var interval = standing.IntervalToPositionAhead;
+                if (index == 0) gap = "LEAD";
+                else
+                {
+                    gap ??= FormatLapDelta(best - leaderBest);
+                    if (bestLaps.TryGetValue(standings[index - 1].DriverId, out var previousBest))
+                        interval ??= FormatLapDelta(best - previousBest);
+                }
+                standings[index] = standing with { GapToLeader = gap, IntervalToPositionAhead = interval };
+            }
+        }
         var info = _topics.GetValueOrDefault("SessionInfo");
         var meeting = info?["Meeting"] as JsonObject;
         var lapCount = _topics.GetValueOrDefault("LapCount");
-        var statusText = JsonSupport.String(_topics.GetValueOrDefault("SessionData")?["StatusSeries"]?.AsObject().LastOrDefault().Value?["SessionStatus"]);
+        var statusText = LatestSessionStatus(_topics.GetValueOrDefault("SessionData")?["StatusSeries"]);
         var ended = alerts.Current?.Kind == AlertKind.Chequered || statusText?.Equals("Finished", StringComparison.OrdinalIgnoreCase) == true;
         var lifecycle = standings.Count == 0 ? SessionLifecycle.OffSession : ended ? SessionLifecycle.Ended : SessionLifecycle.Live;
         Publish(new(JsonSupport.String(meeting?["Name"]) ?? "F1", JsonSupport.String(info?["Name"]) ?? "Live Session",
@@ -149,9 +171,22 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
             JsonSupport.Int(lapCount?["TotalLaps"]), _track, standings, timestamp ?? clock.UtcNow, lifecycle, _connection));
     }
 
+    private static string? LatestSessionStatus(JsonNode? series) => series switch
+    {
+        JsonArray array => array.OfType<JsonObject>().Select(value => JsonSupport.String(value["SessionStatus"])).LastOrDefault(value => value is not null),
+        JsonObject obj => obj.Select(pair => JsonSupport.String(pair.Value?["SessionStatus"])).LastOrDefault(value => value is not null),
+        _ => null
+    };
+
     private void Publish(TimingSnapshot snapshot) { Current = snapshot; SnapshotChanged?.Invoke(snapshot); }
     private string DriverCode(string key) => JsonSupport.String(_topics.GetValueOrDefault("DriverList")?[key]?["Tla"]) ?? key;
-    private static string? LatestCompound(JsonObject? driver) => (driver?["Stints"] as JsonObject)?.OrderBy(x => int.TryParse(x.Key, out var i) ? i : -1).LastOrDefault().Value?["Compound"]?.ToString();
+    private static string? LatestCompound(JsonObject? driver) => driver?["Stints"] switch
+    {
+        JsonArray array => array.OfType<JsonObject>().LastOrDefault()?["Compound"]?.ToString(),
+        JsonObject obj => obj.OrderBy(x => int.TryParse(x.Key, out var i) ? i : -1).LastOrDefault().Value?["Compound"]?.ToString(),
+        _ => null
+    };
+    private static string FormatLapDelta(double seconds) => $"+{Math.Max(0, seconds).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}";
     private static double? ParseLapSeconds(string text)
     {
         var parts = text.Split(':');

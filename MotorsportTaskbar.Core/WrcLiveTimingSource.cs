@@ -133,7 +133,7 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
         JsonArray times;
         if (status == "Running") times = await GetAsync<JsonArray>($"events/{_eventId}/stages/{stageId}/stagetimes.json?rallyId={_rallyId}", ct) ?? [];
         else times = await GetAsync<JsonArray>($"events/{_eventId}/stages/{stageId}/results.json?rallyId={_rallyId}", ct) ?? [];
-        var standings = BuildStandings(times);
+        var standings = BuildStandings(_entries, times);
         var lifecycle = SessionLifecycle.Live;
         if (_lastStageId != stageId || _lastStageStatus != status)
         {
@@ -162,7 +162,7 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
         Publish(new(_meeting, "SHAKEDOWN  Kastre", "Kastre", 0, null, TrackCondition.AllClear, standings, now, SessionLifecycle.Live, ConnectionState.Connected));
     }
 
-    private IReadOnlyList<CompetitorStanding> BuildStandings(JsonArray times)
+    internal static IReadOnlyList<CompetitorStanding> BuildStandings(IReadOnlyDictionary<int, JsonObject> entries, JsonArray times)
     {
         var timesByEntry = times.OfType<JsonObject>()
             .Select(time => (Id: JsonSupport.Int(time["entryId"]), Time: time))
@@ -171,7 +171,7 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
             .ToDictionary(group => group.Key, group => group.Last().Time);
         var classifiedCount = timesByEntry.Values.Count(time => JsonSupport.Int(time["position"]).HasValue);
         var unclassifiedIndex = 0;
-        return _entries.Values
+        return entries.Values
             .Select(entry =>
             {
                 var entryId = JsonSupport.Int(entry["entryId"]) ?? 0;
@@ -200,15 +200,22 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
             .ToList();
     }
 
-    private static string RallyCategory(JsonObject entry) => JsonSupport.String(entry["group"]?["name"]) switch
+    internal static string RallyCategory(JsonObject entry)
     {
-        "Rally1" => "WRC1",
-        "Rally2" => "WRC2",
-        "Rally3" => "WRC3",
-        "Rally4" => "WRC4",
-        { Length: > 0 } group => group.ToUpperInvariant(),
-        _ => "—"
-    };
+        var eligibility = JsonSupport.String(entry["eligibility"])?.Trim();
+        if (eligibility?.StartsWith("WRC2", StringComparison.OrdinalIgnoreCase) == true) return "WRC2";
+        if (eligibility?.StartsWith("WRC3", StringComparison.OrdinalIgnoreCase) == true) return "WRC3";
+        var eventClass = (entry["eventClasses"] as JsonArray)?.OfType<JsonObject>()
+            .Select(value => JsonSupport.String(value["name"]))
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+        return JsonSupport.String(entry["group"]?["name"]) switch
+        {
+            "Rally1" => "WRC1",
+            _ when eventClass is not null => eventClass.ToUpperInvariant(),
+            { Length: > 0 } group => group.ToUpperInvariant(),
+            _ => "—"
+        };
+    }
 
     private static int StageStateOrder(string? status) => status switch { "Running" => 0, "ToRun" or null => 1, _ => 2 };
     private static string? StageStatusLabel(string? status) => status switch { "Running" => "RUN", "ToRun" or null => "DUE", _ => null };

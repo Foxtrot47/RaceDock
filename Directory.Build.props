@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- This app uses WPF/WinForms and Win32 P/Invoke, not WinRT/CsWinRT projections. -->
+    <IncludeWindowsSDKRefFrameworkReferences>false</IncludeWindowsSDKRefFrameworkReferences>
+  </PropertyGroup>
+</Project>

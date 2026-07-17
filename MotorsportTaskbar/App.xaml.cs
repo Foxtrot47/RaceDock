@@ -16,7 +16,7 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        _mutex = new Mutex(true, @"Local\MotorsportTaskbar.F1.Singleton", out var first);
+        _mutex = new Mutex(true, @"Local\MotorsportTaskbar.Singleton", out var first);
         if (!first) { Shutdown(); return; }
         Directory.SetCurrentDirectory(AppContext.BaseDirectory);
         _controller = new AppController(Dispatcher);
