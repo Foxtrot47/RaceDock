@@ -20,6 +20,7 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
     private DateTimeOffset _eventEnd;
     private DateTimeOffset _shakedownStart;
     private DateTimeOffset _shakedownEnd;
+    private readonly HashSet<int> _completedStages = [];
     private int _lastStageId;
     private string _lastStageStatus = "";
     private TimingSnapshot _lastPublished = seed;
@@ -114,12 +115,12 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
         var stages = await GetAsync<JsonArray>($"events/{_eventId}/stages.json", ct) ?? [];
         var stageList = stages.OfType<JsonObject>().ToList();
         var stage = stageList
-            .Where(value => JsonSupport.String(value["status"]) == "Running")
+            .Where(value => !IsCompletedStage(value) && JsonSupport.String(value["status"]) == "Running")
             .OrderByDescending(value => JsonSupport.Int(value["number"]) ?? 0)
             .FirstOrDefault()
             ?? stageList
                 .Select(value => (Value: value, Start: StageStartUtc(value)))
-                .Where(item => JsonSupport.String(item.Value["status"]) == "ToRun" && item.Start.HasValue && item.Start.Value <= now)
+                .Where(item => !IsCompletedStage(item.Value) && JsonSupport.String(item.Value["status"]) == "ToRun" && item.Start.HasValue && item.Start.Value <= now)
                 .OrderByDescending(item => item.Start)
                 .Select(item => item.Value)
                 .FirstOrDefault();
@@ -131,7 +132,7 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
         var location = JsonSupport.String(stage["name"]) ?? JsonSupport.String(stage["location"]) ?? "";
         var times = await GetAsync<JsonArray>($"events/{_eventId}/stages/{stageId}/stagetimes.json?rallyId={_rallyId}", ct) ?? [];
         var finalResults = await GetAsync<JsonArray>($"events/{_eventId}/stages/{stageId}/results.json?rallyId={_rallyId}", ct) ?? [];
-        if (StageResultsComplete(times, finalResults)) { Publish(TimingSnapshot.Hidden(now)); return; }
+        if (Wrc1ResultsComplete(_entries, times, finalResults)) { _completedStages.Add(stageId); Publish(TimingSnapshot.Hidden(now)); return; }
         var standings = BuildStandings(_entries, times);
         if (_lastStageId != stageId || _lastStageStatus != status)
         {
@@ -140,6 +141,28 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
         }
         Publish(new(_meeting, $"{code}  {location}", "", 0, null, TrackCondition.AllClear, standings, clock.UtcNow, SessionLifecycle.Live, ConnectionState.Connected));
     }
+
+    internal static bool Wrc1ResultsComplete(IReadOnlyDictionary<int, JsonObject> entries, JsonArray times, JsonArray finalResults)
+    {
+        var wrc1Ids = entries.Values
+            .Where(entry => RallyCategory(entry) == "WRC1")
+            .Select(entry => JsonSupport.Int(entry["entryId"]))
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToHashSet();
+        var expected = times.OfType<JsonObject>()
+            .Where(time => JsonSupport.Int(time["entryId"]) is int id && wrc1Ids.Contains(id) && JsonSupport.String(time["status"]) is not ("DNS" or "NonStarter"))
+            .Select(time => JsonSupport.Int(time["entryId"])!.Value)
+            .ToHashSet();
+        var classified = finalResults.OfType<JsonObject>()
+            .Select(result => JsonSupport.Int(result["entryId"]))
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToHashSet();
+        return expected.Count > 0 && expected.IsSubsetOf(classified);
+    }
+
+    private bool IsCompletedStage(JsonObject stage) => _completedStages.Contains(JsonSupport.Int(stage["stageId"]) ?? 0);
 
     internal static bool StageResultsComplete(JsonArray times, JsonArray finalResults)
     {

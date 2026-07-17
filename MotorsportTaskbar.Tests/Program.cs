@@ -19,7 +19,8 @@ var tests = new (string Name, Action Run)[]
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
     ("WRC stage timing preserves live API values", WrcStageTiming),
     ("ended feeds clear composite selection", EndedFeedsClearSelection),
-    ("WRC final results end a stale running stage", WrcFinalResultsEndStage)
+    ("WRC final results end a stale running stage", WrcFinalResultsEndStage),
+    ("WRC1 completion ignores lower-category lag", Wrc1Completion)
 };
 var failures = 0;
 foreach (var test in tests)
@@ -194,6 +195,19 @@ static void WrcFinalResultsEndStage()
     var complete = JsonNode.Parse("""[{"entryId":1},{"entryId":3}]""")!.AsArray();
     False(WrcLiveTimingSource.StageResultsComplete(times, partial));
     True(WrcLiveTimingSource.StageResultsComplete(times, complete));
+}
+
+static void Wrc1Completion()
+{
+    static JsonObject Entry(int id, string group) => new()
+    {
+        ["entryId"] = id,
+        ["group"] = new JsonObject { ["name"] = group }
+    };
+    Dictionary<int, JsonObject> entries = new() { [1] = Entry(1, "Rally1"), [2] = Entry(2, "Rally2") };
+    var times = JsonNode.Parse("""[{"entryId":1,"status":"Completed"},{"entryId":2,"status":"Completed"}]""")!.AsArray();
+    var lowerCategoryStillPartial = JsonNode.Parse("""[{"entryId":1}]""")!.AsArray();
+    True(WrcLiveTimingSource.Wrc1ResultsComplete(entries, times, lowerCategoryStillPartial));
 }
 
 static void F3QualifyingSnapshot()
