@@ -11,7 +11,8 @@ public enum AlertKind { Information, SessionStart, FastestLap, Yellow, DoubleYel
 public sealed record CompetitorStanding(
     string DriverId, int Position, string Code, string Name, string Team,
     string? GapToLeader, string? IntervalToPositionAhead, string? Tyre, int Lap,
-    bool InPit, bool Retired, bool Stopped, bool IsOverallFastest);
+    bool InPit, bool Retired, bool Stopped, bool IsOverallFastest,
+    string? ResultTime = null, string? StatusLabel = null, string? PositionLabel = null, string? Category = null);
 
 public sealed record TimingSnapshot(
     string Meeting, string Session, string Circuit, int CurrentLap, int? TotalLaps,

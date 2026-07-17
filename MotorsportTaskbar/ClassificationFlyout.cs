@@ -26,6 +26,8 @@ public sealed class ClassificationFlyout : Window
     private readonly Border _connectionBadge = new();
     private readonly TextBlock _trackText = new();
     private readonly Border _trackBadge = new();
+    private TextBlock _tyreHeader = null!;
+    private TextBlock _categoryHeader = null!;
     private readonly DispatcherTimer _closeTimer;
 
     public event EventHandler? PointerEntered;
@@ -112,6 +114,9 @@ public sealed class ClassificationFlyout : Window
     public void UpdateSnapshot(TimingSnapshot snapshot)
     {
         _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : snapshot.Meeting;
+        var rally = IsRallySnapshot(snapshot);
+        _tyreHeader.Text = rally ? "TIME" : "TYRE";
+        _categoryHeader.Text = rally ? "CLASS" : "LAP";
         _sessionDetails.Text = string.Join("  ·  ", new[]
         {
             snapshot.Session,
@@ -124,7 +129,7 @@ public sealed class ClassificationFlyout : Window
 
         _rows.Children.Clear();
         foreach (var standing in snapshot.Competitors.OrderBy(standing => standing.Position))
-            _rows.Children.Add(CreateStandingRow(standing));
+            _rows.Children.Add(CreateStandingRow(standing, rally));
     }
 
     public void ScheduleClose()
@@ -135,8 +140,10 @@ public sealed class ClassificationFlyout : Window
 
     public void CancelClose() => _closeTimer.Stop();
 
+    private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
     private static string SessionProgress(TimingSnapshot snapshot)
     {
+        if (IsRallySnapshot(snapshot)) return snapshot.Session;
         if ((snapshot.Session.Contains("Practice", StringComparison.OrdinalIgnoreCase) ||
              snapshot.Session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase)) &&
             !string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
@@ -176,7 +183,7 @@ public sealed class ClassificationFlyout : Window
         return header;
     }
 
-    private static Grid CreateColumnHeader()
+    private Grid CreateColumnHeader()
     {
         var header = CreateColumns();
         header.Margin = new Thickness(2, 0, 4, 2);
@@ -184,13 +191,13 @@ public sealed class ClassificationFlyout : Window
         AddHeaderLabel(header, "DRIVER", 1);
         AddHeaderLabel(header, "GAP", 2);
         AddHeaderLabel(header, "INTERVAL", 3);
-        AddHeaderLabel(header, "TYRE", 4);
-        AddHeaderLabel(header, "LAP", 5, TextAlignment.Center);
+        _tyreHeader = AddHeaderLabel(header, "TYRE", 4);
+        _categoryHeader = AddHeaderLabel(header, "LAP", 5, TextAlignment.Center);
         AddHeaderLabel(header, "STATUS", 6, TextAlignment.Center);
         return header;
     }
 
-    private UIElement CreateStandingRow(CompetitorStanding standing)
+    private UIElement CreateStandingRow(CompetitorStanding standing, bool rally)
     {
         var grid = CreateColumns();
         grid.MinHeight = 38;
@@ -211,7 +218,7 @@ public sealed class ClassificationFlyout : Window
             },
             Child = new TextBlock
             {
-                Text = standing.Position.ToString(),
+                Text = standing.PositionLabel ?? standing.Position.ToString(),
                 Foreground = Brushes.White,
                 FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
@@ -264,11 +271,15 @@ public sealed class ClassificationFlyout : Window
             standing.Position == 1 ? FontWeights.SemiBold : FontWeights.Normal);
         AddValue(grid, standing.Position == 1 ? "—" : standing.IntervalToPositionAhead ?? "—", 3);
 
-        var tyre = CreateTyreBadge(standing.Tyre);
-        Grid.SetColumn(tyre, 4);
-        grid.Children.Add(tyre);
+        if (rally) AddValue(grid, standing.ResultTime ?? "—", 4);
+        else
+        {
+            var tyre = CreateTyreBadge(standing.Tyre);
+            Grid.SetColumn(tyre, 4);
+            grid.Children.Add(tyre);
+        }
 
-        AddValue(grid, standing.Lap.ToString(), 5, alignment: TextAlignment.Center);
+        AddValue(grid, rally ? standing.Category ?? "—" : standing.Lap.ToString(), 5, alignment: TextAlignment.Center);
 
         var status = CreateStatusBadge(standing);
         Grid.SetColumn(status, 6);
@@ -355,6 +366,8 @@ public sealed class ClassificationFlyout : Window
             { Retired: true } => ("RET", BrushFrom(199, 45, 70, 0.35)),
             { Stopped: true } => ("STOP", BrushFrom(199, 45, 70, 0.35)),
             { InPit: true } => ("PIT", BrushFrom(33, 132, 188, 0.3)),
+            { StatusLabel: "RUN" } => ("RUN", BrushFrom(33, 132, 188, 0.3)),
+            { StatusLabel: "DUE" } => ("DUE", BrushFrom(92, 96, 106, 0.3)),
             _ => ("", Brushes.Transparent)
         };
         return new Border
@@ -387,7 +400,7 @@ public sealed class ClassificationFlyout : Window
         return grid;
     }
 
-    private static void AddHeaderLabel(Grid grid, string text, int column, TextAlignment alignment = TextAlignment.Left)
+    private static TextBlock AddHeaderLabel(Grid grid, string text, int column, TextAlignment alignment = TextAlignment.Left)
     {
         var label = new TextBlock
         {
@@ -400,6 +413,7 @@ public sealed class ClassificationFlyout : Window
         label.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
         Grid.SetColumn(label, column);
         grid.Children.Add(label);
+        return label;
     }
 
     private static void AddValue(Grid grid, string text, int column, FontWeight? weight = null,

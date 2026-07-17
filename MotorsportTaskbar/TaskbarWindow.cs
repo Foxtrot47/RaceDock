@@ -86,8 +86,10 @@ public sealed class TaskbarWindow : Window
         _flyout.UpdateSnapshot(snapshot);
     }
 
+    private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
     private static string FormatSessionProgress(TimingSnapshot snapshot)
     {
+        if (IsRallySnapshot(snapshot)) return snapshot.Session;
         var session = ShortSessionName(snapshot.Session);
         if (IsTimedSession(snapshot.Session) && !string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
             return $"{session} {CompactTime(snapshot.TimeRemaining)}";

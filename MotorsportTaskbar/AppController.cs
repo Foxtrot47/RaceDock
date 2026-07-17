@@ -46,9 +46,9 @@ public sealed class AppController : IAsyncDisposable
         _snapshotLogged = false;
         _source = scenario
             ? new ScenarioTimingSource(_processor, _clock)
-            : new F2LiveTimingSource(_clock, _alerts);
+            : new WrcLiveTimingSource(TimingSnapshot.Hidden(_clock.UtcNow), _clock, _alerts);
         Attach(_source); await _source.StartAsync(_lifetime.Token);
-        Log($"Source started: {(scenario ? "scenario (paused)" : "F2 live")}");
+        Log($"Source started: {(scenario ? "scenario (paused)" : "WRC live")}");
     }
 
     private void Attach(ILiveTimingSource source)
