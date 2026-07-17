@@ -75,8 +75,8 @@ public sealed class AppController : IAsyncDisposable
     private void RenderPending()
     {
         var snapshot = Interlocked.Exchange(ref _pending, null); if (snapshot is null) return;
-        if (snapshot.Lifecycle == SessionLifecycle.OffSession) { _taskbar?.Hide(); return; }
-        _taskbar ??= new TaskbarWindow(); _taskbar.UpdateSnapshot(snapshot); if (!_taskbar.IsVisible) _taskbar.Show();
+        if (snapshot.Lifecycle is SessionLifecycle.OffSession or SessionLifecycle.Ended) { _taskbar?.Hide(); return; }
+        _taskbar ??= new TaskbarWindow(); _taskbar.UpdateSnapshot(snapshot); _taskbar.SetAlert(_alerts.Current); if (!_taskbar.IsVisible) _taskbar.Show();
         _developer?.UpdateSnapshot(snapshot);
     }
 

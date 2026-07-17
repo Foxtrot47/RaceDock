@@ -69,7 +69,7 @@ public sealed class CompositeLiveTimingSource(
             if (active.Count == 0)
             {
                 _selected = null;
-                selected = _snapshots.Values.OrderByDescending(value => value.FreshnessTimestamp).FirstOrDefault();
+                selected = TimingSnapshot.Hidden(clock.UtcNow);
             }
             else
             {
@@ -98,13 +98,13 @@ public sealed class CompositeLiveTimingSource(
                 }
                 if (_selected is not null) selected = _snapshots[_selected];
             }
-            if (selected is not null) SnapshotReceived?.Invoke(selected with { FreshnessTimestamp = clock.UtcNow });
+            if (selected is not null) SnapshotReceived?.Invoke(selected);
         }
     }
 
     private List<ILiveTimingSource> ActiveSources() => _sources
         .Where(source => _snapshots.TryGetValue(source, out var snapshot) &&
-            snapshot.Lifecycle != SessionLifecycle.OffSession && snapshot.Competitors.Count > 0)
+            snapshot.Lifecycle == SessionLifecycle.Live && snapshot.Competitors.Count > 0)
         .ToList();
 
     private void OnConnection(ILiveTimingSource source, ConnectionState state)

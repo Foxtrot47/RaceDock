@@ -50,7 +50,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
     public void MarkStale(TimeSpan maximumAge)
     {
         if (Current.Lifecycle == SessionLifecycle.Live && clock.UtcNow - Current.FreshnessTimestamp >= maximumAge)
-            Publish(Current with { ConnectionState = ConnectionState.Stale });
+            Publish(Current with { Lifecycle = SessionLifecycle.OffSession, ConnectionState = ConnectionState.Stale });
     }
 
     private void ProcessTrackStatus(JsonObject? obj)
@@ -163,8 +163,9 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         var info = _topics.GetValueOrDefault("SessionInfo");
         var meeting = info?["Meeting"] as JsonObject;
         var lapCount = _topics.GetValueOrDefault("LapCount");
-        var statusText = LatestSessionStatus(_topics.GetValueOrDefault("SessionData")?["StatusSeries"]);
-        var ended = alerts.Current?.Kind == AlertKind.Chequered || statusText?.Equals("Finished", StringComparison.OrdinalIgnoreCase) == true;
+        var statusText = LatestSessionStatus(_topics.GetValueOrDefault("SessionData")?["StatusSeries"])
+            ?? JsonSupport.String(_topics.GetValueOrDefault("SessionStatus")?["Status"] ?? _topics.GetValueOrDefault("SessionStatus")?["Started"]);
+        var ended = alerts.Current?.Kind == AlertKind.Chequered || statusText is "Finished" or "Finalised" or "Ended";
         var lifecycle = standings.Count == 0 ? SessionLifecycle.OffSession : ended ? SessionLifecycle.Ended : SessionLifecycle.Live;
         Publish(new(JsonSupport.String(meeting?["Name"]) ?? "F1", JsonSupport.String(info?["Name"]) ?? "Live Session",
             JsonSupport.String(meeting?["Circuit"]?["ShortName"]) ?? "", JsonSupport.Int(lapCount?["CurrentLap"]) ?? standings.FirstOrDefault()?.Lap ?? 0,

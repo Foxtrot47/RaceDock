@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using MotorsportTaskbar.Core;
 
@@ -25,23 +26,28 @@ public sealed class TaskbarWindow : Window
     private readonly StackPanel _raceContext = new() { Margin = new(6, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _raceText = new() { FontSize = 10.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _lapText = new() { FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly Grid _eventHeader = new();
     private readonly Border _alert = new()
     {
         Visibility = Visibility.Collapsed,
-        CornerRadius = new(8),
-        BorderThickness = new(1),
-        Padding = new(12, 2, 12, 2),
-        Margin = new(1),
+        Width = 18,
+        Height = 18,
+        Margin = new(4, 0, 0, 0),
+        VerticalAlignment = VerticalAlignment.Center,
         SnapsToDevicePixels = true
     };
-    private readonly TextBlock _alertText = new()
+    private readonly Canvas _flagCanvas = new() { Width = 18, Height = 18 };
+    private readonly System.Windows.Shapes.Rectangle _flagPole = new() { Width = 1.5, Height = 15, Fill = Brushes.Black };
+    private readonly Polygon _flagShape = new()
     {
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
-        FontSize = 12.5,
-        FontWeight = FontWeights.SemiBold,
-        TextTrimming = TextTrimming.CharacterEllipsis,
-        Foreground = Brushes.White
+        Points = new PointCollection { new(3, 2), new(16, 3), new(14, 10), new(3, 9) },
+        Fill = Brushes.Gold
+    };
+    private readonly Polygon _secondFlagShape = new()
+    {
+        Visibility = Visibility.Collapsed,
+        Points = new PointCollection { new(3, 8), new(16, 9), new(14, 16), new(3, 15) },
+        Fill = Brushes.Gold
     };
     private readonly NativeTaskbar _host;
     private readonly ClassificationFlyout _flyout = new();
@@ -54,16 +60,18 @@ public sealed class TaskbarWindow : Window
         UseLayoutRounding = true; SnapsToDevicePixels = true; TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
         SetResourceReference(FontFamilyProperty, "MotorsportFontFamily");
         _root.Background = Brushes.Transparent;
-        _alert.BorderBrush = new SolidColorBrush(Color.FromArgb(72, 255, 255, 255));
-        _alert.Child = _alertText;
+        _flagCanvas.Children.Add(_flagPole); Canvas.SetLeft(_flagPole, 1); Canvas.SetTop(_flagPole, 1);
+        _flagCanvas.Children.Add(_flagShape); _flagCanvas.Children.Add(_secondFlagShape);
+        _alert.Child = _flagCanvas;
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 150 });
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _raceText.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
-        _lapText.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        _raceContext.Children.Add(_raceText); _raceContext.Children.Add(_lapText);
+        _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(_raceText, 0); Grid.SetColumn(_alert, 1);
+        _eventHeader.Children.Add(_raceText); _eventHeader.Children.Add(_alert);
+        _raceContext.Children.Add(_eventHeader); _raceContext.Children.Add(_lapText);
         Grid.SetColumn(_raceContext, 0); Grid.SetColumn(_strip, 1);
-        Grid.SetColumn(_alert, 0); Grid.SetColumnSpan(_alert, 2);
-        _root.Children.Add(_raceContext); _root.Children.Add(_strip); _root.Children.Add(_alert); Content = _root;
+        _root.Children.Add(_raceContext); _root.Children.Add(_strip); Content = _root;
         _host = new(this); SourceInitialized += (_, _) => _host.Attach();
         _host.PositionChanged += visible => { if (!visible) _flyout.Hide(); else if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
         MouseLeftButtonUp += (_, _) => ShowFlyout(); MouseLeave += (_, _) => _flyout.ScheduleClose();
@@ -129,20 +137,33 @@ public sealed class TaskbarWindow : Window
 
     public void SetAlert(RaceAlert? alert)
     {
-        _alert.Visibility = alert is null ? Visibility.Collapsed : Visibility.Visible;
-        _strip.Visibility = alert is null ? Visibility.Visible : Visibility.Collapsed;
-        _raceContext.Visibility = alert is null ? Visibility.Visible : Visibility.Collapsed;
-        if (alert is null) return;
-        _alertText.Text = string.IsNullOrWhiteSpace(alert.Detail) ? alert.Title : $"{alert.Title}  ·  {alert.Detail}";
-        _alert.Background = new SolidColorBrush(alert.Kind switch
-        {
-            AlertKind.RedFlag => Color.FromRgb(166, 24, 32),
-            AlertKind.Yellow or AlertKind.DoubleYellow => Color.FromRgb(180, 145, 0),
-            AlertKind.SafetyCar or AlertKind.VirtualSafetyCar or AlertKind.VirtualSafetyCarEnding => Color.FromRgb(182, 105, 0),
-            AlertKind.FastestLap => Color.FromRgb(112, 47, 154),
-            _ => Color.FromRgb(62, 62, 68)
-        });
+        var show = alert is not null && _snapshot is not null && !IsRallySnapshot(_snapshot) && IsFiaFlag(alert.Kind);
+        _alert.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (!show || alert is null) return;
+        _secondFlagShape.Visibility = alert.Kind == AlertKind.DoubleYellow ? Visibility.Visible : Visibility.Collapsed;
+        _flagShape.Fill = FlagBrush(alert.Kind);
+        _secondFlagShape.Fill = _flagShape.Fill;
+        _alert.ToolTip = string.IsNullOrWhiteSpace(alert.Detail) ? alert.Title : $"{alert.Title}  ·  {alert.Detail}";
+        System.Windows.Automation.AutomationProperties.SetName(_alert, alert.Title);
     }
+
+    private static bool IsFiaFlag(AlertKind kind) => kind is AlertKind.RedFlag or AlertKind.Yellow or AlertKind.DoubleYellow or AlertKind.Chequered;
+
+    private static System.Windows.Media.Brush FlagBrush(AlertKind kind) => kind switch
+    {
+        AlertKind.RedFlag => Brushes.Red,
+        AlertKind.Chequered => new DrawingBrush(new DrawingGroup
+        {
+            Children = new DrawingCollection
+            {
+                new GeometryDrawing(Brushes.White, null, new RectangleGeometry(new Rect(0, 0, 8, 8))),
+                new GeometryDrawing(Brushes.Black, null, new RectangleGeometry(new Rect(8, 0, 8, 8))),
+                new GeometryDrawing(Brushes.Black, null, new RectangleGeometry(new Rect(0, 8, 8, 8))),
+                new GeometryDrawing(Brushes.White, null, new RectangleGeometry(new Rect(8, 8, 8, 8)))
+            }
+        }) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 8, 8), ViewportUnits = BrushMappingMode.Absolute },
+        _ => Brushes.Gold
+    };
 
     private static Border CreateCell(CompetitorStanding standing)
     {

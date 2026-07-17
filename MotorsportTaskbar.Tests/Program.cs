@@ -16,7 +16,8 @@ var tests = new (string Name, Action Run)[]
     ("active feeds rotate at the display interval", FeedRotation),
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
-    ("WRC stage timing preserves live API values", WrcStageTiming)
+    ("WRC stage timing preserves live API values", WrcStageTiming),
+    ("ended feeds clear composite selection", EndedFeedsClearSelection)
 };
 var failures = 0;
 foreach (var test in tests)
@@ -82,10 +83,10 @@ static void GeometryAndRecovery()
 static void FreshnessAndVisibility()
 {
     var (clock, _, p) = Fixture(); Equal(SessionLifecycle.OffSession, p.Current.Lifecycle); p.ProcessInitial(BaseState()); Equal(SessionLifecycle.Live, p.Current.Lifecycle);
-    clock.Advance(TimeSpan.FromSeconds(13)); p.MarkStale(TimeSpan.FromSeconds(12)); Equal(ConnectionState.Stale, p.Current.ConnectionState);
+    clock.Advance(TimeSpan.FromSeconds(13)); p.MarkStale(TimeSpan.FromSeconds(12)); Equal(ConnectionState.Stale, p.Current.ConnectionState); Equal(SessionLifecycle.OffSession, p.Current.Lifecycle);
     p.ProcessInitial(new JsonObject()); Equal(SessionLifecycle.OffSession, p.Current.Lifecycle);
     p.ProcessInitial(BaseState());
-    p.ProcessDelta("SessionData", new JsonObject { ["StatusSeries"] = new JsonArray(new JsonObject { ["SessionStatus"] = "Finished" }) }, clock.UtcNow);
+    p.ProcessDelta("SessionStatus", new JsonObject { ["Status"] = "Finalised", ["Started"] = "Finished" }, clock.UtcNow);
     Equal(SessionLifecycle.Ended, p.Current.Lifecycle);
 }
 
@@ -184,9 +185,24 @@ static void WrcStageTiming()
     Equal("DUE", standings[2].StatusLabel);
 }
 
-static TimingSnapshot Snapshot(string meeting) => new(meeting, "Live", "Test", 0, null, TrackCondition.AllClear,
+static void EndedFeedsClearSelection()
+{
+    var clock = new FakeClock();
+    var source = new CompositeLiveTimingSource([
+        () => new FakeTimingSource(Snapshot("F1", SessionLifecycle.Ended)),
+        () => new FakeTimingSource(Snapshot("WRC", SessionLifecycle.Ended))
+    ], clock, TimeSpan.FromMilliseconds(25));
+    List<TimingSnapshot> snapshots = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    True(snapshots.Count > 0);
+    Equal(SessionLifecycle.OffSession, snapshots[^1].Lifecycle);
+}
+
+static TimingSnapshot Snapshot(string meeting, SessionLifecycle lifecycle = SessionLifecycle.Live) => new(meeting, "Live", "Test", 0, null, TrackCondition.AllClear,
     [new CompetitorStanding("1", 1, "AAA", "Driver", "Team", "LEAD", null, null, 0, false, false, false, false)],
-    DateTimeOffset.UtcNow, SessionLifecycle.Live);
+    DateTimeOffset.UtcNow, lifecycle);
 
 static (FakeClock clock, AlertArbiter alerts, TimingStateProcessor processor) Fixture() { var c = new FakeClock(); var a = new AlertArbiter(c); return (c, a, new TimingStateProcessor(c, a)); }
 static JsonObject BaseState() => JsonNode.Parse("""{"SessionInfo":{"Name":"Race","Meeting":{"Name":"Test","Circuit":{"ShortName":"Ring"}}},"TrackStatus":{"Status":"1"},"DriverList":{"1":{"Tla":"AAA"},"2":{"Tla":"BBB"}},"TimingData":{"Lines":{"1":{"Position":1,"NumberOfLaps":1},"2":{"Position":2,"GapToLeader":"+1.0","NumberOfLaps":1}}}}""")!.AsObject();

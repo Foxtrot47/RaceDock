@@ -114,34 +114,29 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
         var stages = await GetAsync<JsonArray>($"events/{_eventId}/stages.json", ct) ?? [];
         var stageList = stages.OfType<JsonObject>().ToList();
         var stage = stageList
-            .Select(value => (Value: value, Start: StageStartUtc(value)))
-            .Where(item => item.Start.HasValue && item.Start.Value <= now)
-            .OrderByDescending(item => item.Start)
-            .Select(item => item.Value)
+            .Where(value => JsonSupport.String(value["status"]) == "Running")
+            .OrderByDescending(value => JsonSupport.Int(value["number"]) ?? 0)
             .FirstOrDefault()
-            ?? stageList.Where(x => JsonSupport.String(x["status"]) == "Running").OrderByDescending(x => JsonSupport.Int(x["number"]) ?? 0).FirstOrDefault()
-            ?? stageList.Where(x => JsonSupport.String(x["status"]) == "Completed").OrderByDescending(x => JsonSupport.Int(x["number"]) ?? 0).FirstOrDefault()
-            ?? stageList.FirstOrDefault();
-        if (stage is null) { Publish(TimingSnapshot.Hidden(clock.UtcNow)); return; }
+            ?? stageList
+                .Select(value => (Value: value, Start: StageStartUtc(value)))
+                .Where(item => JsonSupport.String(item.Value["status"]) == "ToRun" && item.Start.HasValue && item.Start.Value <= now)
+                .OrderByDescending(item => item.Start)
+                .Select(item => item.Value)
+                .FirstOrDefault();
+        if (stage is null) { Publish(TimingSnapshot.Hidden(now)); return; }
         var stageId = JsonSupport.Int(stage["stageId"]) ?? 0;
-        var apiStatus = JsonSupport.String(stage["status"]) ?? "ToRun";
-        var status = apiStatus == "ToRun" && StageStartUtc(stage) <= now ? "Running" : apiStatus;
+        var status = "Running";
         DeltaReceived?.Invoke(new("WrcStage", stage.DeepClone(), now));
-        if (status is not ("Running" or "Completed")) { Publish(TimingSnapshot.Hidden(now)); return; }
         var code = JsonSupport.String(stage["code"]) ?? "SS";
         var location = JsonSupport.String(stage["name"]) ?? JsonSupport.String(stage["location"]) ?? "";
-        JsonArray times;
-        if (status == "Running") times = await GetAsync<JsonArray>($"events/{_eventId}/stages/{stageId}/stagetimes.json?rallyId={_rallyId}", ct) ?? [];
-        else times = await GetAsync<JsonArray>($"events/{_eventId}/stages/{stageId}/results.json?rallyId={_rallyId}", ct) ?? [];
+        var times = await GetAsync<JsonArray>($"events/{_eventId}/stages/{stageId}/stagetimes.json?rallyId={_rallyId}", ct) ?? [];
         var standings = BuildStandings(_entries, times);
-        var lifecycle = SessionLifecycle.Live;
         if (_lastStageId != stageId || _lastStageStatus != status)
         {
-            if (status == "Running") alerts.Accept(new(AlertKind.SessionStart, 10, false, $"{code} STARTED", location, null, clock.UtcNow, $"wrc:stage:start:{stageId}", TimeSpan.FromSeconds(4)));
-            if (status == "Completed") alerts.Accept(new(AlertKind.Information, 10, false, $"{code} COMPLETE", location, null, clock.UtcNow, $"wrc:stage:complete:{stageId}", TimeSpan.FromSeconds(4)));
+            alerts.Accept(new(AlertKind.SessionStart, 10, false, $"{code} STARTED", location, null, clock.UtcNow, $"wrc:stage:start:{stageId}", TimeSpan.FromSeconds(4)));
             _lastStageId = stageId; _lastStageStatus = status;
         }
-        Publish(new(_meeting, $"{code}  {location}", "", 0, null, TrackCondition.AllClear, standings, clock.UtcNow, lifecycle, ConnectionState.Connected));
+        Publish(new(_meeting, $"{code}  {location}", "", 0, null, TrackCondition.AllClear, standings, clock.UtcNow, SessionLifecycle.Live, ConnectionState.Connected));
     }
 
     private static DateTimeOffset? StageStartUtc(JsonObject stage)
