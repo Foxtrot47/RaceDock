@@ -17,7 +17,8 @@ var tests = new (string Name, Action Run)[]
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
     ("WRC stage timing preserves live API values", WrcStageTiming),
-    ("ended feeds clear composite selection", EndedFeedsClearSelection)
+    ("ended feeds clear composite selection", EndedFeedsClearSelection),
+    ("WRC final results end a stale running stage", WrcFinalResultsEndStage)
 };
 var failures = 0;
 foreach (var test in tests)
@@ -183,6 +184,15 @@ static void WrcStageTiming()
     Equal("+0:02.1", standings[1].IntervalToPositionAhead);
     Equal("8:36.6", standings[1].ResultTime);
     Equal("DUE", standings[2].StatusLabel);
+}
+
+static void WrcFinalResultsEndStage()
+{
+    var times = JsonNode.Parse("""[{"status":"Completed"},{"status":"DNS"},{"status":"Completed"}]""")!.AsArray();
+    var partial = JsonNode.Parse("""[{"entryId":1}]""")!.AsArray();
+    var complete = JsonNode.Parse("""[{"entryId":1},{"entryId":3}]""")!.AsArray();
+    False(WrcLiveTimingSource.StageResultsComplete(times, partial));
+    True(WrcLiveTimingSource.StageResultsComplete(times, complete));
 }
 
 static void EndedFeedsClearSelection()

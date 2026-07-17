@@ -130,6 +130,8 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
         var code = JsonSupport.String(stage["code"]) ?? "SS";
         var location = JsonSupport.String(stage["name"]) ?? JsonSupport.String(stage["location"]) ?? "";
         var times = await GetAsync<JsonArray>($"events/{_eventId}/stages/{stageId}/stagetimes.json?rallyId={_rallyId}", ct) ?? [];
+        var finalResults = await GetAsync<JsonArray>($"events/{_eventId}/stages/{stageId}/results.json?rallyId={_rallyId}", ct) ?? [];
+        if (StageResultsComplete(times, finalResults)) { Publish(TimingSnapshot.Hidden(now)); return; }
         var standings = BuildStandings(_entries, times);
         if (_lastStageId != stageId || _lastStageStatus != status)
         {
@@ -137,6 +139,12 @@ public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAler
             _lastStageId = stageId; _lastStageStatus = status;
         }
         Publish(new(_meeting, $"{code}  {location}", "", 0, null, TrackCondition.AllClear, standings, clock.UtcNow, SessionLifecycle.Live, ConnectionState.Connected));
+    }
+
+    internal static bool StageResultsComplete(JsonArray times, JsonArray finalResults)
+    {
+        var expected = times.OfType<JsonObject>().Count(time => JsonSupport.String(time["status"]) is not ("DNS" or "NonStarter"));
+        return expected > 0 && finalResults.OfType<JsonObject>().Count() >= expected;
     }
 
     private static DateTimeOffset? StageStartUtc(JsonObject stage)
