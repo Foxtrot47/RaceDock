@@ -9,20 +9,20 @@ using System.Text.Json.Serialization;
 
 namespace MotorsportTaskbar.Core;
 
-/// <summary>Streams the official FIA Formula 2 live-timing SignalR hub.</summary>
-public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts) : ILiveTimingSource
+/// <summary>Streams the official FIA Formula 2 or Formula 3 live-timing SignalR hub.</summary>
+public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, string series = "F2") : ILiveTimingSource
 {
-    private const string BaseUrl = "https://ltss.fiaformula2.com/streaming";
-    private const string ConnectionData = "[{\"name\":\"Streaming\"}]";
-    private static readonly string[] JoinedFeeds = ["data", "weather", "status", "time", "commentary", "racedetails"];
-    private static readonly string[] InitialFeeds = ["data", "sessionfeed", "trackfeed", "timefeed", "racedetailsfeed"];
+    private const string ConnectionData = "[{\"name\":\"streaming\"}]";
+    private static readonly string[] JoinedFeeds = ["data", "stats", "weather", "status", "time", "racedetails"];
+    private static readonly string[] InitialFeeds = ["data", "statsfeed", "weatherfeed", "sessionfeed", "trackfeed", "timefeed", "racedetailsfeed"];
 
     private readonly JsonObject _lines = [];
+    private readonly string _baseUrl = BaseUrlFor(series);
     private CancellationTokenSource? _runCts;
     private Task? _run;
     private HttpClient? _http;
     private ClientWebSocket? _socket;
-    private string _meeting = "Formula 2";
+    private string _meeting = $"Formula {series}";
     private string _session = "Live Session";
     private string _timingSessionType = "";
     private string _circuit = "";
@@ -54,12 +54,12 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts) : ILi
                 ChangeConnection(ConnectionState.Connecting);
                 await ConnectAndReceiveAsync(ct);
                 attempt = 0;
-                if (!ct.IsCancellationRequested) throw new WebSocketException("F2 live-timing connection closed.");
+                if (!ct.IsCancellationRequested) throw new WebSocketException($"{series} live-timing connection closed.");
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
             catch (Exception ex)
             {
-                Failed?.Invoke(new($"F2 feed failed: {ex.Message}", ex, clock.UtcNow));
+                Failed?.Invoke(new($"{series} feed failed: {ex.Message}", ex, clock.UtcNow));
                 ChangeConnection(ConnectionState.Faulted);
                 try { await Task.Delay(TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, Math.Min(attempt++, 5)))), ct); }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
@@ -72,31 +72,29 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts) : ILi
     {
         var cookies = new CookieContainer();
         _http = new HttpClient(new HttpClientHandler { CookieContainer = cookies, UseCookies = true });
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("MotorsportTaskbar/1.0");
-        _http.DefaultRequestHeaders.Add("Origin", "https://www.fiaformula2.com");
+        _http.DefaultRequestHeaders.Add("Origin", $"https://www.fiaformula{series}.com");
         var encodedData = Uri.EscapeDataString(ConnectionData);
-        var negotiation = await _http.GetFromJsonAsync<NegotiateResponse>($"{BaseUrl}/negotiate?clientProtocol=2.1&connectionData={encodedData}", ct)
-            ?? throw new InvalidOperationException("F2 negotiation returned no connection token.");
+        var negotiation = await _http.GetFromJsonAsync<NegotiateResponse>($"{_baseUrl}/negotiate?clientProtocol=2.1", ct)
+            ?? throw new InvalidOperationException($"{series} negotiation returned no connection token.");
         var token = Uri.EscapeDataString(negotiation.ConnectionToken);
-        var query = $"transport=webSockets&clientProtocol=2.1&connectionToken={token}&connectionData={encodedData}";
+        var query = $"transport=webSockets&clientProtocol=1.5&connectionToken={token}&connectionData={encodedData}";
 
         _socket = new ClientWebSocket();
         _socket.Options.Cookies = cookies;
-        _socket.Options.SetRequestHeader("Origin", "https://www.fiaformula2.com");
+        _socket.Options.SetRequestHeader("Origin", $"https://www.fiaformula{series}.com");
         _socket.Options.SetRequestHeader("User-Agent", "MotorsportTaskbar/1.0");
-        await _socket.ConnectAsync(new Uri($"wss://ltss.fiaformula2.com/streaming/connect?{query}&tid={Random.Shared.Next(0, 11)}"), ct);
+        var webSocketBaseUrl = _baseUrl.Replace("https://", "wss://", StringComparison.Ordinal);
+        await _socket.ConnectAsync(new Uri($"{webSocketBaseUrl}/connect?{query}&tid={Random.Shared.Next(0, 11)}"), ct);
 
-        using var start = await _http.GetAsync($"{BaseUrl}/start?{query}", ct);
-        start.EnsureSuccessStatusCode();
-        await SendInvocationAsync(1, "JoinFeeds", ["F2", JoinedFeeds], ct);
-        await SendInvocationAsync(2, "GetData2", ["F2", InitialFeeds], ct);
+        await SendInvocationAsync(0, "JoinFeeds", [series, JoinedFeeds], ct);
+        await SendInvocationAsync(1, "GetData2", [series, InitialFeeds], ct);
         ChangeConnection(ConnectionState.Connected);
         await ReceiveLoopAsync(ct);
     }
 
     private async Task SendInvocationAsync(int id, string method, object[] arguments, CancellationToken ct)
     {
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { H = "Streaming", M = method, A = arguments, I = id });
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { H = "streaming", M = method, A = arguments, I = id });
         await _socket!.SendAsync(bytes, WebSocketMessageType.Text, true, ct);
     }
 
@@ -122,8 +120,7 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts) : ILi
     {
         using var document = JsonDocument.Parse(text);
         var root = document.RootElement;
-        if (root.TryGetProperty("I", out var invocationId) && invocationId.ToString() == "2" &&
-            root.TryGetProperty("R", out var response) && response.ValueKind == JsonValueKind.Object)
+        if (root.TryGetProperty("R", out var response) && response.ValueKind == JsonValueKind.Object)
         {
             ProcessInitial((JsonObject)JsonNode.Parse(response.GetRawText())!);
         }
@@ -190,7 +187,7 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts) : ILi
         _session = sessionType switch
         {
             "Practice" => "Free Practice",
-            "F1Qualifing" => "Qualifying",
+            "F1Qualifing" or "GPQualifying" or "Qualifying" => "Qualifying",
             { Length: > 0 } value => value,
             _ => _session
         };
@@ -219,9 +216,9 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts) : ILi
         var previous = _sessionStatus;
         _sessionStatus = JsonSupport.String(value["Value"]) ?? _sessionStatus;
         if (_sessionStatus == "Started" && previous != "Started")
-            alerts.Accept(new(AlertKind.SessionStart, 10, false, "F2 SESSION STARTED", _session, null, clock.UtcNow, $"f2:start:{_meeting}:{_session}", TimeSpan.FromSeconds(4)));
+            alerts.Accept(new(AlertKind.SessionStart, 10, false, $"{series} SESSION STARTED", _session, null, clock.UtcNow, $"{series.ToLowerInvariant()}:start:{_meeting}:{_session}", TimeSpan.FromSeconds(4)));
         if (_sessionStatus is "Finished" or "Finalised" && previous is not ("Finished" or "Finalised"))
-            alerts.Accept(new(AlertKind.Chequered, 90, false, "CHEQUERED FLAG", _session, null, clock.UtcNow, $"f2:end:{_meeting}:{_session}", TimeSpan.FromSeconds(6)));
+            alerts.Accept(new(AlertKind.Chequered, 90, false, "CHEQUERED FLAG", _session, null, clock.UtcNow, $"{series.ToLowerInvariant()}:end:{_meeting}:{_session}", TimeSpan.FromSeconds(6)));
     }
 
     private void ApplyTrackStatus(JsonObject value)
@@ -259,15 +256,22 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts) : ILi
                 bestLap.HasValue && lapTime == bestLap);
         }).Where(x => x.Position != int.MaxValue).OrderBy(x => x.Position).ToList();
         if (standings.Count == 0) return;
-        var lifecycle = _sessionStatus switch
-        {
-            "Finished" or "Finalised" => SessionLifecycle.Ended,
-            "Started" => SessionLifecycle.Live,
-            _ => SessionLifecycle.PreSession
-        };
+        var lifecycle = SessionLifecycleFor(_sessionStatus);
         SnapshotReceived?.Invoke(new(_meeting, _session, _circuit, standings.Max(x => x.Lap), null,
             _trackCondition, standings, clock.UtcNow, lifecycle, _connection, _timeRemaining));
     }
+    internal static SessionLifecycle SessionLifecycleFor(string? status) => status switch
+    {
+        "Finished" or "Finalised" => SessionLifecycle.Ended,
+        "Started" or "Running" or "Aborted" or "Suspended" => SessionLifecycle.Live,
+        _ => SessionLifecycle.PreSession
+    };
+    internal static string BaseUrlFor(string value) => value switch
+    {
+        "F2" => "https://ltss.fiaformula2.com/streaming",
+        "F3" => "https://ltss.fiaformula3.com/streaming",
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Only F2 and F3 are supported.")
+    };
 
     private void ApplyTimeFeed(JsonArray? pair)
     {

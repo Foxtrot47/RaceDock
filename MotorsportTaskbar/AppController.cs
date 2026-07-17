@@ -49,10 +49,12 @@ public sealed class AppController : IAsyncDisposable
             ? new ScenarioTimingSource(_processor, _clock)
             : new CompositeLiveTimingSource([
                 () => new F1LiveTimingSource(_processor, _clock, logs) { DiagnosticRecordingEnabled = _diagnosticRecording },
+                () => new F2LiveTimingSource(_clock, _alerts),
+                () => new F2LiveTimingSource(_clock, _alerts, "F3"),
                 () => new WrcLiveTimingSource(TimingSnapshot.Hidden(_clock.UtcNow), _clock, _alerts)
             ], _clock, TimeSpan.FromSeconds(5));
         Attach(_source); await _source.StartAsync(_lifetime.Token);
-        Log($"Source started: {(scenario ? "scenario (paused)" : "F1 + WRC rotating live")}");
+        Log($"Source started: {(scenario ? "scenario (paused)" : "F1 + F2 + F3 + WRC rotating live")}");
     }
 
     private void Attach(ILiveTimingSource source)

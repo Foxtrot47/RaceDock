@@ -15,6 +15,7 @@ var tests = new (string Name, Action Run)[]
     ("scenario timeline integration", ScenarioIntegration),
     ("active feeds rotate at the display interval", FeedRotation),
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
+    ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
     ("WRC stage timing preserves live API values", WrcStageTiming),
     ("ended feeds clear composite selection", EndedFeedsClearSelection),
@@ -193,6 +194,36 @@ static void WrcFinalResultsEndStage()
     var complete = JsonNode.Parse("""[{"entryId":1},{"entryId":3}]""")!.AsArray();
     False(WrcLiveTimingSource.StageResultsComplete(times, partial));
     True(WrcLiveTimingSource.StageResultsComplete(times, complete));
+}
+
+static void F3QualifyingSnapshot()
+{
+    var clock = new FakeClock();
+    Equal("https://ltss.fiaformula3.com/streaming", F2LiveTimingSource.BaseUrlFor("F3"));
+    var source = new F2LiveTimingSource(clock, new AlertArbiter(clock), "F3");
+    TimingSnapshot? snapshot = null;
+    source.SnapshotReceived += value => snapshot = value;
+    var initial = new JsonObject
+    {
+        ["data"] = new JsonArray("2026-07-17T13:22:51.578", new JsonObject { ["Series"] = "F3", ["Session"] = "Qualifying" }, new JsonObject
+        {
+            ["1"] = new JsonObject
+            {
+                ["position"] = new JsonObject { ["Show"] = 1, ["Value"] = "1" },
+                ["driver"] = new JsonObject { ["RacingNumber"] = "1", ["FullName"] = "Test Driver", ["TLA"] = "TST" },
+                ["gapP"] = new JsonObject { ["Value"] = "" },
+                ["best"] = new JsonObject { ["Value"] = "2:05.150" }
+            }
+        }),
+        ["racedetailsfeed"] = new JsonArray("2026-07-17T12:55:07.261", new JsonObject { ["Race"] = "Spa-Francorchamps", ["Circuit"] = "Spa", ["Session"] = "Qualifying" }),
+        ["sessionfeed"] = new JsonArray("2026-07-17T13:20:22.955", new JsonObject { ["Value"] = "Aborted" })
+    };
+    source.ProcessMessage(new JsonObject { ["I"] = 1, ["R"] = initial }.ToJsonString());
+    True(snapshot is not null);
+    Equal("Spa-Francorchamps", snapshot!.Meeting);
+    Equal("Qualifying", snapshot.Session);
+    Equal(SessionLifecycle.Live, snapshot.Lifecycle);
+    Equal("TST", snapshot.Competitors[0].Code);
 }
 
 static void EndedFeedsClearSelection()
