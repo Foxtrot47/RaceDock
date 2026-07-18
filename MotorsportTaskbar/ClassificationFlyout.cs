@@ -29,11 +29,13 @@ public sealed class ClassificationFlyout : Window
     private TextBlock _tyreHeader = null!;
     private TextBlock _categoryHeader = null!;
     private readonly DispatcherTimer _closeTimer;
+    private UserSettings _settings;
 
     public event EventHandler? PointerEntered;
 
-    public ClassificationFlyout()
+    public ClassificationFlyout(UserSettings settings)
     {
+        _settings = settings.Normalize();
         Width = 610;
         Height = 470;
         WindowStyle = WindowStyle.None;
@@ -102,6 +104,11 @@ public sealed class ClassificationFlyout : Window
             CancelClose();
         };
         MouseLeave += (_, _) => ScheduleClose();
+    }
+
+    public void ApplySettings(UserSettings settings)
+    {
+        _settings = settings.Normalize();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -436,9 +443,9 @@ public sealed class ClassificationFlyout : Window
         grid.Children.Add(value);
     }
 
-    private static LinearGradientBrush CreatePositionBrush(int position)
+    private LinearGradientBrush CreatePositionBrush(int position)
     {
-        (Color Start, Color End) colors = position is >= 1 and <= 5
+        (Color Start, Color End) colors = _settings.ShowPositionColors && position is >= 1 and <= 5
             ? PositionColors[position - 1]
             : (Color.FromRgb(52, 55, 63), Color.FromRgb(83, 88, 100));
         return new LinearGradientBrush(colors.Start, colors.End, 35);

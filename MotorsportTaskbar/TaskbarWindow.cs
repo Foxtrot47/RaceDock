@@ -22,6 +22,7 @@ public sealed class TaskbarWindow : Window
     ];
 
     private readonly Grid _root = new();
+    private readonly ColumnDefinition _contextColumn = new() { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 150 };
     private readonly UniformGrid _strip = new() { Rows = 1, Columns = 5, Margin = new(2) };
     private readonly StackPanel _raceContext = new() { Margin = new(6, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _raceText = new() { FontSize = 10.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -50,12 +51,16 @@ public sealed class TaskbarWindow : Window
         Fill = Brushes.Gold
     };
     private readonly NativeTaskbar _host;
-    private readonly ClassificationFlyout _flyout = new();
+    private readonly ClassificationFlyout _flyout;
     private readonly DispatcherTimer _reattach;
     private TimingSnapshot? _snapshot;
+    private RaceAlert? _currentAlert;
+    private UserSettings _settings;
 
-    public TaskbarWindow()
+    public TaskbarWindow(UserSettings settings)
     {
+        _settings = settings.Normalize();
+        _flyout = new ClassificationFlyout(_settings);
         Width = 520; Height = 40; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; ShowInTaskbar = false; AllowsTransparency = true; Background = Brushes.Transparent; Topmost = true;
         UseLayoutRounding = true; SnapsToDevicePixels = true; TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
         SetResourceReference(FontFamilyProperty, "MotorsportFontFamily");
@@ -63,7 +68,7 @@ public sealed class TaskbarWindow : Window
         _flagCanvas.Children.Add(_flagPole); Canvas.SetLeft(_flagPole, 1); Canvas.SetTop(_flagPole, 1);
         _flagCanvas.Children.Add(_flagShape); _flagCanvas.Children.Add(_secondFlagShape);
         _alert.Child = _flagCanvas;
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 150 });
+        _root.ColumnDefinitions.Add(_contextColumn);
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -73,10 +78,27 @@ public sealed class TaskbarWindow : Window
         Grid.SetColumn(_raceContext, 0); Grid.SetColumn(_strip, 1);
         _root.Children.Add(_raceContext); _root.Children.Add(_strip); Content = _root;
         _host = new(this); SourceInitialized += (_, _) => _host.Attach();
+        Loaded += (_, _) => _host.Reattach();
         _host.PositionChanged += visible => { if (!visible) _flyout.Hide(); else if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
         MouseLeftButtonUp += (_, _) => ShowFlyout(); MouseLeave += (_, _) => _flyout.ScheduleClose();
         _flyout.PointerEntered += (_, _) => _flyout.CancelClose();
         _reattach = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => _host.Reattach(), Dispatcher); _reattach.Start();
+        ApplySettings(_settings);
+    }
+
+    public void ApplySettings(UserSettings settings)
+    {
+        _settings = settings.Normalize();
+        _strip.Columns = _settings.DriverCount;
+        _eventHeader.Visibility = _settings.ShowEventHeader ? Visibility.Visible : Visibility.Collapsed;
+        _lapText.Visibility = _settings.ShowSessionProgress ? Visibility.Visible : Visibility.Collapsed;
+        _raceContext.Visibility = _settings.ShowEventHeader || _settings.ShowSessionProgress ? Visibility.Visible : Visibility.Collapsed;
+        _contextColumn.Width = _raceContext.Visibility == Visibility.Visible ? GridLength.Auto : new GridLength(0);
+        _contextColumn.MinWidth = _raceContext.Visibility == Visibility.Visible ? 72 : 0;
+        _contextColumn.MaxWidth = _raceContext.Visibility == Visibility.Visible ? 150 : 0;
+        _flyout.ApplySettings(_settings);
+        SetAlert(_currentAlert);
+        if (_snapshot is not null) UpdateSnapshot(_snapshot);
     }
 
     public void UpdateSnapshot(TimingSnapshot snapshot)
@@ -86,8 +108,8 @@ public sealed class TaskbarWindow : Window
         _raceText.ToolTip = ChampionshipDisplay.FullEvent(snapshot);
         _lapText.Text = FormatSessionProgress(snapshot);
         _strip.Children.Clear();
-        foreach (var standing in snapshot.Competitors.Take(5)) _strip.Children.Add(CreateCell(standing));
-        while (_strip.Children.Count < 5) _strip.Children.Add(CreateEmptyCell(_strip.Children.Count + 1));
+        foreach (var standing in snapshot.Competitors.Take(_settings.DriverCount)) _strip.Children.Add(CreateCell(standing));
+        while (_strip.Children.Count < _settings.DriverCount) _strip.Children.Add(CreateEmptyCell(_strip.Children.Count + 1));
         _flyout.UpdateSnapshot(snapshot);
     }
 
@@ -131,7 +153,8 @@ public sealed class TaskbarWindow : Window
 
     public void SetAlert(RaceAlert? alert)
     {
-        var show = alert is not null && _snapshot is not null && !IsRallySnapshot(_snapshot) && IsFiaFlag(alert.Kind);
+        _currentAlert = alert;
+        var show = _settings.ShowFlagAlerts && alert is not null && _snapshot is not null && !IsRallySnapshot(_snapshot) && IsFiaFlag(alert.Kind);
         _alert.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         if (!show || alert is null) return;
         _secondFlagShape.Visibility = alert.Kind == AlertKind.DoubleYellow ? Visibility.Visible : Visibility.Collapsed;
@@ -159,14 +182,19 @@ public sealed class TaskbarWindow : Window
         _ => Brushes.Gold
     };
 
-    private static Border CreateCell(CompetitorStanding standing)
+    private Border CreateCell(CompetitorStanding standing)
     {
         var layout = new Grid();
         layout.ColumnDefinitions.Add(new() { Width = new GridLength(30) });
         layout.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
-        layout.Children.Add(CreatePositionCard(standing.Position, standing.Position.ToString()));
+        Border marker;
+        if (!_settings.UseManufacturerLogos || !ManufacturerLogo.TryCreate(standing.Team, 26, out marker))
+            marker = CreatePositionCard(standing.Position, standing.Position.ToString());
+        marker.Margin = new Thickness(1);
+        layout.Children.Add(marker);
 
         var details = new StackPanel { Margin = new(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        var driverLine = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
         var driver = new TextBlock
         {
             Text = standing.Code,
@@ -175,6 +203,7 @@ public sealed class TaskbarWindow : Window
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         driver.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+        driverLine.Children.Add(driver);
         var gap = new TextBlock
         {
             Text = standing.Position == 1 ? "LEADER" : standing.GapToLeader ?? "—",
@@ -183,12 +212,13 @@ public sealed class TaskbarWindow : Window
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         gap.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        details.Children.Add(driver); details.Children.Add(gap);
+        details.Children.Add(driverLine);
+        if (_settings.ShowGaps) details.Children.Add(gap);
         Grid.SetColumn(details, 1); layout.Children.Add(details);
         return CreateCellContainer(layout);
     }
 
-    private static Border CreateEmptyCell(int position)
+    private Border CreateEmptyCell(int position)
     {
         var layout = new Grid();
         layout.ColumnDefinitions.Add(new() { Width = new GridLength(30) });
@@ -205,9 +235,11 @@ public sealed class TaskbarWindow : Window
         SnapsToDevicePixels = true
     };
 
-    private static Border CreatePositionCard(int position, string text, double opacity = 1)
+    private Border CreatePositionCard(int position, string text, double opacity = 1)
     {
-        var colors = CardColors[Math.Clamp(position, 1, CardColors.Length) - 1];
+        (Color Start, Color End) colors = _settings.ShowPositionColors
+            ? CardColors[Math.Clamp(position, 1, CardColors.Length) - 1]
+            : (Color.FromRgb(52, 55, 63), Color.FromRgb(83, 88, 100));
         var label = new TextBlock
         {
             Text = text,

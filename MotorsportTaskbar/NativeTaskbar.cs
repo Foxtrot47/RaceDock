@@ -37,7 +37,9 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
         var geometry = TaskbarGeometry.CalculateLeftChild(taskbarRect, GetDpiForWindow(taskbar), FindOccupiedRectangles(taskbar, taskbarRect));
         if (geometry is null) { ShowWindow(_hwnd, SwHide); PositionChanged?.Invoke(false); return; }
         var placement = geometry.Value;
-        SetWindowPos(_hwnd, IntPtr.Zero, placement.X, placement.Y, placement.Width, placement.Height, SwpNoZOrder | SwpNoActivate | SwpShowWindow);
+        var parentPoint = new Point { X = taskbarRect.Left + placement.X, Y = taskbarRect.Top + placement.Y };
+        MapWindowPoints(IntPtr.Zero, taskbar, ref parentPoint, 1);
+        SetWindowPos(_hwnd, IntPtr.Zero, parentPoint.X, parentPoint.Y, placement.Width, placement.Height, SwpNoZOrder | SwpNoActivate | SwpShowWindow);
         var region = CreateRectRgn(0, 0, placement.Width, placement.Height); SetWindowRgn(_hwnd, region, true);
         PositionChanged?.Invoke(true);
     }
@@ -58,6 +60,9 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
     private IReadOnlyList<PixelRect> FindOccupiedRectangles(IntPtr taskbar, PixelRect bounds)
     {
         List<PixelRect> result = [];
+        PixelRect? widgetBounds = GetWindowRect(_hwnd, out var widgetRect)
+            ? new(widgetRect.Left, widgetRect.Top, widgetRect.Right, widgetRect.Bottom)
+            : null;
         EnumChildWindows(taskbar, (child, _) =>
         {
             if (child != _hwnd && IsWindowVisible(child) && GetWindowRect(child, out var r))
@@ -91,6 +96,8 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
 
         void Add(int left, int top, int right, int bottom)
         {
+            if (widgetBounds is { } widget && left >= widget.Left - 2 && top >= widget.Top - 2 &&
+                right <= widget.Right + 2 && bottom <= widget.Bottom + 2) return;
             var clipped = new PixelRect(Math.Max(bounds.Left, left), Math.Max(bounds.Top, top), Math.Min(bounds.Right, right), Math.Min(bounds.Bottom, bottom));
             if (clipped.Width <= 0 || clipped.Height < bounds.Height / 3 || clipped.Width > bounds.Width / 2) return;
             if (result.Any(x => Math.Abs(x.Left - clipped.Left) <= 2 && Math.Abs(x.Right - clipped.Right) <= 2)) return;
@@ -126,8 +133,10 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
     }
 
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string className, string? title);
     [DllImport("user32.dll")] private static extern IntPtr SetParent(IntPtr child, IntPtr parent);
+    [DllImport("user32.dll")] private static extern int MapWindowPoints(IntPtr from, IntPtr to, ref Point point, uint count);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr value);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);

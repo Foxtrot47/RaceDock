@@ -12,4 +12,5 @@
     <AssemblyName>MotorsportTaskbar</AssemblyName>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="..\MotorsportTaskbar.Core\MotorsportTaskbar.Core.csproj" /></ItemGroup>
+  <ItemGroup><Resource Include="Assets\ManufacturerLogos\**\*" /></ItemGroup>
 </Project>

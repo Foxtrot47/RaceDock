@@ -16,6 +16,7 @@ var tests = new (string Name, Action Run)[]
     ("active feeds rotate at the display interval", FeedRotation),
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
     ("championship labels use compact taskbar and full flyout names", ChampionshipLabels),
+    ("user settings persist and normalize safe ranges", UserSettingsPersistence),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
     ("WRC stage timing preserves live API values", WrcStageTiming),
@@ -79,6 +80,7 @@ static void GeometryAndRecovery()
     var g = TaskbarGeometry.CalculateLeftChild(new(0, 0, 1920, 48), 96)!.Value; Equal(8, g.X); Equal(520, g.Width); Equal(40, g.Height); Equal(4, g.Y);
     var afterWidgets = TaskbarGeometry.CalculateLeftChild(new(0, 0, 1920, 48), 96, [new(0, 0, 52, 48)])!.Value; Equal(56, afterWidgets.X);
     var skipsHostedApp = TaskbarGeometry.CalculateLeftChild(new(0, 0, 2400, 48), 96, [new(0, 0, 52, 48), new(56, 0, 500, 48)])!.Value; Equal(504, skipsHostedApp.X);
+    var adaptive = TaskbarGeometry.CalculateLeftChild(new(0, 0, 2560, 48), 96, [new(20, 0, 411, 48), new(926, 0, 1414, 48)])!.Value; Equal(415, adaptive.X); Equal(511, adaptive.Width);
     var noSafeGap = TaskbarGeometry.CalculateLeftChild(new(0, 0, 1280, 48), 96, [new(0, 0, 240, 48)]); Equal<(int X, int Y, int Width, int Height)?>(null, noSafeGap);
     var hi = TaskbarGeometry.CalculateLeftChild(new(0, 0, 3840, 96), 192)!.Value; Equal(16, hi.X); Equal(1040, hi.Width); Equal(80, hi.Height);
     True(TaskbarRecovery.NeedsReattach(10, 0, false)); True(TaskbarRecovery.NeedsReattach(10, 10, true)); False(TaskbarRecovery.NeedsReattach(10, 10, false));
@@ -252,6 +254,35 @@ static void ChampionshipLabels()
     Equal("Formula 1 · Belgian Grand Prix", ChampionshipDisplay.FullEvent(f1));
     Equal("WRC Estonia", ChampionshipDisplay.CompactEvent(wrc));
     Equal("World Rally Championship · Rally Estonia", ChampionshipDisplay.FullEvent(wrc));
+}
+
+static void UserSettingsPersistence()
+{
+    var directory = Path.Combine(Path.GetTempPath(), $"MotorsportTaskbar.Tests.{Guid.NewGuid():N}");
+    var path = Path.Combine(directory, "settings.json");
+    try
+    {
+        var store = new UserSettingsStore(path);
+        store.Save(new UserSettings
+        {
+            EnableFormula1 = false,
+            EnableFormula2 = false,
+            EnableFormula3 = false,
+            EnableWrc = false,
+            DriverCount = 99,
+            RotationSeconds = 1,
+            UseManufacturerLogos = true
+        });
+        var loaded = store.Load();
+        True(loaded.EnableFormula1);
+        Equal(5, loaded.DriverCount);
+        Equal(2, loaded.RotationSeconds);
+        True(loaded.UseManufacturerLogos);
+    }
+    finally
+    {
+        if (Directory.Exists(directory)) Directory.Delete(directory, true);
+    }
 }
 
 static void EndedFeedsClearSelection()

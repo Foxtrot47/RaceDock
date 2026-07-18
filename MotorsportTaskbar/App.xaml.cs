@@ -29,16 +29,13 @@ public partial class App : System.Windows.Application
     {
         var menu = new System.Windows.Forms.ContextMenuStrip();
         _statusItem = new System.Windows.Forms.ToolStripMenuItem("Connection: starting") { Enabled = false }; menu.Items.Add(_statusItem);
-        menu.Items.Add("Open developer panel", null, (_, _) => _controller?.ShowDeveloper());
-        var test = new System.Windows.Forms.ToolStripMenuItem("Enable test mode") { CheckOnClick = true };
-        test.CheckedChanged += async (_, _) => { if (_controller is not null) await _controller.SetTestModeAsync(test.Checked); };
-        menu.Items.Add(test);
+        menu.Items.Add("Settings", null, (_, _) => _controller?.ShowSettings());
         menu.Items.Add("Restart feed", null, async (_, _) => { if (_controller is not null) await _controller.RestartAsync(); });
         menu.Items.Add("View logs", null, (_, _) => _controller?.OpenLogs());
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add("Exit", null, async (_, _) => { if (_controller is not null) await _controller.DisposeAsync(); Shutdown(); });
         _tray = new System.Windows.Forms.NotifyIcon { Icon = SystemIcons.Application, Text = "MotorsportTaskbar", Visible = true, ContextMenuStrip = menu };
-        _tray.DoubleClick += (_, _) => _controller?.ShowDeveloper();
+        _tray.DoubleClick += (_, _) => _controller?.ShowSettings();
     }
 
     protected override void OnExit(ExitEventArgs e)
