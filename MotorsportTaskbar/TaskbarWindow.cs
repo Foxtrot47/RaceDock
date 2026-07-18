@@ -111,6 +111,7 @@ public sealed class TaskbarWindow : Window
         foreach (var standing in snapshot.Competitors.Take(_settings.DriverCount)) _strip.Children.Add(CreateCell(standing));
         while (_strip.Children.Count < _settings.DriverCount) _strip.Children.Add(CreateEmptyCell(_strip.Children.Count + 1));
         _flyout.UpdateSnapshot(snapshot);
+        RefreshFlag();
     }
 
     private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Championship == Championship.WorldRallyChampionship || snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
@@ -118,8 +119,12 @@ public sealed class TaskbarWindow : Window
     {
         if (IsRallySnapshot(snapshot)) return snapshot.Session;
         var session = ShortSessionName(snapshot.Session);
-        if (IsTimedSession(snapshot.Session) && !string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
-            return $"{session} {CompactTime(snapshot.TimeRemaining)}";
+        if (!string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
+        {
+            var time = CompactTime(snapshot.TimeRemaining);
+            if (IsTimedSession(snapshot.Session)) return $"{session} {time}";
+            if (snapshot.TotalLaps is null && snapshot.CurrentLap > 0) return $"{session} {snapshot.CurrentLap} · {time}";
+        }
         return snapshot.CurrentLap > 0
             ? $"{session} {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}"
             : session;
@@ -154,17 +159,30 @@ public sealed class TaskbarWindow : Window
     public void SetAlert(RaceAlert? alert)
     {
         _currentAlert = alert;
-        var show = _settings.ShowFlagAlerts && alert is not null && _snapshot is not null && !IsRallySnapshot(_snapshot) && IsFiaFlag(alert.Kind);
-        _alert.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        if (!show || alert is null) return;
-        _secondFlagShape.Visibility = alert.Kind == AlertKind.DoubleYellow ? Visibility.Visible : Visibility.Collapsed;
-        _flagShape.Fill = FlagBrush(alert.Kind);
-        _secondFlagShape.Fill = _flagShape.Fill;
-        _alert.ToolTip = string.IsNullOrWhiteSpace(alert.Detail) ? alert.Title : $"{alert.Title}  ·  {alert.Detail}";
-        System.Windows.Automation.AutomationProperties.SetName(_alert, alert.Title);
+        RefreshFlag();
     }
 
-    private static bool IsFiaFlag(AlertKind kind) => kind is AlertKind.RedFlag or AlertKind.Yellow or AlertKind.DoubleYellow or AlertKind.Chequered;
+    private void RefreshFlag()
+    {
+        AlertKind? transient = _currentAlert?.Kind == AlertKind.Chequered ? AlertKind.Chequered : null;
+        var kind = _snapshot is null ? null : TaskbarFlagDisplay.Resolve(_snapshot.TrackCondition, transient);
+        var show = _settings.ShowFlagAlerts && kind is not null && _snapshot is not null && !IsRallySnapshot(_snapshot);
+        _alert.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (!show || kind is null) return;
+        _secondFlagShape.Visibility = kind == AlertKind.DoubleYellow ? Visibility.Visible : Visibility.Collapsed;
+        _flagShape.Fill = FlagBrush(kind.Value);
+        _secondFlagShape.Fill = _flagShape.Fill;
+        var title = kind.Value switch
+        {
+            AlertKind.RedFlag => "RED FLAG",
+            AlertKind.DoubleYellow => "DOUBLE YELLOW",
+            AlertKind.Yellow => "YELLOW FLAG",
+            _ => "CHEQUERED FLAG"
+        };
+        var detail = kind == AlertKind.Chequered ? _currentAlert?.Detail : null;
+        _alert.ToolTip = string.IsNullOrWhiteSpace(detail) ? title : $"{title}  ·  {detail}";
+        System.Windows.Automation.AutomationProperties.SetName(_alert, title);
+    }
 
     private static System.Windows.Media.Brush FlagBrush(AlertKind kind) => kind switch
     {

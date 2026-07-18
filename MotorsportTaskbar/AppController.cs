@@ -96,7 +96,10 @@ public sealed class AppController : IAsyncDisposable
         _pending = snapshot;
         if (_snapshotLogged || snapshot.Competitors.Count == 0) return;
         _snapshotLogged = true;
-        Log($"Live snapshot: {snapshot.Meeting} — {snapshot.Session}; {snapshot.Competitors.Count} competitors; leader {snapshot.Competitors[0].Code}; time remaining {snapshot.TimeRemaining ?? "—"}");
+        var gaps = string.Join(", ", snapshot.Competitors.Take(5).Select(standing =>
+            $"{standing.Code}:{standing.GapToLeader ?? "—"}/{standing.IntervalToPositionAhead ?? "—"}"));
+        Log($"Live snapshot: {snapshot.Championship}; {snapshot.Meeting} — {snapshot.Session}; {snapshot.Competitors.Count} competitors; " +
+            $"lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}; time remaining {snapshot.TimeRemaining ?? "—"}; gaps {gaps}");
     }
     private void OnConnection(ConnectionState state) { StatusChanged?.Invoke(state); Log($"Connection: {state}"); }
     private void OnFailure(FeedFailure failure) => Log($"Feed failure: {failure.Message}");

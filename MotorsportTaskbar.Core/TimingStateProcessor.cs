@@ -26,7 +26,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
 
     public void ProcessInitial(JsonObject initial)
     {
-        _topics.Clear(); _raceControlKeys.Clear(); _lastBestLap.Clear(); _fastestDriver = null; _fastestSeconds = null;
+        _topics.Clear(); _raceControlKeys.Clear(); _lastBestLap.Clear(); _fastestDriver = null; _fastestSeconds = null; _track = TrackCondition.Unknown;
         foreach (var pair in initial)
             if (pair.Value is JsonObject value) _topics[pair.Key] = (JsonObject)value.DeepClone();
         ProcessTrackStatus(_topics.GetValueOrDefault("TrackStatus"));
@@ -164,8 +164,9 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         var meeting = info?["Meeting"] as JsonObject;
         var lapCount = _topics.GetValueOrDefault("LapCount");
         var statusText = LatestSessionStatus(_topics.GetValueOrDefault("SessionData")?["StatusSeries"])
-            ?? JsonSupport.String(_topics.GetValueOrDefault("SessionStatus")?["Status"] ?? _topics.GetValueOrDefault("SessionStatus")?["Started"]);
-        var ended = alerts.Current?.Kind == AlertKind.Chequered || statusText is "Finished" or "Finalised" or "Ended";
+            ?? JsonSupport.String(_topics.GetValueOrDefault("SessionStatus")?["Status"] ?? _topics.GetValueOrDefault("SessionStatus")?["Started"])
+            ?? JsonSupport.String(info?["SessionStatus"]);
+        var ended = alerts.Current?.Kind == AlertKind.Chequered || IsEndedSessionStatus(statusText);
         var lifecycle = standings.Count == 0 ? SessionLifecycle.OffSession : ended ? SessionLifecycle.Ended : SessionLifecycle.Live;
         Publish(new(JsonSupport.String(meeting?["Name"]) ?? "F1", JsonSupport.String(info?["Name"]) ?? "Live Session",
             JsonSupport.String(meeting?["Circuit"]?["ShortName"]) ?? "", JsonSupport.Int(lapCount?["CurrentLap"]) ?? standings.FirstOrDefault()?.Lap ?? 0,
@@ -178,6 +179,9 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         JsonObject obj => obj.Select(pair => JsonSupport.String(pair.Value?["SessionStatus"])).LastOrDefault(value => value is not null),
         _ => null
     };
+
+    private static bool IsEndedSessionStatus(string? value) => value?.Trim().ToUpperInvariant() is
+        "FINISHED" or "FINALISED" or "FINALIZED" or "ENDED" or "ENDS" or "COMPLETE" or "COMPLETED";
 
     private void Publish(TimingSnapshot snapshot) { Current = snapshot; SnapshotChanged?.Invoke(snapshot); }
     private string DriverCode(string key) => JsonSupport.String(_topics.GetValueOrDefault("DriverList")?[key]?["Tla"]) ?? key;

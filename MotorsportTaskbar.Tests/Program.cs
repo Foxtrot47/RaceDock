@@ -8,10 +8,12 @@ var tests = new (string Name, Action Run)[]
     ("leader gaps, intervals, ordering and missing values", TimingParsing),
     ("retired and fastest lap detection", FastestAndRetired),
     ("track status mappings and alert priority", AlertPriority),
+    ("taskbar flags follow the displayed track state", TaskbarFlagsFollowSnapshot),
     ("duplicate alerts and injectable expiry clock", DeduplicationAndExpiry),
     ("render throttling keeps newest immediate state", Throttling),
     ("DPI geometry and Explorer recovery", GeometryAndRecovery),
     ("stale and off-session transitions", FreshnessAndVisibility),
+    ("archived F1 startup data remains hidden", ArchivedF1Startup),
     ("scenario timeline integration", ScenarioIntegration),
     ("active feeds rotate at the display interval", FeedRotation),
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
@@ -43,6 +45,15 @@ static void TimingParsing()
 {
     var (_, _, processor) = Fixture(); processor.ProcessInitial(JsonNode.Parse("""{"DriverList":{"1":{"Tla":"AAA"},"2":{"Tla":"BBB"},"3":{"Tla":"CCC"}},"TimingData":{"Lines":{"1":{"Position":"2","GapToLeader":{"Value":"+1.2"},"IntervalToPositionAhead":0.4},"2":{"Position":1,"GapToLeader":0},"3":{"Position":"3","GapToLeader":"-","IntervalToPositionAhead":{"Value":"+2.0"}}}}}""")!.AsObject());
     Equal("BBB", processor.Current.Competitors[0].Code); Equal("LEAD", processor.Current.Competitors[0].GapToLeader); Equal("+1.2", processor.Current.Competitors[1].GapToLeader); Equal("0.4", processor.Current.Competitors[1].IntervalToPositionAhead); Equal(null, processor.Current.Competitors[2].GapToLeader);
+}
+
+static void TaskbarFlagsFollowSnapshot()
+{
+    Equal(null, TaskbarFlagDisplay.Resolve(TrackCondition.AllClear, AlertKind.Yellow));
+    Equal(AlertKind.Yellow, TaskbarFlagDisplay.Resolve(TrackCondition.Yellow));
+    Equal(AlertKind.DoubleYellow, TaskbarFlagDisplay.Resolve(TrackCondition.DoubleYellow));
+    Equal(AlertKind.RedFlag, TaskbarFlagDisplay.Resolve(TrackCondition.RedFlag));
+    Equal(AlertKind.Chequered, TaskbarFlagDisplay.Resolve(TrackCondition.AllClear, AlertKind.Chequered));
 }
 
 static void FastestAndRetired()
@@ -94,6 +105,25 @@ static void FreshnessAndVisibility()
     p.ProcessInitial(BaseState());
     p.ProcessDelta("SessionStatus", new JsonObject { ["Status"] = "Finalised", ["Started"] = "Finished" }, clock.UtcNow);
     Equal(SessionLifecycle.Ended, p.Current.Lifecycle);
+}
+
+static void ArchivedF1Startup()
+{
+    var (_, _, processor) = Fixture();
+    var state = BaseState();
+    state["SessionInfo"]!["SessionStatus"] = "Finalised";
+    state["SessionStatus"] = new JsonObject { ["Status"] = "Ends", ["Started"] = "Finished" };
+    state["SessionData"] = new JsonObject
+    {
+        ["StatusSeries"] = new JsonArray
+        {
+            new JsonObject { ["Utc"] = "2026-07-18T10:30:00Z", ["SessionStatus"] = "Started" },
+            new JsonObject { ["Utc"] = "2026-07-18T11:30:00Z", ["SessionStatus"] = "Finished" },
+            new JsonObject { ["Utc"] = "2026-07-18T11:44:28Z", ["SessionStatus"] = "Ends" }
+        }
+    };
+    processor.ProcessInitial(state);
+    Equal(SessionLifecycle.Ended, processor.Current.Lifecycle);
 }
 
 

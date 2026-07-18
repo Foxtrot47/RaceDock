@@ -151,10 +151,14 @@ public sealed class ClassificationFlyout : Window
     private static string SessionProgress(TimingSnapshot snapshot)
     {
         if (IsRallySnapshot(snapshot)) return snapshot.Session;
-        if ((snapshot.Session.Contains("Practice", StringComparison.OrdinalIgnoreCase) ||
-             snapshot.Session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase)) &&
-            !string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
-            return $"Time remaining {snapshot.TimeRemaining}";
+        if (!string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
+        {
+            var timedSession = snapshot.Session.Contains("Practice", StringComparison.OrdinalIgnoreCase) ||
+                snapshot.Session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase);
+            if (timedSession) return $"Time remaining {snapshot.TimeRemaining}";
+            if (snapshot.TotalLaps is null && snapshot.CurrentLap > 0)
+                return $"Lap {snapshot.CurrentLap} · {snapshot.TimeRemaining} remaining";
+        }
         return $"Lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}";
     }
 
