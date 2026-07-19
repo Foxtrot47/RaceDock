@@ -17,3 +17,13 @@ Launch the generated `MotorsportTaskbar.exe`. `FolderProfile` produces a self-co
 ## Data and privacy
 
 The Formula 1 adapter connects to the official Formula 1 SignalR Core live-timing stream. The FIA adapter connects to the official FIA timing hub for both Formula 2 and Formula 3 series, including practice, qualifying, and race sessions. The WRC adapter polls the public WRC Promoter API for event entries, stages, and live stage times. Application logs are stored in `Logs/app.log`.
+
+## Logo asset guidelines
+
+Taskbar logos are displayed in a 26 x 26 DIP square with a 2 DIP internal margin, leaving an effective 22 x 22 DIP artwork area. The renderer uses uniform scaling, so it preserves each logo's aspect ratio rather than stretching it to a square.
+
+- Prefer a compact emblem, shield, or monogram with an artwork ratio between 0.75:1 and 1.5:1. Avoid horizontal wordmarks wider than 2:1; at taskbar size a 4:1 wordmark is only about 5 pixels tall.
+- Use a tightly cropped, transparent 256 x 256 PNG, with visible artwork occupying roughly 86-92% of the canvas. A 128 x 128 PNG is the practical minimum; assets larger than 512 x 512 provide no useful taskbar detail.
+- Prefer SVG when available. Use a square view box and keep the visible geometry tightly bounded. Embedded fills, nested transforms, paths, polygons, and polylines are supported.
+- Add `"preserveColors": true` to the logo's `manifest.json` entry when its PNG or SVG contains intentional colors. Leave it unset for monochrome artwork that should be tinted using the entry's `"color"` value.
+- Keep alternate feed names as aliases of one canonical asset instead of adding duplicate logos.
