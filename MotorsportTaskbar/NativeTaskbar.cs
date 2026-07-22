@@ -60,9 +60,6 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
     private IReadOnlyList<PixelRect> FindOccupiedRectangles(IntPtr taskbar, PixelRect bounds)
     {
         List<PixelRect> result = [];
-        PixelRect? widgetBounds = GetWindowRect(_hwnd, out var widgetRect)
-            ? new(widgetRect.Left, widgetRect.Top, widgetRect.Right, widgetRect.Bottom)
-            : null;
         EnumChildWindows(taskbar, (child, _) =>
         {
             if (child != _hwnd && IsWindowVisible(child) && GetWindowRect(child, out var r))
@@ -96,8 +93,6 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
 
         void Add(int left, int top, int right, int bottom)
         {
-            if (widgetBounds is { } widget && left >= widget.Left - 2 && top >= widget.Top - 2 &&
-                right <= widget.Right + 2 && bottom <= widget.Bottom + 2) return;
             var clipped = new PixelRect(Math.Max(bounds.Left, left), Math.Max(bounds.Top, top), Math.Min(bounds.Right, right), Math.Min(bounds.Bottom, bottom));
             if (clipped.Width <= 0 || clipped.Height < bounds.Height / 3 || clipped.Width > bounds.Width / 2) return;
             if (result.Any(x => Math.Abs(x.Left - clipped.Left) <= 2 && Math.Abs(x.Right - clipped.Right) <= 2)) return;
