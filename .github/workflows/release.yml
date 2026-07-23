@@ -23,7 +23,9 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Restore
-        run: dotnet restore MotorsportTaskbar.slnx
+        run: |
+          dotnet restore MotorsportTaskbar.slnx
+          dotnet restore MotorsportTaskbar/MotorsportTaskbar.csproj -r win-x64
 
       - name: Run tests
         run: dotnet run --project MotorsportTaskbar.Tests -c Release --no-restore
