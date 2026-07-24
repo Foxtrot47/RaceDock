@@ -22,6 +22,8 @@ var tests = new (string Name, Action Run)[]
     ("championship labels use compact taskbar and full flyout names", ChampionshipLabels),
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
+    ("F3 standings include roster teams", F3RosterTeams),
+    ("F2 standings include roster teams", F2RosterTeams),
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
     ("WRC stage timing preserves live API values", WrcStageTiming),
     ("ended feeds clear composite selection", EndedFeedsClearSelection),
@@ -311,6 +313,47 @@ static void F3QualifyingSnapshot()
     Equal("Qualifying", snapshot.Session);
     Equal(SessionLifecycle.Live, snapshot.Lifecycle);
     Equal("TST", snapshot.Competitors[0].Code);
+}
+
+static void F3RosterTeams() => FiaRosterTeams("F3", "Formula 3 2026", Championship.Formula3,
+    ("1", "NAE", "Campos Racing"), ("14", "YAM", "Van Amersfoort Racing"), ("29", "LAC", "DAMS Lucas Oil"));
+
+static void F2RosterTeams() => FiaRosterTeams("F2", "Formula 2 2026", Championship.Formula2,
+    ("7", "BEG", "DAMS Lucas Oil"), ("9", "MIN", "MP Motorsport"), ("22", "VAR", "Van Amersfoort Racing"));
+
+static void FiaRosterTeams(string series, string season, Championship championship, params (string Number, string Code, string Team)[] drivers)
+{
+    var clock = new FakeClock();
+    var source = new F2LiveTimingSource(clock, new AlertArbiter(clock), series);
+    TimingSnapshot? snapshot = null;
+    source.SnapshotReceived += value => snapshot = value;
+    var lines = new JsonObject();
+    for (var index = 0; index < drivers.Length; index++)
+    {
+        var driver = drivers[index];
+        var position = index + 1;
+        lines[driver.Number] = new JsonObject
+        {
+            ["position"] = new JsonObject { ["Show"] = 1, ["Value"] = position.ToString() },
+            ["driver"] = new JsonObject { ["RacingNumber"] = driver.Number, ["FullName"] = driver.Code, ["TLA"] = driver.Code },
+            ["gapP"] = new JsonObject { ["Value"] = position == 1 ? "" : "+0.1" },
+            ["best"] = new JsonObject { ["Value"] = $"1:{20 + position}.000" }
+        };
+    }
+    var initial = new JsonObject
+    {
+        ["data"] = new JsonArray("2026-07-24T13:50:00Z", new JsonObject { ["Series"] = series, ["Session"] = "Qualifying" }, lines),
+        ["racedetailsfeed"] = new JsonArray("2026-07-24T13:45:00Z", new JsonObject
+        {
+            ["Season"] = season, ["Race"] = "Budapest", ["Circuit"] = "Hungaroring", ["Session"] = "Qualifying Session"
+        }),
+        ["sessionfeed"] = new JsonArray("2026-07-24T13:50:00Z", new JsonObject { ["Value"] = "Started" })
+    };
+    source.ProcessMessage(new JsonObject { ["I"] = 1, ["R"] = initial }.ToJsonString());
+    True(snapshot is not null);
+    Equal(championship, snapshot!.Championship);
+    foreach (var driver in drivers)
+        Equal(driver.Team, snapshot.Competitors.Single(x => x.Code == driver.Code).Team);
 }
 
 static void ChampionshipLabels()

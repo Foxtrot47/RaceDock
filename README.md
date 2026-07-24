@@ -37,6 +37,12 @@ Released versions are immutable. If a `vX.Y.Z` tag or release already exists, in
 
 The Formula 1 adapter connects to the official Formula 1 SignalR Core live-timing stream. The FIA adapter connects to the official FIA timing hub for both Formula 2 and Formula 3 series, including practice, qualifying, and race sessions. The WRC adapter polls the public WRC Promoter API for event entries, stages, and live stage times. Application logs are stored in `Logs/app.log`.
 
+### Formula 2 and Formula 3 team rosters
+
+The FIA Formula 2 and Formula 3 timing feeds identify drivers but do not include their teams. To support team logos, `F2LiveTimingSource` contains season-scoped racing-number-to-team rosters for both championships. The current mappings cover the official [2026 Formula 2 drivers](https://www.fiaformula2.com/en/drivers) and [2026 Formula 3 drivers](https://www.fiaformula3.com/en/drivers).
+
+At the start of each season, update the F2 and F3 roster dictionaries and their season identifiers in `MotorsportTaskbar.Core/F2LiveTimingSource.cs`, then confirm every team name resolves to an alias and asset in `MotorsportTaskbar/Assets/ManufacturerLogos/manifest.json`. Update the roster regression tests in `MotorsportTaskbar.Tests/Program.cs` at the same time. Unknown seasons intentionally use numbered position cards instead of potentially incorrect team logos.
+
 ## Logo asset guidelines
 
 Taskbar logos are displayed in a 26 x 26 DIP square with a 2 DIP internal margin, leaving an effective 22 x 22 DIP artwork area. The renderer uses uniform scaling, so it preserves each logo's aspect ratio rather than stretching it to a square.

@@ -15,6 +15,33 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
     private const string ConnectionData = "[{\"name\":\"streaming\"}]";
     private static readonly string[] JoinedFeeds = ["data", "stats", "weather", "status", "time", "racedetails"];
     private static readonly string[] InitialFeeds = ["data", "statsfeed", "weatherfeed", "sessionfeed", "trackfeed", "timefeed", "racedetailsfeed"];
+    private static readonly IReadOnlyDictionary<string, string> F2Teams2026 = new Dictionary<string, string>
+    {
+        ["1"] = "Invicta Racing", ["2"] = "Invicta Racing",
+        ["3"] = "Hitech", ["4"] = "Hitech",
+        ["5"] = "Campos Racing", ["6"] = "Campos Racing",
+        ["7"] = "DAMS Lucas Oil", ["8"] = "DAMS Lucas Oil",
+        ["9"] = "MP Motorsport", ["10"] = "MP Motorsport",
+        ["11"] = "PREMA Racing", ["12"] = "PREMA Racing",
+        ["14"] = "Rodin Motorsport", ["15"] = "Rodin Motorsport",
+        ["16"] = "ART Grand Prix", ["17"] = "ART Grand Prix",
+        ["20"] = "AIX Racing", ["21"] = "AIX Racing",
+        ["22"] = "Van Amersfoort Racing", ["23"] = "Van Amersfoort Racing",
+        ["24"] = "TRIDENT", ["25"] = "TRIDENT"
+    };
+    private static readonly IReadOnlyDictionary<string, string> F3Teams2026 = new Dictionary<string, string>
+    {
+        ["1"] = "Campos Racing", ["2"] = "Campos Racing", ["3"] = "Campos Racing",
+        ["4"] = "TRIDENT", ["5"] = "TRIDENT", ["6"] = "TRIDENT",
+        ["7"] = "MP Motorsport", ["8"] = "MP Motorsport", ["9"] = "MP Motorsport",
+        ["10"] = "ART Grand Prix", ["11"] = "ART Grand Prix", ["12"] = "ART Grand Prix",
+        ["14"] = "Van Amersfoort Racing", ["15"] = "Van Amersfoort Racing", ["16"] = "Van Amersfoort Racing",
+        ["17"] = "Rodin Motorsport", ["18"] = "Rodin Motorsport", ["19"] = "Rodin Motorsport",
+        ["20"] = "PREMA Racing", ["21"] = "PREMA Racing", ["22"] = "PREMA Racing",
+        ["23"] = "Hitech", ["24"] = "Hitech", ["25"] = "Hitech",
+        ["26"] = "AIX Racing", ["27"] = "AIX Racing", ["28"] = "AIX Racing",
+        ["29"] = "DAMS Lucas Oil", ["30"] = "DAMS Lucas Oil", ["31"] = "DAMS Lucas Oil"
+    };
 
     private readonly JsonObject _lines = [];
     private readonly string _baseUrl = BaseUrlFor(series);
@@ -24,6 +51,7 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
     private HttpClient? _http;
     private ClientWebSocket? _socket;
     private string _meeting = $"Formula {series}";
+    private string _season = "";
     private string _session = "Live Session";
     private string _timingSessionType = "";
     private string _circuit = "";
@@ -207,6 +235,7 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
 
     private void ApplyRaceDetails(JsonObject value)
     {
+        _season = JsonSupport.String(value["Season"]) ?? _season;
         _meeting = JsonSupport.String(value["Race"]) ?? _meeting;
         _circuit = JsonSupport.String(value["Circuit"]) ?? _circuit;
         _session = JsonSupport.String(value["Session"]) ?? _session;
@@ -247,11 +276,12 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
             var status = line?["status"] as JsonObject;
             var lapTime = LapSeconds(JsonSupport.TimingValue(line?["best"]));
             var position = JsonSupport.Int(line?["position"]?["Value"]) ?? int.MaxValue;
+            var racingNumber = JsonSupport.String(driver?["RacingNumber"]) ?? pair.Key;
             var gap = JsonSupport.TimingValue(line?[_timingSessionType == "Race" ? "gap" : "gapP"]);
             var interval = JsonSupport.TimingValue(line?[_timingSessionType == "Race" ? "interval" : "intervalP"]);
             return new CompetitorStanding(
-                JsonSupport.String(driver?["RacingNumber"]) ?? pair.Key, position,
-                JsonSupport.String(driver?["TLA"]) ?? pair.Key, JsonSupport.String(driver?["FullName"]) ?? "", "",
+                racingNumber, position,
+                JsonSupport.String(driver?["TLA"]) ?? pair.Key, JsonSupport.String(driver?["FullName"]) ?? "", TeamFor(racingNumber),
                 position == 1 ? "LEAD" : gap, interval, null, JsonSupport.Int(line?["laps"]?["Value"]) ?? 0,
                 JsonSupport.Bool(status?["InPit"]), JsonSupport.Bool(status?["Retired"]), JsonSupport.Bool(status?["Stopped"]),
                 bestLap.HasValue && lapTime == bestLap);
@@ -266,6 +296,12 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
         "Finished" or "Finalised" => SessionLifecycle.Ended,
         "Started" or "Running" or "Aborted" or "Suspended" => SessionLifecycle.Live,
         _ => SessionLifecycle.PreSession
+    };
+    private string TeamFor(string racingNumber) => (_championship, _season) switch
+    {
+        (Championship.Formula2, "Formula 2 2026") => F2Teams2026.GetValueOrDefault(racingNumber) ?? "",
+        (Championship.Formula3, "Formula 3 2026") => F3Teams2026.GetValueOrDefault(racingNumber) ?? "",
+        _ => ""
     };
     internal static string BaseUrlFor(string value) => value switch
     {
