@@ -14,6 +14,25 @@ dotnet publish MotorsportTaskbar -c Release -p:PublishProfile=FolderProfile
 
 Launch the generated `MotorsportTaskbar.exe`. `FolderProfile` produces a self-contained, compressed single-file build. Trimming was tested but is not safe for this WPF/WinForms application: the .NET SDK blocks it by default, and suppressing that guard caused a published startup failure in the live smoke test. Keep trimming disabled unless the UI and all reflection-based paths are migrated and revalidated. The app connects to enabled live championships concurrently and rotates between active sessions. It stays hidden until timing data arrives. Open **Settings** from the tray menu (or double-click the tray icon) to select streams, change rotation timing, choose how many drivers are visible, toggle event/session/gap/flag elements, and replace taskbar position cards with manufacturer marks. The **Testing** tab contains the deterministic scenario, feed-state controls, editable classification, and bounded diagnostic recording. Settings are persisted in `%LocalAppData%\MotorsportTaskbar\settings.json`. No launch-at-login entry is created.
 
+## Versioning and releases
+
+`Version.props` is the single source of truth for the application SemVer. It is imported by `Directory.Build.props`, so the app, core library, tests, published executable, workflow artifacts, Git tag, and GitHub Release use the same version. The running version is shown in the tray menu and Settings window.
+
+To inspect the evaluated version locally:
+
+```powershell
+dotnet msbuild MotorsportTaskbar/MotorsportTaskbar.csproj -getProperty:Version
+```
+
+To publish a release:
+
+1. Update `VersionPrefix` in `Version.props` to a new stable SemVer and merge it into `main`.
+2. Run the **Release Windows application** workflow from the `main` branch.
+3. The workflow validates the version, runs the tests, builds the self-contained application, and creates matching `vX.Y.Z` tag and GitHub Release entries.
+4. Download the versioned `win-x64` ZIP and its SHA-256 checksum from the release or workflow artifacts.
+
+Released versions are immutable. If a `vX.Y.Z` tag or release already exists, increment `VersionPrefix` and publish a new version rather than replacing it.
+
 ## Data and privacy
 
 The Formula 1 adapter connects to the official Formula 1 SignalR Core live-timing stream. The FIA adapter connects to the official FIA timing hub for both Formula 2 and Formula 3 series, including practice, qualifying, and race sessions. The WRC adapter polls the public WRC Promoter API for event entries, stages, and live stage times. Application logs are stored in `Logs/app.log`.

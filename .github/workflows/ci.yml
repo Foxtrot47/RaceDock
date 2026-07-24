@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Validate version
+        shell: pwsh
+        run: |
+          [xml] $versionFile = Get-Content Version.props -Raw
+          $version = [string] $versionFile.Project.PropertyGroup.VersionPrefix
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+            throw "Version.props must contain a stable SemVer VersionPrefix; found '$version'."
+          }
+          "Building MotorsportTaskbar $version"
+
+      - name: Restore
+        run: dotnet restore MotorsportTaskbar.slnx
+
+      - name: Build
+        run: dotnet build MotorsportTaskbar.slnx -c Release --no-restore -p:SourceRevisionId=${{ github.sha }}
+
+      - name: Run tests
+        run: dotnet run --project MotorsportTaskbar.Tests -c Release --no-build

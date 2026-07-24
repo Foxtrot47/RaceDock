@@ -1,6 +1,8 @@
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)Version.props" />
   <PropertyGroup>
     <!-- This app uses WPF/WinForms and Win32 P/Invoke, not WinRT/CsWinRT projections. -->
     <IncludeWindowsSDKRefFrameworkReferences>false</IncludeWindowsSDKRefFrameworkReferences>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 </Project>
