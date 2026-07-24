@@ -126,6 +126,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
             foreach (var pair in lines)
             {
                 if (pair.Value is not JsonObject line) continue;
+                if (line["ShowPosition"] is { } showPosition && !JsonSupport.Bool(showPosition)) continue;
                 var meta = drivers?[pair.Key] as JsonObject;
                 var bestLap = JsonSupport.TimingValue(line["BestLapTime"]);
                 var bestSeconds = bestLap is null ? null : ParseLapSeconds(bestLap);
@@ -134,7 +135,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
                 var status = JsonSupport.Int(line["Status"]);
                 standings.Add(new(pair.Key, pos, JsonSupport.String(meta?["Tla"]) ?? pair.Key,
                     JsonSupport.String(meta?["FullName"]) ?? "", JsonSupport.String(meta?["TeamName"]) ?? "",
-                    pos == 1 ? "LEAD" : JsonSupport.TimingValue(line["GapToLeader"]),
+                    JsonSupport.TimingValue(line["GapToLeader"]),
                     JsonSupport.TimingValue(line["IntervalToPositionAhead"]), LatestCompound(appLines?[pair.Key] as JsonObject),
                     JsonSupport.Int(line["NumberOfLaps"]) ?? 0, JsonSupport.Bool(line["InPit"]),
                     JsonSupport.Bool(line["Retired"]) || status == 68, JsonSupport.Bool(line["Stopped"]) || status == 64,
@@ -142,21 +143,23 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
             }
         }
         standings = [.. standings.Where(x => x.Position > 0 && x.Position < int.MaxValue).OrderBy(x => x.Position)];
-        if (standings.Count > 0 && bestLaps.TryGetValue(standings[0].DriverId, out var leaderBest))
+        if (standings.Count > 0)
         {
-            for (var index = 0; index < standings.Count; index++)
+            standings[0] = standings[0] with { GapToLeader = "LEAD" };
+            var hasLeaderBest = bestLaps.TryGetValue(standings[0].DriverId, out var leaderBest);
+            for (var index = 1; index < standings.Count; index++)
             {
                 var standing = standings[index];
-                if (!bestLaps.TryGetValue(standing.DriverId, out var best)) continue;
-                var gap = standing.GapToLeader;
+                var gap = IsLeaderLabel(standing.GapToLeader) ? null : standing.GapToLeader;
                 var interval = standing.IntervalToPositionAhead;
-                if (index == 0) gap = "LEAD";
-                else
+                if (hasLeaderBest && bestLaps.TryGetValue(standing.DriverId, out var best))
                 {
                     gap ??= FormatLapDelta(best - leaderBest);
                     if (bestLaps.TryGetValue(standings[index - 1].DriverId, out var previousBest))
                         interval ??= FormatLapDelta(best - previousBest);
                 }
+                if (gap is null && standing.Position == standings[0].Position) gap = FormatLapDelta(0);
+                if (interval is null && standing.Position == standings[index - 1].Position) interval = FormatLapDelta(0);
                 standings[index] = standing with { GapToLeader = gap, IntervalToPositionAhead = interval };
             }
         }
@@ -191,6 +194,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         JsonObject obj => obj.OrderBy(x => int.TryParse(x.Key, out var i) ? i : -1).LastOrDefault().Value?["Compound"]?.ToString(),
         _ => null
     };
+    private static bool IsLeaderLabel(string? value) => value?.Trim().ToUpperInvariant() is "LEAD" or "LEADER";
     private static string FormatLapDelta(double seconds) => $"+{Math.Max(0, seconds).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}";
     private static double? ParseLapSeconds(string text)
     {
