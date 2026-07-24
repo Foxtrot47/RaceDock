@@ -6,6 +6,8 @@ var tests = new (string Name, Action Run)[]
 {
     ("deep merge and mixed primitive fields", DeepMerge),
     ("leader gaps, intervals, ordering and missing values", TimingParsing),
+    ("tied F1 times produce one leader", TiedF1Times),
+    ("hidden F1 substitutions are excluded", HiddenF1Substitution),
     ("retired and fastest lap detection", FastestAndRetired),
     ("track status mappings and alert priority", AlertPriority),
     ("taskbar flags follow the displayed track state", TaskbarFlagsFollowSnapshot),
@@ -45,6 +47,44 @@ static void TimingParsing()
 {
     var (_, _, processor) = Fixture(); processor.ProcessInitial(JsonNode.Parse("""{"DriverList":{"1":{"Tla":"AAA"},"2":{"Tla":"BBB"},"3":{"Tla":"CCC"}},"TimingData":{"Lines":{"1":{"Position":"2","GapToLeader":{"Value":"+1.2"},"IntervalToPositionAhead":0.4},"2":{"Position":1,"GapToLeader":0},"3":{"Position":"3","GapToLeader":"-","IntervalToPositionAhead":{"Value":"+2.0"}}}}}""")!.AsObject());
     Equal("BBB", processor.Current.Competitors[0].Code); Equal("LEAD", processor.Current.Competitors[0].GapToLeader); Equal("+1.2", processor.Current.Competitors[1].GapToLeader); Equal("0.4", processor.Current.Competitors[1].IntervalToPositionAhead); Equal(null, processor.Current.Competitors[2].GapToLeader);
+}
+
+static void TiedF1Times()
+{
+    var (_, _, processor) = Fixture();
+    processor.ProcessInitial(JsonNode.Parse("""
+        {"DriverList":{"12":{"Tla":"ANT"},"63":{"Tla":"RUS"}},
+         "TimingData":{"Lines":{
+           "12":{"Position":1,"ShowPosition":true,"GapToLeader":"LEADER","BestLapTime":{"Value":"1:18.500"}},
+           "63":{"Position":1,"ShowPosition":true,"GapToLeader":"LEADER","BestLapTime":{"Value":"1:18.500"}}}}}
+        """)!.AsObject());
+    Equal(2, processor.Current.Competitors.Count);
+    Equal(1, processor.Current.Competitors.Count(x => x.GapToLeader == "LEAD"));
+    Equal("+0.000", processor.Current.Competitors[1].GapToLeader);
+    Equal("+0.000", processor.Current.Competitors[1].IntervalToPositionAhead);
+}
+
+static void HiddenF1Substitution()
+{
+    var (_, _, processor) = Fixture();
+    processor.ProcessInitial(JsonNode.Parse("""
+        {"DriverList":{
+           "1":{"Tla":"AAA","TeamName":"Other"},"2":{"Tla":"BBB","TeamName":"Other"},"3":{"Tla":"CCC","TeamName":"Other"},
+           "37":{"Tla":"FOR","FullName":"Leonardo Fornaroli","TeamName":"McLaren"},
+           "81":{"Tla":"PIA","FullName":"Oscar Piastri","TeamName":"McLaren"},
+           "4":{"Tla":"NOR","FullName":"Lando Norris","TeamName":"McLaren"}},
+         "TimingData":{"Lines":{
+           "1":{"Position":1},"2":{"Position":2},"3":{"Position":3},
+           "37":{"Position":4,"ShowPosition":true,"NumberOfLaps":6},
+           "81":{"Position":5,"ShowPosition":false,"NumberOfLaps":44},
+           "4":{"Position":5,"ShowPosition":true,"NumberOfLaps":5}}}}
+        """)!.AsObject());
+    var mclaren = processor.Current.Competitors.Where(x => x.Team == "McLaren").Select(x => x.Code).ToList();
+    Equal(5, processor.Current.Competitors.Count);
+    Equal("AAA", processor.Current.Competitors[0].Code);
+    Equal(2, mclaren.Count);
+    Equal("FOR", mclaren[0]);
+    Equal("NOR", mclaren[1]);
 }
 
 static void TaskbarFlagsFollowSnapshot()
