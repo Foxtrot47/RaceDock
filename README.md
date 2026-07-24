@@ -16,7 +16,7 @@ Launch the generated `MotorsportTaskbar.exe`. `FolderProfile` produces a self-co
 
 ## Versioning and releases
 
-`Version.props` is the single source of truth for the application SemVer. It is imported by `Directory.Build.props`, so the app, core library, tests, published executable, workflow artifacts, Git tag, and GitHub Release use the same version. The running version is shown in the tray menu and Settings window.
+`Version.props` is the single source of truth for the application SemVer. It is imported by `Directory.Build.props`, so the app, core library, tests, published executable, workflow artifacts, Git tag, and GitHub Release use the same version. The running version is shown in the tray menu.
 
 To inspect the evaluated version locally:
 
