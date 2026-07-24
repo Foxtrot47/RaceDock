@@ -52,7 +52,9 @@ jobs:
           }
 
           gh release view $tag *> $null
-          if ($LASTEXITCODE -eq 0) {
+          $releaseExists = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if ($releaseExists) {
             throw "GitHub Release $tag already exists. Increment VersionPrefix before releasing again."
           }
 
