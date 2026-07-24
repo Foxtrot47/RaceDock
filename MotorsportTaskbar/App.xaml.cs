@@ -29,6 +29,7 @@ public partial class App : System.Windows.Application
     {
         var menu = new System.Windows.Forms.ContextMenuStrip();
         _statusItem = new System.Windows.Forms.ToolStripMenuItem("Connection: starting") { Enabled = false }; menu.Items.Add(_statusItem);
+        menu.Items.Add(new System.Windows.Forms.ToolStripMenuItem($"Version {AppVersion.Display}") { Enabled = false });
         menu.Items.Add("Settings", null, (_, _) => _controller?.ShowSettings());
         menu.Items.Add("Restart feed", null, async (_, _) => { if (_controller is not null) await _controller.RestartAsync(); });
         menu.Items.Add("View logs", null, (_, _) => _controller?.OpenLogs());
