@@ -38,13 +38,13 @@ jobs:
           if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
             throw "Version.props must contain a stable SemVer VersionPrefix; found '$version'."
           }
-          "Building MotorsportTaskbar $version"
+          "Building RaceDock $version"
 
       - name: Restore
-        run: dotnet restore MotorsportTaskbar.slnx
+        run: dotnet restore RaceDock.slnx
 
       - name: Build
-        run: dotnet build MotorsportTaskbar.slnx -c Release --no-restore -p:SourceRevisionId=${{ github.sha }}
+        run: dotnet build RaceDock.slnx -c Release --no-restore -p:SourceRevisionId=${{ github.sha }}
 
       - name: Run tests
-        run: dotnet run --project MotorsportTaskbar.Tests -c Release --no-build
+        run: dotnet run --project RaceDock.Tests -c Release --no-build

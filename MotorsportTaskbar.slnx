@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="MotorsportTaskbar.Core/MotorsportTaskbar.Core.csproj" />
-  <Project Path="MotorsportTaskbar/MotorsportTaskbar.csproj" />
-  <Project Path="MotorsportTaskbar.Tests/MotorsportTaskbar.Tests.csproj" />
-</Solution>

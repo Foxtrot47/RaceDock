@@ -58,7 +58,7 @@ jobs:
             throw "GitHub Release $tag already exists. Increment VersionPrefix before releasing again."
           }
 
-          $archive = "MotorsportTaskbar-$tag-win-x64.zip"
+          $archive = "RaceDock-$tag-win-x64.zip"
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "archive=$archive" >> $env:GITHUB_OUTPUT
@@ -66,16 +66,16 @@ jobs:
 
       - name: Restore
         run: |
-          dotnet restore MotorsportTaskbar.slnx
-          dotnet restore MotorsportTaskbar/MotorsportTaskbar.csproj -r win-x64
+          dotnet restore RaceDock.slnx
+          dotnet restore RaceDock/RaceDock.csproj -r win-x64
 
       - name: Run tests
-        run: dotnet run --project MotorsportTaskbar.Tests -c Release --no-restore -p:SourceRevisionId=${{ github.sha }}
+        run: dotnet run --project RaceDock.Tests -c Release --no-restore -p:SourceRevisionId=${{ github.sha }}
 
       - name: Publish self-contained application
         shell: pwsh
         run: |
-          dotnet publish MotorsportTaskbar/MotorsportTaskbar.csproj `
+          dotnet publish RaceDock/RaceDock.csproj `
             -c Release `
             -r win-x64 `
             --self-contained true `
@@ -102,7 +102,7 @@ jobs:
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: MotorsportTaskbar-${{ steps.version.outputs.tag }}-win-x64
+          name: RaceDock-${{ steps.version.outputs.tag }}-win-x64
           path: |
             artifacts/${{ steps.version.outputs.archive }}
             artifacts/${{ steps.version.outputs.checksum }}
@@ -120,4 +120,4 @@ jobs:
             'artifacts/${{ steps.version.outputs.checksum }}' `
             --target '${{ github.sha }}' `
             --generate-notes `
-            --title 'MotorsportTaskbar ${{ steps.version.outputs.version }}'
+            --title 'RaceDock ${{ steps.version.outputs.version }}'
