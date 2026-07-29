@@ -9,6 +9,7 @@ var tests = new (string Name, Action Run)[]
     ("tied F1 times produce one leader", TiedF1Times),
     ("hidden F1 substitutions are excluded", HiddenF1Substitution),
     ("retired and fastest lap detection", FastestAndRetired),
+    ("numeric F1 status does not override flags", NumericF1Status),
     ("track status mappings and alert priority", AlertPriority),
     ("taskbar flags follow the displayed track state", TaskbarFlagsFollowSnapshot),
     ("duplicate alerts and injectable expiry clock", DeduplicationAndExpiry),
@@ -103,6 +104,22 @@ static void FastestAndRetired()
     var (_, alerts, p) = Fixture(); p.ProcessInitial(BaseState());
     p.ProcessDelta("TimingData", JsonNode.Parse("""{"Lines":{"1":{"Retired":"true","Status":68,"BestLapTime":{"Value":"1:20.500","OverallFastest":"true"}}}}""")!, DateTimeOffset.UtcNow);
     True(p.Current.Competitors.Single(x => x.DriverId == "1").Retired); Equal(AlertKind.FastestLap, alerts.Current?.Kind); True(p.Current.Competitors.Single(x => x.DriverId == "1").IsOverallFastest);
+}
+
+static void NumericF1Status()
+{
+    var (_, _, processor) = Fixture();
+    processor.ProcessInitial(JsonNode.Parse("""
+        {"DriverList":{"1":{"Tla":"NOR"},"63":{"Tla":"RUS"},"77":{"Tla":"BOT"}},
+         "TimingData":{"Lines":{
+           "1":{"Position":1,"Status":64,"Stopped":false,"Retired":false},
+           "63":{"Position":2,"Status":608,"Stopped":false,"Retired":false},
+           "77":{"Position":3,"Status":28,"Stopped":true,"Retired":true}}}}
+        """)!.AsObject());
+    False(processor.Current.Competitors.Single(x => x.Code == "NOR").Stopped);
+    False(processor.Current.Competitors.Single(x => x.Code == "RUS").Stopped);
+    True(processor.Current.Competitors.Single(x => x.Code == "BOT").Stopped);
+    True(processor.Current.Competitors.Single(x => x.Code == "BOT").Retired);
 }
 
 static void AlertPriority()

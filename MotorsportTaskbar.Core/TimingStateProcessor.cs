@@ -132,14 +132,12 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
                 var bestSeconds = bestLap is null ? null : ParseLapSeconds(bestLap);
                 if (bestSeconds.HasValue) bestLaps[pair.Key] = bestSeconds.Value;
                 var pos = JsonSupport.Int(line["Position"]) ?? int.MaxValue;
-                var status = JsonSupport.Int(line["Status"]);
                 standings.Add(new(pair.Key, pos, JsonSupport.String(meta?["Tla"]) ?? pair.Key,
                     JsonSupport.String(meta?["FullName"]) ?? "", JsonSupport.String(meta?["TeamName"]) ?? "",
                     JsonSupport.TimingValue(line["GapToLeader"]),
                     JsonSupport.TimingValue(line["IntervalToPositionAhead"]), LatestCompound(appLines?[pair.Key] as JsonObject),
                     JsonSupport.Int(line["NumberOfLaps"]) ?? 0, JsonSupport.Bool(line["InPit"]),
-                    JsonSupport.Bool(line["Retired"]) || status == 68, JsonSupport.Bool(line["Stopped"]) || status == 64,
-                    pair.Key == _fastestDriver));
+                    JsonSupport.Bool(line["Retired"]), JsonSupport.Bool(line["Stopped"]), pair.Key == _fastestDriver));
             }
         }
         standings = [.. standings.Where(x => x.Position > 0 && x.Position < int.MaxValue).OrderBy(x => x.Position)];
