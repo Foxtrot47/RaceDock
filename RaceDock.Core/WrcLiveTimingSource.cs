@@ -1,265 +1,424 @@
 // Copyright (c) 2026 RaceDock contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
-using System.Globalization;
-using System.Net.Http.Json;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace RaceDock.Core;
 
-/// <summary>Polling adapter for the public WRC Promoter timing API.</summary>
-public sealed class WrcLiveTimingSource(TimingSnapshot seed, IClock clock, IAlertArbiter alerts) : ILiveTimingSource
+/// <summary>Discovers and polls the current World Rally Championship event.</summary>
+public sealed class WrcLiveTimingSource : ILiveTimingSource
 {
-    private const string ApiBase = "https://p-p.redbull.com/rb-wrccom-lintegration-yv-prod/api";
-    private readonly HttpClient _http = new();
-    private readonly Dictionary<int, JsonObject> _entries = [];
+    private readonly WrcApiClient _api;
+    private readonly IClock _clock;
+    private readonly IAsyncDelay _delay;
+    private readonly IAlertArbiter _alerts;
+    private readonly WrcPollingOptions _options;
+    private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private CancellationTokenSource? _runCts;
-    private int _eventId;
-    private int _rallyId;
-    private string _meeting = "Rally Estonia";
-    private DateTimeOffset _eventEnd;
-    private DateTimeOffset _shakedownStart;
-    private DateTimeOffset _shakedownEnd;
+    private Task? _worker;
+    private ConnectionState? _connection;
+    private int? _activeStageId;
     private readonly HashSet<int> _completedStages = [];
-    private int _lastStageId;
-    private string _lastStageStatus = "";
-    private TimingSnapshot _lastPublished = seed;
-    private TimingSnapshot _current = seed;
+    private readonly HashSet<int> _alertedStages = [];
+    private string? _settledResultFingerprint;
+    private int _settledResultPolls;
+    private readonly Dictionary<int, string> _shakedownFingerprints = [];
+    private IReadOnlyList<WrcStage> _knownStages = [];
+    private int _knownShakedownCount;
+    private DateTimeOffset? _lastShakedownChange;
+    private string? _lastDeltaFingerprint;
+    private bool _disposed;
+
+    public WrcLiveTimingSource(IClock clock, IAlertArbiter alerts)
+        : this(new WrcApiClient(), clock, new SystemAsyncDelay(), alerts, WrcPollingOptions.Default) { }
+
+    internal WrcLiveTimingSource(WrcApiClient api, IClock clock, IAsyncDelay delay, IAlertArbiter alerts, WrcPollingOptions options)
+    {
+        _api = api;
+        _clock = clock;
+        _delay = delay;
+        _alerts = alerts;
+        _options = options;
+    }
 
     public event Action<TimingSnapshot>? SnapshotReceived;
     public event Action<TimingDelta>? DeltaReceived;
     public event Action<ConnectionState>? ConnectionChanged;
     public event Action<FeedFailure>? Failed;
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (_runCts is not null) return Task.CompletedTask;
-        _runCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("RaceDock/1.0");
-        _ = Task.Run(() => RunAsync(_runCts.Token), _runCts.Token);
-        return Task.CompletedTask;
+        await _lifecycle.WaitAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_worker is not null) return;
+            _runCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _worker = Task.Run(() => RunAsync(_runCts.Token), _runCts.Token);
+        }
+        finally { _lifecycle.Release(); }
     }
 
     public async Task StopAsync()
     {
-        if (_runCts is null) return;
-        await _runCts.CancelAsync();
-        _runCts.Dispose(); _runCts = null;
-        ConnectionChanged?.Invoke(ConnectionState.Disconnected);
+        Task? worker;
+        await _lifecycle.WaitAsync();
+        try
+        {
+            if (_worker is null) return;
+            if (_runCts is not null) await _runCts.CancelAsync();
+            worker = _worker;
+        }
+        finally { _lifecycle.Release(); }
+
+        try { await worker; }
+        catch (OperationCanceledException) { }
+
+        await _lifecycle.WaitAsync();
+        try
+        {
+            _worker = null;
+            _runCts?.Dispose();
+            _runCts = null;
+            ResetEventState();
+            SetConnection(ConnectionState.Disconnected);
+        }
+        finally { _lifecycle.Release(); }
     }
 
     private async Task RunAsync(CancellationToken ct)
     {
-        var attempt = 0;
+        var discoveryAttempt = 0;
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                ConnectionChanged?.Invoke(ConnectionState.Connecting);
-                await LoadEventAsync(ct);
-                ConnectionChanged?.Invoke(ConnectionState.Connected);
-                attempt = 0;
-                while (!ct.IsCancellationRequested)
+                var selection = await DiscoverEventAsync(ct);
+                discoveryAttempt = 0;
+                if (selection.Current is null)
                 {
-                    await PollAsync(ct);
-                    await Task.Delay(TimeSpan.FromSeconds(15), ct);
+                    ResetEventState();
+                    TransitionHidden(ConnectionState.Disconnected, ct);
+                    var wait = _options.ScheduleRefreshInterval;
+                    if (selection.Next is not null)
+                    {
+                        var untilStart = selection.Next.StartUtc - _clock.UtcNow;
+                        if (untilStart > TimeSpan.Zero && untilStart < wait) wait = untilStart;
+                    }
+                    await _delay.DelayAsync(PositiveDelay(wait), ct);
+                    continue;
                 }
+
+                await MonitorEventAsync(selection.Current, ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
             catch (Exception ex)
             {
-                Publish(_lastPublished with { ConnectionState = ConnectionState.Faulted, FreshnessTimestamp = clock.UtcNow });
-                Failed?.Invoke(new($"WRC feed failed: {ex.Message}", ex, clock.UtcNow));
-                ConnectionChanged?.Invoke(ConnectionState.Faulted);
-                var delay = TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, Math.Min(attempt++, 5))));
-                try { await Task.Delay(delay, ct); } catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
+                ResetEventState();
+                PublishFailure("WRC discovery failed", ex, ct);
+                var wait = Backoff(_options.DiscoveryBackoff, discoveryAttempt++);
+                await _delay.DelayAsync(wait, ct);
             }
         }
     }
 
-    private async Task LoadEventAsync(CancellationToken ct)
+    private async Task<WrcEventSelection> DiscoverEventAsync(CancellationToken ct)
     {
-        var season = await GetAsync<JsonObject>("season-detail.json?seasonId=47", ct) ?? throw new InvalidOperationException("WRC season metadata was empty.");
-        var round = (season["seasonRounds"] as JsonArray)?.OfType<JsonObject>()
-            .FirstOrDefault(x => JsonSupport.String(x["event"]?["name"])?.Contains("Estonia", StringComparison.OrdinalIgnoreCase) == true)
-            ?? throw new InvalidOperationException("Rally Estonia was not found in the WRC schedule.");
-        var eventNode = round["event"] as JsonObject ?? throw new InvalidOperationException("Rally Estonia event metadata was empty.");
-        _eventId = JsonSupport.Int(eventNode["eventId"]) ?? throw new InvalidOperationException("Rally Estonia event id was missing.");
-        _meeting = JsonSupport.String(eventNode["name"]) ?? "Rally Estonia";
-        var finish = DateOnly.TryParse(JsonSupport.String(eventNode["finishDate"]), out var date) ? date : DateOnly.FromDateTime(clock.UtcNow.UtcDateTime);
-        var start = DateOnly.TryParse(JsonSupport.String(eventNode["startDate"]), out var eventDate) ? eventDate : date;
-        var offsetMinutes = JsonSupport.Int(eventNode["timeZoneOffset"]) ?? 180;
-        var offset = TimeSpan.FromMinutes(offsetMinutes);
-        _eventEnd = new DateTimeOffset(finish.AddDays(1).ToDateTime(TimeOnly.MinValue), offset).ToUniversalTime();
-        _shakedownStart = new DateTimeOffset(start.ToDateTime(new TimeOnly(8, 1)), offset).ToUniversalTime();
-        _shakedownEnd = _shakedownStart.AddHours(2);
-        var detail = await GetAsync<JsonObject>($"events/{_eventId}.json", ct) ?? throw new InvalidOperationException("Rally detail was empty.");
-        var rally = (detail["rallies"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(x => JsonSupport.Bool(x["isMain"]))
-            ?? (detail["rallies"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault()
-            ?? throw new InvalidOperationException("Rally entry was missing.");
-        _rallyId = JsonSupport.Int(rally["rallyId"]) ?? throw new InvalidOperationException("Rally id was missing.");
-        var entries = await GetAsync<JsonArray>($"events/{_eventId}/rallies/{_rallyId}/entries.json", ct) ?? [];
-        _entries.Clear();
-        foreach (var entry in entries.OfType<JsonObject>())
+        var seasons = WrcTiming.OrderSeasons(await _api.GetSeasonsAsync(ct), _clock.UtcNow.Year);
+        WrcCalendarEvent? next = null;
+        foreach (var season in seasons)
         {
-            var id = JsonSupport.Int(entry["entryId"]);
-            if (id.HasValue) _entries[id.Value] = entry;
+            var selection = WrcTiming.SelectEvent(await _api.GetSeasonEventsAsync(season.SeasonId, ct), _clock.UtcNow);
+            if (selection.Current is not null) return selection;
+            if (selection.Next is not null && (next is null || selection.Next.StartUtc < next.StartUtc)) next = selection.Next;
+            // A previous-season rally could overlap the new year, but current/future season priority is retained for now.
+            if (season.Year >= _clock.UtcNow.Year && next is not null) return new(null, next);
         }
+        return new(null, next);
     }
 
-    private async Task PollAsync(CancellationToken ct)
+    private async Task MonitorEventAsync(WrcCalendarEvent candidate, CancellationToken ct)
     {
-        var now = clock.UtcNow;
-        if (now < _shakedownStart || now >= _eventEnd) { Publish(TimingSnapshot.Hidden(now)); return; }
-        if (now < _shakedownEnd) { PublishShakedown(now); return; }
-        var stages = await GetAsync<JsonArray>($"events/{_eventId}/stages.json", ct) ?? [];
-        var stageList = stages.OfType<JsonObject>().ToList();
-        var stage = stageList
-            .Where(value => !IsCompletedStage(value) && JsonSupport.String(value["status"]) == "Running")
-            .OrderByDescending(value => JsonSupport.Int(value["number"]) ?? 0)
-            .FirstOrDefault()
-            ?? stageList
-                .Select(value => (Value: value, Start: StageStartUtc(value)))
-                .Where(item => !IsCompletedStage(item.Value) && JsonSupport.String(item.Value["status"]) == "ToRun" && item.Start.HasValue && item.Start.Value <= now)
-                .OrderByDescending(item => item.Start)
-                .Select(item => item.Value)
-                .FirstOrDefault();
-        if (stage is null) { Publish(TimingSnapshot.Hidden(now)); return; }
-        var stageId = JsonSupport.Int(stage["stageId"]) ?? 0;
-        var status = "Running";
-        DeltaReceived?.Invoke(new("WrcStage", stage.DeepClone(), now));
-        var code = JsonSupport.String(stage["code"]) ?? "SS";
-        var location = JsonSupport.String(stage["name"]) ?? JsonSupport.String(stage["location"]) ?? "";
-        var times = await GetAsync<JsonArray>($"events/{_eventId}/stages/{stageId}/stagetimes.json?rallyId={_rallyId}", ct) ?? [];
-        var finalResults = await GetAsync<JsonArray>($"events/{_eventId}/stages/{stageId}/results.json?rallyId={_rallyId}", ct) ?? [];
-        if (Wrc1ResultsComplete(_entries, times, finalResults)) { _completedStages.Add(stageId); Publish(TimingSnapshot.Hidden(now)); return; }
-        var standings = BuildStandings(_entries, times);
-        if (_lastStageId != stageId || _lastStageStatus != status)
+        SetConnection(ConnectionState.Connecting, ct);
+        var context = await LoadEventContextAsync(candidate.EventId, ct);
+        ResetActivityState();
+        if (_clock.UtcNow < context.Event.StartUtc)
         {
-            alerts.Accept(new(AlertKind.SessionStart, 10, false, $"{code} STARTED", location, null, clock.UtcNow, $"wrc:stage:start:{stageId}", TimeSpan.FromSeconds(4)));
-            _lastStageId = stageId; _lastStageStatus = status;
+            TransitionHidden(ConnectionState.Disconnected, ct);
+            await _delay.DelayAsync(PositiveDelay(Min(context.Event.StartUtc - _clock.UtcNow, _options.ScheduleRefreshInterval)), ct);
+            return;
         }
-        Publish(new(_meeting, $"{code}  {location}", "", 0, null, TrackCondition.AllClear, standings, clock.UtcNow, SessionLifecycle.Live, ConnectionState.Connected, null, Championship.WorldRallyChampionship));
-    }
-
-    internal static bool Wrc1ResultsComplete(IReadOnlyDictionary<int, JsonObject> entries, JsonArray times, JsonArray finalResults)
-    {
-        var wrc1Ids = entries.Values
-            .Where(entry => RallyCategory(entry) == "WRC1")
-            .Select(entry => JsonSupport.Int(entry["entryId"]))
-            .Where(id => id.HasValue)
-            .Select(id => id!.Value)
-            .ToHashSet();
-        var expected = times.OfType<JsonObject>()
-            .Where(time => JsonSupport.Int(time["entryId"]) is int id && wrc1Ids.Contains(id) && JsonSupport.String(time["status"]) is not ("DNS" or "NonStarter"))
-            .Select(time => JsonSupport.Int(time["entryId"])!.Value)
-            .ToHashSet();
-        var classified = finalResults.OfType<JsonObject>()
-            .Select(result => JsonSupport.Int(result["entryId"]))
-            .Where(id => id.HasValue)
-            .Select(id => id!.Value)
-            .ToHashSet();
-        return expected.Count > 0 && expected.IsSubsetOf(classified);
-    }
-
-    private bool IsCompletedStage(JsonObject stage) => _completedStages.Contains(JsonSupport.Int(stage["stageId"]) ?? 0);
-
-    internal static bool StageResultsComplete(JsonArray times, JsonArray finalResults)
-    {
-        var expected = times.OfType<JsonObject>().Count(time => JsonSupport.String(time["status"]) is not ("DNS" or "NonStarter"));
-        return expected > 0 && finalResults.OfType<JsonObject>().Count() >= expected;
-    }
-
-    private static DateTimeOffset? StageStartUtc(JsonObject stage)
-    {
-        var raw = (stage["controls"] as JsonArray)?.OfType<JsonObject>()
-            .FirstOrDefault(control => JsonSupport.String(control["type"]) == "StageStart")?["firstCarDueDateTime"];
-        return DateTimeOffset.TryParse(JsonSupport.String(raw), CultureInfo.InvariantCulture,
-            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var start) ? start : null;
-    }
-
-    private void PublishShakedown(DateTimeOffset now)
-    {
-        var standings = _entries.Values.OrderBy(x => JsonSupport.Int(x["entryListOrder"]) ?? int.MaxValue).Select((entry, index) =>
+        if (_clock.UtcNow >= context.Event.EndUtc)
         {
-            var driver = entry["driver"] as JsonObject;
-            return new CompetitorStanding(JsonSupport.String(entry["entryId"]) ?? index.ToString(CultureInfo.InvariantCulture), index + 1, JsonSupport.String(driver?["code"]) ?? JsonSupport.String(entry["identifier"]) ?? "—", JsonSupport.String(driver?["fullName"]) ?? "", JsonSupport.String(entry["manufacturer"]?["name"]) ?? "", index == 0 ? "LEAD" : null, null, null, 0, false, false, false, false);
-        }).ToList();
-        Publish(new(_meeting, "SHAKEDOWN  Kastre", "Kastre", 0, null, TrackCondition.AllClear, standings, now, SessionLifecycle.Live, ConnectionState.Connected, null, Championship.WorldRallyChampionship));
-    }
+            TransitionHidden(ConnectionState.Disconnected, ct);
+            await _delay.DelayAsync(_options.ScheduleRefreshInterval, ct);
+            return;
+        }
+        TransitionHidden(ConnectionState.Connected, ct);
+        var nextMetadataRefresh = _clock.UtcNow + _options.MetadataRefreshInterval;
+        var pollAttempt = 0;
 
-    internal static IReadOnlyList<CompetitorStanding> BuildStandings(IReadOnlyDictionary<int, JsonObject> entries, JsonArray times)
-    {
-        var timesByEntry = times.OfType<JsonObject>()
-            .Select(time => (Id: JsonSupport.Int(time["entryId"]), Time: time))
-            .Where(item => item.Id.HasValue)
-            .GroupBy(item => item.Id!.Value)
-            .ToDictionary(group => group.Key, group => group.Last().Time);
-        var classifiedCount = timesByEntry.Values.Count(time => JsonSupport.Int(time["position"]).HasValue);
-        var unclassifiedIndex = 0;
-        return entries.Values
-            .Select(entry =>
-            {
-                var entryId = JsonSupport.Int(entry["entryId"]) ?? 0;
-                timesByEntry.TryGetValue(entryId, out var time);
-                return (Entry: entry, EntryId: entryId, Time: time, Position: JsonSupport.Int(time?["position"]),
-                    Order: JsonSupport.Int(entry["entryListOrder"]) ?? int.MaxValue,
-                    StateOrder: StageStateOrder(JsonSupport.String(time?["status"])));
-            })
-            .OrderBy(item => item.Position ?? int.MaxValue)
-            .ThenBy(item => item.StateOrder)
-            .ThenBy(item => item.Order)
-            .Select(item =>
-            {
-                var driver = item.Entry["driver"] as JsonObject;
-                var stageStatus = JsonSupport.String(item.Time?["status"]);
-                var sortPosition = item.Position ?? classifiedCount + ++unclassifiedIndex;
-                return new CompetitorStanding(item.EntryId.ToString(CultureInfo.InvariantCulture), sortPosition,
-                    JsonSupport.String(driver?["code"]) ?? JsonSupport.String(item.Entry["identifier"]) ?? "—",
-                    JsonSupport.String(driver?["fullName"]) ?? "", JsonSupport.String(item.Entry["manufacturer"]?["name"]) ?? "",
-                    item.Position == 1 ? "LEAD" : FormatGap(JsonSupport.Int(item.Time?["diffFirstMs"])),
-                    item.Position == 1 ? null : FormatGap(JsonSupport.Int(item.Time?["diffPrevMs"])), null, 0,
-                    false, IsRetired(stageStatus), false, false,
-                    FormatElapsed(JsonSupport.Int(item.Time?["elapsedDurationMs"])), StageStatusLabel(stageStatus),
-                    item.Position?.ToString(CultureInfo.InvariantCulture) ?? "—", RallyCategory(item.Entry));
-            })
-            .ToList();
-    }
-
-    internal static string RallyCategory(JsonObject entry)
-    {
-        var eligibility = JsonSupport.String(entry["eligibility"])?.Trim();
-        if (eligibility?.StartsWith("WRC2", StringComparison.OrdinalIgnoreCase) == true) return "WRC2";
-        if (eligibility?.StartsWith("WRC3", StringComparison.OrdinalIgnoreCase) == true) return "WRC3";
-        var eventClass = (entry["eventClasses"] as JsonArray)?.OfType<JsonObject>()
-            .Select(value => JsonSupport.String(value["name"]))
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        return JsonSupport.String(entry["group"]?["name"]) switch
+        while (!ct.IsCancellationRequested && _clock.UtcNow < context.Event.EndUtc)
         {
-            "Rally1" => "WRC1",
-            _ when eventClass is not null => eventClass.ToUpperInvariant(),
-            { Length: > 0 } group => group.ToUpperInvariant(),
-            _ => "—"
-        };
+            try
+            {
+                if (_clock.UtcNow >= nextMetadataRefresh)
+                {
+                    SetConnection(ConnectionState.Connecting, ct);
+                    context = await LoadEventContextAsync(candidate.EventId, ct);
+                    nextMetadataRefresh = _clock.UtcNow + _options.MetadataRefreshInterval;
+                }
+                var activityActive = await PollEventAsync(context, ct);
+                pollAttempt = 0;
+                SetConnection(ConnectionState.Connected, ct);
+                var nextStage = WrcTiming.SelectNextScheduledStage(_knownStages, _clock.UtcNow);
+                var delay = WrcTiming.NextPollDelay(_clock.UtcNow, activityActive, nextStage,
+                    nextMetadataRefresh, context.Event.EndUtc, _options);
+                await _delay.DelayAsync(PositiveDelay(delay), ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex)
+            {
+                PublishFailure($"WRC event {context.Event.EventId} polling failed", ex, ct);
+                if (_clock.UtcNow >= context.Event.EndUtc) break;
+                SetConnection(ConnectionState.Connecting, ct);
+                await _delay.DelayAsync(Backoff(_options.PollBackoff, pollAttempt++), ct);
+            }
+        }
+
+        ResetEventState();
+        TransitionHidden(ConnectionState.Disconnected, ct);
     }
 
-    private static int StageStateOrder(string? status) => status switch { "Running" => 0, "ToRun" or null => 1, _ => 2 };
-    private static string? StageStatusLabel(string? status) => status switch { "Running" => "RUN", "ToRun" or null => "DUE", _ => null };
-    private static string? FormatElapsed(int? ms)
+    private async Task<WrcEventContext> LoadEventContextAsync(int eventId, CancellationToken ct)
     {
-        if (!ms.HasValue) return null;
-        var value = TimeSpan.FromMilliseconds(ms.Value);
-        return $"{(int)value.TotalMinutes}:{value.Seconds:00}.{value.Milliseconds / 100:0}";
+        var detail = await _api.GetEventAsync(eventId, ct);
+        var rally = WrcTiming.SelectMainRally(detail.Rallies);
+        var entries = await _api.GetEntriesAsync(detail.EventId, rally.RallyId, ct);
+        return new(detail, rally, entries);
     }
 
-    private static bool IsRetired(string? status) => status is not null && (status.Equals("DNF", StringComparison.OrdinalIgnoreCase) || status.Equals("Retired", StringComparison.OrdinalIgnoreCase) || status.Equals("DSQ", StringComparison.OrdinalIgnoreCase));
-    private static string? FormatGap(int? ms) => ms is null || ms == 0 ? null : FormatDuration(ms.Value);
-    private static string FormatDuration(int ms)
+    private async Task<bool> PollEventAsync(WrcEventContext context, CancellationToken ct)
     {
-        var value = TimeSpan.FromMilliseconds(Math.Abs(ms));
-        return $"+{(int)value.TotalMinutes}:{value.Seconds:00}.{value.Milliseconds / 100:0}";
+        if (_clock.UtcNow >= context.Event.EndUtc)
+        {
+            PublishHidden(ConnectionState.Disconnected, ct);
+            return false;
+        }
+
+        var stages = await _api.GetStagesAsync(context.Event.EventId, ct);
+        _knownStages = stages;
+        WrcStage? selected = WrcTiming.SelectRunningStage(stages);
+        IReadOnlyList<WrcStageTime>? times = null;
+        IReadOnlyList<WrcStageResult>? results = null;
+
+        if (selected is null && _activeStageId is int activeId)
+        {
+            var retained = stages.FirstOrDefault(stage => stage.StageId == activeId);
+            if (retained?.Status == WrcStageStatus.Completed)
+            {
+                selected = retained;
+                (times, results) = await GetStageDataAsync(context, retained.StageId, ct);
+                var fingerprint = WrcTiming.StageFingerprint(retained, times, results);
+                if (ResultsSettled(context, times, results, fingerprint))
+                {
+                    CompleteStage(retained.StageId);
+                    selected = null;
+                }
+            }
+            else if (retained?.Status is WrcStageStatus.Interrupted or WrcStageStatus.Cancelled)
+            {
+                _activeStageId = null;
+            }
+        }
+
+        if (selected is null)
+        {
+            foreach (var due in WrcTiming.DueStages(stages, _clock.UtcNow).Take(3))
+            {
+                if (_completedStages.Contains(due.StageId)) continue;
+                var candidateTimes = await _api.GetStageTimesAsync(context.Event.EventId, due.StageId, context.Rally.RallyId, ct);
+                if (candidateTimes.Count == 0) continue;
+                selected = due;
+                times = candidateTimes;
+                break;
+            }
+        }
+
+        if (selected is not null && !_completedStages.Contains(selected.StageId))
+        {
+            if (times is null && results is null) (times, results) = await GetStageDataAsync(context, selected.StageId, ct);
+            else
+            {
+                times ??= await _api.GetStageTimesAsync(context.Event.EventId, selected.StageId, context.Rally.RallyId, ct);
+                results ??= await _api.GetStageResultsAsync(context.Event.EventId, selected.StageId, context.Rally.RallyId, ct);
+            }
+            var fingerprint = WrcTiming.StageFingerprint(selected, times, results);
+            if (ResultsSettled(context, times, results, fingerprint))
+            {
+                CompleteStage(selected.StageId);
+                PublishHidden(ConnectionState.Connected, ct);
+                return await PollShakedownAsync(context, ct);
+            }
+            PublishStage(context, selected, times, fingerprint, ct);
+            return true;
+        }
+
+        ResetStageState();
+        var shakedownActive = await PollShakedownAsync(context, ct);
+        if (!shakedownActive) PublishHidden(ConnectionState.Connected, ct);
+        return shakedownActive;
     }
-    private void Publish(TimingSnapshot value) { _lastPublished = value; SnapshotReceived?.Invoke(value); }
-    private async Task<T?> GetAsync<T>(string path, CancellationToken ct) where T : JsonNode => await _http.GetFromJsonAsync<T>($"{ApiBase}/{path}", ct);
-    public async ValueTask DisposeAsync() { await StopAsync(); _http.Dispose(); }
+
+    private bool ResultsSettled(WrcEventContext context, IReadOnlyList<WrcStageTime> times,
+        IReadOnlyList<WrcStageResult> results, string fingerprint)
+    {
+        if (!WrcTiming.Wrc1ResultsComplete(context.Entries, times, results))
+        {
+            _settledResultFingerprint = null;
+            _settledResultPolls = 0;
+            return false;
+        }
+        if (fingerprint == _settledResultFingerprint) _settledResultPolls++;
+        else
+        {
+            _settledResultFingerprint = fingerprint;
+            _settledResultPolls = 1;
+        }
+        return _settledResultPolls >= _options.ResultStablePolls;
+    }
+
+    private void PublishStage(WrcEventContext context, WrcStage stage, IReadOnlyList<WrcStageTime> times,
+        string fingerprint, CancellationToken ct)
+    {
+        var standings = WrcTiming.BuildStageStandings(context.Entries, times);
+        if (_activeStageId != stage.StageId)
+        {
+            ResetStageState();
+            _activeStageId = stage.StageId;
+        }
+        if (fingerprint != _lastDeltaFingerprint)
+        {
+            _lastDeltaFingerprint = fingerprint;
+            DeltaReceived?.Invoke(new("WrcStage", stage.Raw.DeepClone(), _clock.UtcNow));
+        }
+        if (_alertedStages.Add(stage.StageId))
+            _alerts.Accept(new(AlertKind.SessionStart, 10, false, $"{stage.Code} STARTED", stage.Name, null,
+                _clock.UtcNow, $"wrc:event:{context.Event.EventId}:stage:{stage.StageId}:start", TimeSpan.FromSeconds(4)));
+        Publish(new(context.Event.Name, $"{stage.Code}  {stage.Name}", "", 0, null, TrackCondition.AllClear,
+            standings, _clock.UtcNow, SessionLifecycle.Live, ConnectionState.Connected, null,
+            Championship.WorldRallyChampionship), ct);
+    }
+
+    private async Task<bool> PollShakedownAsync(WrcEventContext context, CancellationToken ct)
+    {
+        var advertised = Math.Max(1, context.Event.ShakedownCount);
+        var count = Math.Min(_options.ShakedownProbeLimit, Math.Max(advertised, _knownShakedownCount + 1));
+        var probes = Enumerable.Range(1, count)
+            .Select(async number => (Number: number, Times: await _api.TryGetShakedownTimesAsync(context.Event.EventId, number, ct)))
+            .ToArray();
+        var responses = await Task.WhenAll(probes);
+        IReadOnlyList<WrcShakedownTime>? latest = null;
+        foreach (var (number, times) in responses)
+        {
+            var fingerprint = WrcTiming.ShakedownFingerprint(times);
+            if (_shakedownFingerprints.TryGetValue(number, out var previous) && fingerprint != previous && times.Count > 0)
+                _lastShakedownChange = _clock.UtcNow;
+            _shakedownFingerprints[number] = fingerprint;
+            if (times.Count > 0)
+            {
+                _knownShakedownCount = Math.Max(_knownShakedownCount, number);
+                latest = times;
+            }
+        }
+
+        if (latest is null || !_lastShakedownChange.HasValue || _clock.UtcNow - _lastShakedownChange.Value >= _options.ShakedownQuietGrace) return false;
+        var standings = WrcTiming.BuildShakedownStandings(context.Entries, latest);
+        if (standings.Count == 0) return false;
+        Publish(new(context.Event.Name, "SHAKEDOWN", "", 0, null, TrackCondition.AllClear,
+            standings, _clock.UtcNow, SessionLifecycle.Live, ConnectionState.Connected, null,
+            Championship.WorldRallyChampionship), ct);
+        return true;
+    }
+
+    private void CompleteStage(int stageId)
+    {
+        _completedStages.Add(stageId);
+        ResetStageState();
+    }
+
+    private async Task<(IReadOnlyList<WrcStageTime> Times, IReadOnlyList<WrcStageResult> Results)> GetStageDataAsync(
+        WrcEventContext context, int stageId, CancellationToken ct)
+    {
+        var timesTask = _api.GetStageTimesAsync(context.Event.EventId, stageId, context.Rally.RallyId, ct);
+        var resultsTask = _api.GetStageResultsAsync(context.Event.EventId, stageId, context.Rally.RallyId, ct);
+        await Task.WhenAll(timesTask, resultsTask);
+        return (await timesTask, await resultsTask);
+    }
+
+    private void TransitionHidden(ConnectionState connection, CancellationToken ct)
+    {
+        PublishHidden(connection, ct);
+        SetConnection(connection, ct);
+    }
+
+    private void PublishFailure(string message, Exception ex, CancellationToken ct)
+    {
+        TransitionHidden(ConnectionState.Faulted, ct);
+        if (!ct.IsCancellationRequested) Failed?.Invoke(new($"{message}: {ex.Message}", ex, _clock.UtcNow));
+    }
+
+    private void PublishHidden(ConnectionState connection, CancellationToken ct) =>
+        Publish(TimingSnapshot.Hidden(_clock.UtcNow) with
+        {
+            ConnectionState = connection,
+            Championship = Championship.WorldRallyChampionship
+        }, ct);
+
+    private void Publish(TimingSnapshot snapshot, CancellationToken ct)
+    {
+        if (!ct.IsCancellationRequested) SnapshotReceived?.Invoke(snapshot);
+    }
+
+    private void SetConnection(ConnectionState value, CancellationToken ct = default)
+    {
+        if (ct.IsCancellationRequested || _connection == value) return;
+        _connection = value;
+        ConnectionChanged?.Invoke(value);
+    }
+
+    private void ResetEventState()
+    {
+        _completedStages.Clear();
+        _alertedStages.Clear();
+        _knownStages = [];
+        ResetActivityState();
+    }
+
+    private void ResetActivityState()
+    {
+        ResetStageState();
+        _shakedownFingerprints.Clear();
+        _knownShakedownCount = 0;
+        _lastShakedownChange = null;
+    }
+
+    private void ResetStageState()
+    {
+        _activeStageId = null;
+        _settledResultFingerprint = null;
+        _settledResultPolls = 0;
+        _lastDeltaFingerprint = null;
+    }
+
+    private static TimeSpan Backoff(IReadOnlyList<TimeSpan> values, int attempt) => values[Math.Min(attempt, values.Count - 1)];
+    private static TimeSpan Min(TimeSpan left, TimeSpan right) => left <= right ? left : right;
+    private static TimeSpan PositiveDelay(TimeSpan value) => value > TimeSpan.FromSeconds(1) ? value : TimeSpan.FromSeconds(1);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed) return;
+        await StopAsync();
+        _disposed = true;
+        _api.Dispose();
+        _lifecycle.Dispose();
+    }
 }

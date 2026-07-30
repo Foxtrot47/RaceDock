@@ -69,7 +69,7 @@ public sealed class AppController : IAsyncDisposable
             if (_settings.EnableFormula1) factories.Add(() => new F1LiveTimingSource(_processor, _clock, logs) { DiagnosticRecordingEnabled = _diagnosticRecording });
             if (_settings.EnableFormula2) factories.Add(() => new F2LiveTimingSource(_clock, _alerts));
             if (_settings.EnableFormula3) factories.Add(() => new F2LiveTimingSource(_clock, _alerts, "F3"));
-            if (_settings.EnableWrc) factories.Add(() => new WrcLiveTimingSource(TimingSnapshot.Hidden(_clock.UtcNow), _clock, _alerts));
+            if (_settings.EnableWrc) factories.Add(() => new WrcLiveTimingSource(_clock, _alerts));
             _source = new CompositeLiveTimingSource(factories, _clock, TimeSpan.FromSeconds(_settings.RotationSeconds));
         }
         Attach(_source); await _source.StartAsync(_lifetime.Token);

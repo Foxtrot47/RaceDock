@@ -1,0 +1,35 @@
+{
+  "seasonId": 47,
+  "name": "World Rally Championship",
+  "year": 2026,
+  "seasonRounds": [
+    {
+      "seasonId": 47,
+      "eventId": 643,
+      "order": 9,
+      "event": {
+        "eventId": 643,
+        "name": "Previous Rally",
+        "startDate": "2026-07-17",
+        "finishDate": "2026-07-19",
+        "timeZoneId": "Europe/Tallinn",
+        "timeZoneOffset": 180,
+        "mode": "Rally"
+      }
+    },
+    {
+      "seasonId": 47,
+      "eventId": 644,
+      "order": 10,
+      "event": {
+        "eventId": 644,
+        "name": "Secto Rally Finland",
+        "startDate": "2026-07-30",
+        "finishDate": "2026-08-02",
+        "timeZoneId": "Europe/Helsinki",
+        "timeZoneOffset": 180,
+        "mode": "Rally"
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+[
+  {
+    "stageId": 11307,
+    "eventId": 644,
+    "number": 1,
+    "code": "SS1",
+    "name": "Harju 1",
+    "status": "ToRun",
+    "stageType": "SuperSpecialStage",
+    "controls": [
+      { "type": "TimeControl", "firstCarDueDateTime": "2026-07-30T16:02:00", "status": "ToRun" },
+      { "type": "StageStart", "firstCarDueDateTime": "2026-07-30T16:05:00", "status": "ToRun" },
+      { "type": "FlyingFinish", "firstCarDueDateTime": null, "status": "ToRun" }
+    ]
+  },
+  {
+    "stageId": 11308,
+    "eventId": 644,
+    "number": 2,
+    "code": "SS2",
+    "name": "Laukaa 1",
+    "status": "ToRun",
+    "controls": [
+      { "type": "StageStart", "firstCarDueDateTime": "2026-07-31T05:03:00", "status": "ToRun" }
+    ]
+  }
+]

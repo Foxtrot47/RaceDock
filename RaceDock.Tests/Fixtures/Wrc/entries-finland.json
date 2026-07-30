@@ -1,0 +1,35 @@
+[
+  {
+    "entryId": 62978,
+    "identifier": "1",
+    "entryListOrder": 1,
+    "driver": { "code": "AAA", "fullName": "Driver One" },
+    "manufacturer": { "name": "Toyota" },
+    "group": { "name": "Rally1" },
+    "eventClasses": [{ "name": "RC1" }],
+    "eligibility": "",
+    "status": "Entry"
+  },
+  {
+    "entryId": 62979,
+    "identifier": "2",
+    "entryListOrder": 2,
+    "driver": { "code": "BBB", "fullName": "Driver Two" },
+    "manufacturer": { "name": "Hyundai" },
+    "group": { "name": "Rally1" },
+    "eventClasses": [{ "name": "RC1" }],
+    "eligibility": "",
+    "status": "Entry"
+  },
+  {
+    "entryId": 63000,
+    "identifier": "20",
+    "entryListOrder": 20,
+    "driver": { "code": "CCC", "fullName": "Driver Three" },
+    "manufacturer": { "name": "Skoda" },
+    "group": { "name": "Rally2" },
+    "eventClasses": [{ "name": "RC2" }],
+    "eligibility": "WRC2 (DC/CC)",
+    "status": "Entry"
+  }
+]

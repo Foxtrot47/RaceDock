@@ -63,6 +63,9 @@ public enum ScenarioCommand { Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar,
 public interface IClock { DateTimeOffset UtcNow { get; } }
 public sealed class SystemClock : IClock { public DateTimeOffset UtcNow => DateTimeOffset.UtcNow; }
 
+public interface IAsyncDelay { Task DelayAsync(TimeSpan duration, CancellationToken cancellationToken); }
+public sealed class SystemAsyncDelay : IAsyncDelay { public Task DelayAsync(TimeSpan duration, CancellationToken cancellationToken) => Task.Delay(duration, cancellationToken); }
+
 public interface IAlertArbiter
 {
     event Action<RaceAlert?>? VisibleAlertChanged;

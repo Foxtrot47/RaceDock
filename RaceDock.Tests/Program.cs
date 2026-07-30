@@ -20,6 +20,13 @@ var tests = new (string Name, Action Run)[]
     ("scenario timeline integration", ScenarioIntegration),
     ("active feeds rotate at the display interval", FeedRotation),
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
+    ("WRC season discovery excludes ERC and finds the next rally", WrcSeasonDiscovery),
+    ("WRC provider keeps event rally and itinerary ids distinct", WrcProviderIdentifiers),
+    ("WRC stage selection requires provider activity", WrcStageSelection),
+    ("WRC stage scheduling uses bounded provider reconciliation", WrcStageScheduling),
+    ("WRC stage fingerprints ignore provider row ordering", WrcStageFingerprintOrdering),
+    ("WRC shakedown standings use actual best runs", WrcShakedownTiming),
+    ("WRC missing shakedown data is not a feed failure", WrcOptionalShakedown),
     ("championship labels use compact taskbar and full flyout names", ChampionshipLabels),
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
@@ -28,8 +35,12 @@ var tests = new (string Name, Action Run)[]
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
     ("WRC stage timing preserves live API values", WrcStageTiming),
     ("ended feeds clear composite selection", EndedFeedsClearSelection),
-    ("WRC final results end a stale running stage", WrcFinalResultsEndStage),
-    ("WRC1 completion ignores lower-category lag", Wrc1Completion)
+    ("WRC final results settle a stale running stage", WrcFinalResultsEndStage),
+    ("WRC1 completion ignores lower-category lag", Wrc1Completion),
+    ("WRC source stays hidden before the next rally", WrcSourceIdleLifecycle),
+    ("WRC source schedules idle polling around the next stage", WrcSourceStageSchedule),
+    ("WRC source faults and hides when event metadata fails", WrcSourceFailureLifecycle),
+    ("WRC source publishes proven stage timing once", WrcSourceStageLifecycle)
 };
 var failures = 0;
 foreach (var test in tests)
@@ -216,18 +227,159 @@ static void FeedRotation()
 
 static void WrcCategoryEligibility()
 {
-    static JsonObject Entry(string group, string eligibility, string eventClass) => new()
-    {
-        ["group"] = new JsonObject { ["name"] = group },
-        ["eligibility"] = eligibility,
-        ["eventClasses"] = new JsonArray(new JsonObject { ["name"] = eventClass })
-    };
+    static WrcEntry Entry(string group, string eligibility, string eventClass) =>
+        new(1, 1, "AAA", "Driver", "Team", group, eligibility, eventClass, "Entry");
 
-    Equal("WRC2", WrcLiveTimingSource.RallyCategory(Entry("Rally2", "WRC2 (DC/CC)", "RC2")));
-    Equal("RC2", WrcLiveTimingSource.RallyCategory(Entry("Rally2", "", "RC2")));
-    Equal("WRC3", WrcLiveTimingSource.RallyCategory(Entry("Rally3", "WRC3", "RC3")));
-    Equal("RC3", WrcLiveTimingSource.RallyCategory(Entry("Rally3", "", "RC3")));
-    Equal("WRC1", WrcLiveTimingSource.RallyCategory(Entry("Rally1", "", "RC1")));
+    Equal("WRC2", WrcTiming.RallyCategory(Entry("Rally2", "WRC2 (DC/CC)", "RC2")));
+    Equal("RC2", WrcTiming.RallyCategory(Entry("Rally2", "", "RC2")));
+    Equal("WRC3", WrcTiming.RallyCategory(Entry("Rally3", "WRC3", "RC3")));
+    Equal("RC3", WrcTiming.RallyCategory(Entry("Rally3", "", "RC3")));
+    Equal("WRC1", WrcTiming.RallyCategory(Entry("Rally1", "", "RC1")));
+}
+
+static void WrcSeasonDiscovery()
+{
+    using var handler = new RouteHttpHandler(new Dictionary<string, Queue<HttpResponseMessage>>
+    {
+        ["seasons.json"] = Responses(FixtureText("seasons.json")),
+        ["season-detail.json?seasonId=47"] = Responses(FixtureText("season-detail.json"))
+    });
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var seasons = WrcTiming.OrderSeasons(api.GetSeasonsAsync(CancellationToken.None).GetAwaiter().GetResult(), 2026);
+    Equal(47, seasons[0].SeasonId);
+    False(seasons.Any(season => season.Name.Contains("European", StringComparison.OrdinalIgnoreCase)));
+    var events = api.GetSeasonEventsAsync(47, CancellationToken.None).GetAwaiter().GetResult();
+    var selection = WrcTiming.SelectEvent(events, new DateTimeOffset(2026, 7, 29, 12, 0, 0, TimeSpan.Zero));
+    Equal<WrcCalendarEvent?>(null, selection.Current);
+    Equal(644, selection.Next?.EventId);
+}
+
+static void WrcProviderIdentifiers()
+{
+    using var handler = new RouteHttpHandler(new Dictionary<string, Queue<HttpResponseMessage>>
+    {
+        ["events/644.json"] = Responses(FixtureText("event-finland.json")),
+        ["events/644/rallies/712/entries.json"] = Responses(FixtureText("entries-finland.json")),
+        ["events/644/stages.json"] = Responses(FixtureText("stages-pre-event.json"))
+    });
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var detail = api.GetEventAsync(644, CancellationToken.None).GetAwaiter().GetResult();
+    var rally = WrcTiming.SelectMainRally(detail.Rallies);
+    Equal(644, detail.EventId);
+    Equal(712, rally.RallyId);
+    Equal(1461, rally.ItineraryId);
+    Equal(700, WrcTiming.SelectMainRally([detail.Rallies[0]]).RallyId);
+    var entries = api.GetEntriesAsync(detail.EventId, rally.RallyId, CancellationToken.None).GetAwaiter().GetResult();
+    Equal(3, entries.Count);
+    var stages = api.GetStagesAsync(detail.EventId, CancellationToken.None).GetAwaiter().GetResult();
+    Equal(new DateTimeOffset(2026, 7, 30, 16, 5, 0, TimeSpan.Zero), stages[0].StartUtc);
+    True(handler.Paths.Contains("events/644/rallies/712/entries.json"));
+}
+
+static void WrcStageSelection()
+{
+    static WrcStage Stage(int id, int number, WrcStageStatus status, DateTimeOffset? start = null) =>
+        new(id, number, $"SS{number}", $"Stage {number}", status, start, new JsonObject { ["stageId"] = id });
+    var now = new DateTimeOffset(2026, 7, 30, 16, 10, 0, TimeSpan.Zero);
+    var future = Stage(1, 1, WrcStageStatus.ToRun, now.AddMinutes(5));
+    var due = Stage(2, 2, WrcStageStatus.ToRun, now.AddMinutes(-5));
+    var running = Stage(3, 3, WrcStageStatus.Running, now.AddMinutes(-1));
+    Equal(3, WrcTiming.SelectRunningStage([future, due, running])?.StageId);
+    Equal(2, WrcTiming.DueStages([future, due], now)[0].StageId);
+    Equal(WrcStageStatus.Interrupted, WrcTiming.ParseStageStatus("interrupted"));
+    Equal(WrcStageStatus.Cancelled, WrcTiming.ParseStageStatus("Canceled"));
+}
+
+static void WrcStageScheduling()
+{
+    static WrcStage Stage(int id, int number, WrcStageStatus status, DateTimeOffset? start) =>
+        new(id, number, $"SS{number}", $"Stage {number}", status, start, new JsonObject { ["stageId"] = id });
+
+    var now = new DateTimeOffset(2026, 7, 30, 12, 0, 0, TimeSpan.Zero);
+    var sameStart = now.AddMinutes(10);
+    WrcStage[] stages =
+    [
+        Stage(9, 9, WrcStageStatus.Cancelled, now.AddMinutes(1)),
+        Stage(8, 8, WrcStageStatus.Completed, now.AddMinutes(2)),
+        Stage(7, 7, WrcStageStatus.ToRun, null),
+        Stage(5, 1, WrcStageStatus.ToRun, sameStart),
+        Stage(4, 1, WrcStageStatus.Unknown, sameStart),
+        Stage(3, 2, WrcStageStatus.ToRun, sameStart)
+    ];
+    Equal(4, WrcTiming.SelectNextScheduledStage(stages, now)?.StageId);
+
+    var options = TestWrcOptions() with
+    {
+        PollInterval = TimeSpan.FromSeconds(15),
+        IdlePollInterval = TimeSpan.FromMinutes(5),
+        StageStartLead = TimeSpan.FromMinutes(1)
+    };
+    var metadataRefresh = now.AddHours(1);
+    var eventEnd = now.AddDays(1);
+    Equal(TimeSpan.FromMinutes(5), WrcTiming.NextPollDelay(now, false,
+        Stage(1, 1, WrcStageStatus.ToRun, now.AddMinutes(10)), metadataRefresh, eventEnd, options));
+    Equal(TimeSpan.FromMinutes(2), WrcTiming.NextPollDelay(now, false,
+        Stage(1, 1, WrcStageStatus.ToRun, now.AddMinutes(3)), metadataRefresh, eventEnd, options));
+    Equal(TimeSpan.FromSeconds(15), WrcTiming.NextPollDelay(now, false,
+        Stage(1, 1, WrcStageStatus.ToRun, now.AddSeconds(30)), metadataRefresh, eventEnd, options));
+    Equal(TimeSpan.FromSeconds(15), WrcTiming.NextPollDelay(now, true,
+        Stage(1, 1, WrcStageStatus.ToRun, now.AddMinutes(10)), metadataRefresh, eventEnd, options));
+    Equal(TimeSpan.FromSeconds(30), WrcTiming.NextPollDelay(now, false, null,
+        now.AddSeconds(30), eventEnd, options));
+    Equal(TimeSpan.FromSeconds(20), WrcTiming.NextPollDelay(now, false, null,
+        metadataRefresh, now.AddSeconds(20), options));
+}
+
+static void WrcStageFingerprintOrdering()
+{
+    var stage = new WrcStage(1, 1, "SS1", "Stage 1", WrcStageStatus.Completed, null,
+        new JsonObject { ["stageId"] = 1 });
+    WrcStageTime[] times =
+    [
+        new(2, 2, 121000, 1000, 1000, "Completed"),
+        new(1, 1, 120000, 0, 0, "Completed")
+    ];
+    WrcStageResult[] results =
+    [
+        new(2, 2, 121000),
+        new(1, 1, 120000)
+    ];
+    var originalTimeOrder = times.Select(time => time.EntryId).ToArray();
+    var originalResultOrder = results.Select(result => result.EntryId).ToArray();
+    var expected = WrcTiming.StageFingerprint(stage, times, results);
+    var reordered = WrcTiming.StageFingerprint(stage, times.Reverse().ToArray(), results.Reverse().ToArray());
+    Equal(expected, reordered);
+    True(originalTimeOrder.SequenceEqual(times.Select(time => time.EntryId)));
+    True(originalResultOrder.SequenceEqual(results.Select(result => result.EntryId)));
+}
+
+static void WrcShakedownTiming()
+{
+    Dictionary<int, WrcEntry> entries = new()
+    {
+        [1] = new(1, 1, "AAA", "Driver A", "Toyota", "Rally1", "", "RC1", "Entry"),
+        [2] = new(2, 2, "BBB", "Driver B", "Hyundai", "Rally1", "", "RC1", "Entry")
+    };
+    WrcShakedownTime[] times =
+    [
+        new(1, 1, 121500),
+        new(1, 2, 120000),
+        new(2, 1, 120500)
+    ];
+    var standings = WrcTiming.BuildShakedownStandings(entries, times);
+    Equal("AAA", standings[0].Code);
+    Equal("2:00.0", standings[0].ResultTime);
+    Equal("BBB", standings[1].Code);
+    Equal("+0:00.5", standings[1].GapToLeader);
+}
+
+static void WrcOptionalShakedown()
+{
+    using var handler = new RouteHttpHandler([]);
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var times = api.TryGetShakedownTimesAsync(644, 1, CancellationToken.None).GetAwaiter().GetResult();
+    Equal(0, times.Count);
+    Equal("events/644/shakedowntimes.json?shakedownNumber=1", handler.Paths.Single());
 }
 
 static void F1PracticeTiming()
@@ -251,26 +403,21 @@ static void F1PracticeTiming()
 
 static void WrcStageTiming()
 {
-    static JsonObject Entry(int id, string code, int order) => new()
-    {
-        ["entryId"] = id,
-        ["entryListOrder"] = order,
-        ["driver"] = new JsonObject { ["code"] = code, ["fullName"] = code },
-        ["manufacturer"] = new JsonObject { ["name"] = "Test" },
-        ["group"] = new JsonObject { ["name"] = "Rally1" }
-    };
-    Dictionary<int, JsonObject> entries = new()
+    static WrcEntry Entry(int id, string code, int order) =>
+        new(id, order, code, code, "Test", "Rally1", "", "RC1", "Entry");
+    Dictionary<int, WrcEntry> entries = new()
     {
         [1] = Entry(1, "AAA", 1),
         [2] = Entry(2, "BBB", 2),
         [3] = Entry(3, "CCC", 3)
     };
-    var times = JsonNode.Parse("""
-        [{"entryId":1,"position":2,"status":"Completed","elapsedDurationMs":516600,"diffFirstMs":4100,"diffPrevMs":2100},
-         {"entryId":2,"position":1,"status":"Completed","elapsedDurationMs":512500,"diffFirstMs":0,"diffPrevMs":0},
-         {"entryId":3,"status":"ToRun"}]
-        """)!.AsArray();
-    var standings = WrcLiveTimingSource.BuildStandings(entries, times);
+    WrcStageTime[] times =
+    [
+        new(1, 2, 516600, 4100, 2100, "Completed"),
+        new(2, 1, 512500, 0, 0, "Completed"),
+        new(3, null, null, null, null, "ToRun")
+    ];
+    var standings = WrcTiming.BuildStageStandings(entries, times);
     Equal("BBB", standings[0].Code);
     Equal("8:32.5", standings[0].ResultTime);
     Equal("AAA", standings[1].Code);
@@ -278,28 +425,46 @@ static void WrcStageTiming()
     Equal("+0:02.1", standings[1].IntervalToPositionAhead);
     Equal("8:36.6", standings[1].ResultTime);
     Equal("DUE", standings[2].StatusLabel);
+    Equal("—", standings[2].PositionLabel);
 }
 
 static void WrcFinalResultsEndStage()
 {
-    var times = JsonNode.Parse("""[{"status":"Completed"},{"status":"DNS"},{"status":"Completed"}]""")!.AsArray();
-    var partial = JsonNode.Parse("""[{"entryId":1}]""")!.AsArray();
-    var complete = JsonNode.Parse("""[{"entryId":1},{"entryId":3}]""")!.AsArray();
-    False(WrcLiveTimingSource.StageResultsComplete(times, partial));
-    True(WrcLiveTimingSource.StageResultsComplete(times, complete));
+    Dictionary<int, WrcEntry> entries = new()
+    {
+        [1] = new(1, 1, "AAA", "A", "Team", "Rally1", "", "RC1", "Entry"),
+        [2] = new(2, 2, "BBB", "B", "Team", "Rally1", "", "RC1", "Entry")
+    };
+    WrcStageTime[] active =
+    [
+        new(1, 1, 1000, 0, 0, "Completed"),
+        new(2, null, null, null, null, "Running")
+    ];
+    WrcStageTime[] complete =
+    [
+        active[0],
+        new(2, 2, 1100, 100, 100, "Completed")
+    ];
+    False(WrcTiming.Wrc1ResultsComplete(entries, [active[0]], [new(1, 1, 1000)]));
+    False(WrcTiming.Wrc1ResultsComplete(entries, active, [new(1, 1, 1000)]));
+    False(WrcTiming.Wrc1ResultsComplete(entries, complete, [new(1, 1, 1000)]));
+    True(WrcTiming.Wrc1ResultsComplete(entries, complete,
+        [new(1, 1, 1000), new(2, 2, 1100)]));
 }
 
 static void Wrc1Completion()
 {
-    static JsonObject Entry(int id, string group) => new()
+    Dictionary<int, WrcEntry> entries = new()
     {
-        ["entryId"] = id,
-        ["group"] = new JsonObject { ["name"] = group }
+        [1] = new(1, 1, "AAA", "A", "Team", "Rally1", "", "RC1", "Entry"),
+        [2] = new(2, 2, "BBB", "B", "Team", "Rally2", "WRC2", "RC2", "Entry")
     };
-    Dictionary<int, JsonObject> entries = new() { [1] = Entry(1, "Rally1"), [2] = Entry(2, "Rally2") };
-    var times = JsonNode.Parse("""[{"entryId":1,"status":"Completed"},{"entryId":2,"status":"Completed"}]""")!.AsArray();
-    var lowerCategoryStillPartial = JsonNode.Parse("""[{"entryId":1}]""")!.AsArray();
-    True(WrcLiveTimingSource.Wrc1ResultsComplete(entries, times, lowerCategoryStillPartial));
+    WrcStageTime[] times =
+    [
+        new(1, 1, 1000, 0, 0, "Completed"),
+        new(2, 2, 1100, 100, 100, "Completed")
+    ];
+    True(WrcTiming.Wrc1ResultsComplete(entries, times, [new(1, 1, 1000)]));
 }
 
 static void F3QualifyingSnapshot()
@@ -378,12 +543,12 @@ static void ChampionshipLabels()
     var now = DateTimeOffset.UtcNow;
     var f1 = new TimingSnapshot("Belgian Grand Prix", "Race", "Spa-Francorchamps", 1, 44,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Formula1);
-    var wrc = new TimingSnapshot("Rally Estonia", "SS1", "", 0, null,
+    var wrc = new TimingSnapshot("Secto Rally Finland", "SS1", "", 0, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.WorldRallyChampionship);
     Equal("F1 Spa", ChampionshipDisplay.CompactEvent(f1));
     Equal("Formula 1 · Belgian Grand Prix", ChampionshipDisplay.FullEvent(f1));
-    Equal("WRC Estonia", ChampionshipDisplay.CompactEvent(wrc));
-    Equal("World Rally Championship · Rally Estonia", ChampionshipDisplay.FullEvent(wrc));
+    Equal("WRC Secto Rally Finland", ChampionshipDisplay.CompactEvent(wrc));
+    Equal("World Rally Championship · Secto Rally Finland", ChampionshipDisplay.FullEvent(wrc));
 }
 
 static void UserSettingsPersistence()
@@ -415,6 +580,129 @@ static void UserSettingsPersistence()
     }
 }
 
+static void WrcSourceIdleLifecycle()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 7, 29, 20, 0, 0, TimeSpan.Zero));
+    using var handler = new RouteHttpHandler(new Dictionary<string, Queue<HttpResponseMessage>>
+    {
+        ["seasons.json"] = Responses(FixtureText("seasons.json")),
+        ["season-detail.json?seasonId=47"] = Responses(FixtureText("season-detail.json"))
+    });
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var delay = new BlockingDelay();
+    var source = new WrcLiveTimingSource(api, clock, delay, new AlertArbiter(clock), TestWrcOptions());
+    List<TimingSnapshot> snapshots = [];
+    List<ConnectionState> connections = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.ConnectionChanged += connections.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    Equal(TimeSpan.FromHours(1), delay.Duration);
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    True(snapshots.Count > 0);
+    Equal(SessionLifecycle.OffSession, snapshots[^1].Lifecycle);
+    Equal(ConnectionState.Disconnected, snapshots[^1].ConnectionState);
+    Equal(ConnectionState.Disconnected, connections[^1]);
+    Equal(1, handler.Paths.Count(path => path == "seasons.json"));
+    False(handler.Paths.Any(path => path.StartsWith("events/", StringComparison.Ordinal)));
+}
+
+static void WrcSourceStageSchedule()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 7, 30, 15, 55, 0, TimeSpan.Zero));
+    using var handler = new RouteHttpHandler(new Dictionary<string, Queue<HttpResponseMessage>>
+    {
+        ["seasons.json"] = Responses(FixtureText("seasons.json")),
+        ["season-detail.json?seasonId=47"] = Responses(FixtureText("season-detail.json")),
+        ["events/644.json"] = Responses(FixtureText("event-finland.json")),
+        ["events/644/rallies/712/entries.json"] = Responses(FixtureText("entries-finland.json")),
+        ["events/644/stages.json"] = Responses(FixtureText("stages-pre-event.json"))
+    });
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var delay = new BlockingDelay();
+    var source = new WrcLiveTimingSource(api, clock, delay, new AlertArbiter(clock), TestWrcOptions());
+    List<TimingSnapshot> snapshots = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    Equal(TimeSpan.FromMinutes(5), delay.Duration);
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    True(snapshots.All(snapshot => snapshot.Lifecycle == SessionLifecycle.OffSession));
+    True(handler.Paths.Contains("events/644/stages.json"));
+}
+
+static void WrcSourceFailureLifecycle()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 7, 30, 17, 0, 0, TimeSpan.Zero));
+    using var handler = new RouteHttpHandler(new Dictionary<string, Queue<HttpResponseMessage>>
+    {
+        ["seasons.json"] = Responses(FixtureText("seasons.json")),
+        ["season-detail.json?seasonId=47"] = Responses(FixtureText("season-detail.json"))
+    });
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var delay = new BlockingDelay();
+    var source = new WrcLiveTimingSource(api, clock, delay, new AlertArbiter(clock), TestWrcOptions());
+    List<TimingSnapshot> snapshots = [];
+    List<ConnectionState> connections = [];
+    List<FeedFailure> failures = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.ConnectionChanged += connections.Add;
+    source.Failed += failures.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    Equal(1, failures.Count);
+    True(failures[0].Message.Contains("discovery failed", StringComparison.OrdinalIgnoreCase));
+    True(snapshots.Any(snapshot => snapshot.ConnectionState == ConnectionState.Faulted));
+    True(connections.Contains(ConnectionState.Faulted));
+}
+
+static void WrcSourceStageLifecycle()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 7, 30, 17, 0, 0, TimeSpan.Zero));
+    const string runningStage = """
+        [{"stageId":11307,"eventId":644,"number":1,"code":"SS1","name":"Harju 1","status":"Running",
+          "controls":[{"type":"StageStart","firstCarDueDateTime":"2026-07-30T16:05:00"}]}]
+        """;
+    const string stageTimes = """
+        [{"entryId":62978,"position":1,"status":"Completed","elapsedDurationMs":120000,"diffFirstMs":0,"diffPrevMs":0},
+         {"entryId":62979,"status":"Running"}]
+        """;
+    using var handler = new RouteHttpHandler(new Dictionary<string, Queue<HttpResponseMessage>>
+    {
+        ["seasons.json"] = Responses(FixtureText("seasons.json")),
+        ["season-detail.json?seasonId=47"] = Responses(FixtureText("season-detail.json")),
+        ["events/644.json"] = Responses(FixtureText("event-finland.json")),
+        ["events/644/rallies/712/entries.json"] = Responses(FixtureText("entries-finland.json")),
+        ["events/644/stages.json"] = Responses(runningStage),
+        ["events/644/stages/11307/stagetimes.json?rallyId=712"] = Responses(stageTimes),
+        ["events/644/stages/11307/results.json?rallyId=712"] = Responses("[]")
+    });
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var delay = new BlockingDelay();
+    var alerts = new AlertArbiter(clock);
+    var options = TestWrcOptions() with { PollInterval = TimeSpan.FromSeconds(15) };
+    var source = new WrcLiveTimingSource(api, clock, delay, alerts, options);
+    List<TimingSnapshot> snapshots = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    Equal(TimeSpan.FromSeconds(15), delay.Duration);
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    var live = snapshots.Single(snapshot => snapshot.Lifecycle == SessionLifecycle.Live);
+    Equal("Secto Rally Finland", live.Meeting);
+    Equal("SS1  Harju 1", live.Session);
+    Equal("AAA", live.Competitors[0].Code);
+    Equal(Championship.WorldRallyChampionship, live.Championship);
+    Equal("wrc:event:644:stage:11307:start", alerts.Current?.DeduplicationKey);
+    True(handler.Paths.Contains("events/644/stages/11307/stagetimes.json?rallyId=712"));
+}
+
 static void EndedFeedsClearSelection()
 {
     var clock = new FakeClock();
@@ -440,11 +728,47 @@ static void Track(TimingStateProcessor p, string status) => p.ProcessDelta("Trac
 static void True(bool value) { if (!value) throw new Exception("Expected true."); }
 static void False(bool value) { if (value) throw new Exception("Expected false."); }
 static void Equal<T>(T expected, T actual) { if (!EqualityComparer<T>.Default.Equals(expected, actual)) throw new Exception($"Expected '{expected}', got '{actual}'."); }
+static string FixtureText(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Wrc", name));
+static Queue<HttpResponseMessage> Responses(params string[] bodies) => new(bodies.Select(body => new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) }));
+static WrcPollingOptions TestWrcOptions() => new(
+    TimeSpan.FromHours(1), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(1), TimeSpan.FromHours(6),
+    TimeSpan.FromHours(1), TimeSpan.FromMinutes(2), 3, 2,
+    [TimeSpan.FromHours(1)], [TimeSpan.FromHours(1)]);
 
 sealed class FakeClock : IClock
 {
-    public DateTimeOffset UtcNow { get; private set; } = new(2026, 7, 14, 12, 0, 0, TimeSpan.Zero);
+    public FakeClock() : this(new DateTimeOffset(2026, 7, 14, 12, 0, 0, TimeSpan.Zero)) { }
+    public FakeClock(DateTimeOffset now) => UtcNow = now;
+    public DateTimeOffset UtcNow { get; private set; }
     public void Advance(TimeSpan duration) => UtcNow += duration;
+}
+
+sealed class BlockingDelay : IAsyncDelay
+{
+    private readonly ManualResetEventSlim _called = new();
+    public TimeSpan? Duration { get; private set; }
+    public async Task DelayAsync(TimeSpan duration, CancellationToken cancellationToken)
+    {
+        Duration = duration;
+        _called.Set();
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+    }
+    public bool WaitUntilCalled(TimeSpan timeout) => _called.Wait(timeout);
+}
+
+sealed class RouteHttpHandler(Dictionary<string, Queue<HttpResponseMessage>> routes) : HttpMessageHandler
+{
+    public List<string> Paths { get; } = [];
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var path = request.RequestUri!.PathAndQuery.TrimStart('/');
+        const string prefix = "rb-wrccom-lintegration-yv-prod/api/";
+        if (path.StartsWith(prefix, StringComparison.Ordinal)) path = path[prefix.Length..];
+        Paths.Add(path);
+        if (!routes.TryGetValue(path, out var responses) || responses.Count == 0)
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
+        return Task.FromResult(responses.Dequeue());
+    }
 }
 
 sealed class FakeTimingSource(TimingSnapshot snapshot) : ILiveTimingSource

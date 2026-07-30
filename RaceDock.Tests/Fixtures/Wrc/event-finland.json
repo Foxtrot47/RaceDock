@@ -1,0 +1,13 @@
+{
+  "eventId": 644,
+  "name": "Secto Rally Finland",
+  "startDate": "2026-07-30",
+  "finishDate": "2026-08-02",
+  "timeZoneId": "Europe/Helsinki",
+  "timeZoneOffset": 180,
+  "shakedownCount": 1,
+  "rallies": [
+    { "rallyId": 700, "itineraryId": 1400, "name": "Support", "isMain": false },
+    { "rallyId": 712, "itineraryId": 1461, "name": "Rally", "isMain": true }
+  ]
+}
