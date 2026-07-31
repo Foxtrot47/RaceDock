@@ -167,10 +167,13 @@ public sealed class WrcLiveTimingSource : ILiveTimingSource
                     nextMetadataRefresh = _clock.UtcNow + _options.MetadataRefreshInterval;
                 }
                 var activityActive = await PollEventAsync(context, ct);
+                // The first successful poll after one or more failures runs one normal-cadence confirmation
+                // poll before returning to idle, so recovery is verified without waiting a full idle interval.
+                var recovered = pollAttempt > 0;
                 pollAttempt = 0;
                 SetConnection(ConnectionState.Connected, ct);
                 var nextStage = WrcTiming.SelectNextScheduledStage(_knownStages, _clock.UtcNow);
-                var delay = WrcTiming.NextPollDelay(_clock.UtcNow, activityActive, nextStage,
+                var delay = WrcTiming.NextPollDelay(_clock.UtcNow, activityActive || recovered, nextStage,
                     nextMetadataRefresh, context.Event.EndUtc, _options);
                 await _delay.DelayAsync(PositiveDelay(delay), ct);
             }
@@ -210,24 +213,26 @@ public sealed class WrcLiveTimingSource : ILiveTimingSource
         IReadOnlyList<WrcStageTime>? times = null;
         IReadOnlyList<WrcStageResult>? results = null;
 
+        // Once the WRC1 field has finished a stage we settle and hide it, so support or national classes
+        // still on the road cannot keep a finished stage on screen even while the provider reports Running.
+        // A settled stage only reopens if the WRC1 results themselves regress — a genuine re-run — which we
+        // detect by re-reading its data and clearing the completion marker when WRC1 is no longer complete.
+        if (selected is { Status: WrcStageStatus.Running } && _completedStages.Contains(selected.StageId))
+        {
+            var reopenTimes = await _api.GetStageTimesAsync(context.Event.EventId, selected.StageId, context.Rally.RallyId, ct);
+            var reopenResults = await _api.GetStageResultsAsync(context.Event.EventId, selected.StageId, context.Rally.RallyId, ct);
+            if (!WrcTiming.Wrc1ResultsComplete(context.Entries, reopenTimes, reopenResults))
+            {
+                _completedStages.Remove(selected.StageId);
+                (times, results) = (reopenTimes, reopenResults);
+            }
+        }
+
         if (selected is null && _activeStageId is int activeId)
         {
             var retained = stages.FirstOrDefault(stage => stage.StageId == activeId);
-            if (retained?.Status == WrcStageStatus.Completed)
-            {
-                selected = retained;
-                (times, results) = await GetStageDataAsync(context, retained.StageId, ct);
-                var fingerprint = WrcTiming.StageFingerprint(retained, times, results);
-                if (ResultsSettled(context, times, results, fingerprint))
-                {
-                    CompleteStage(retained.StageId);
-                    selected = null;
-                }
-            }
-            else if (retained?.Status is WrcStageStatus.Interrupted or WrcStageStatus.Cancelled)
-            {
-                _activeStageId = null;
-            }
+            if (retained?.Status == WrcStageStatus.Completed) selected = retained;
+            else if (retained?.Status is WrcStageStatus.Interrupted or WrcStageStatus.Cancelled) _activeStageId = null;
         }
 
         if (selected is null)

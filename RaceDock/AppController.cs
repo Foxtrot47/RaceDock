@@ -23,6 +23,7 @@ public sealed class AppController : IAsyncDisposable
     private bool _testMode;
     private bool _diagnosticRecording;
     private bool _snapshotLogged;
+    private string? _wrcTransitionKey;
     private bool _disposed;
     public event Action<ConnectionState>? StatusChanged;
     public UserSettings Settings => _settings;
@@ -58,6 +59,7 @@ public sealed class AppController : IAsyncDisposable
         _taskbar?.Hide();
         _alerts.Clear(); _processor.ProcessInitial(new System.Text.Json.Nodes.JsonObject());
         _snapshotLogged = false;
+        _wrcTransitionKey = null;
         var logs = Path.Combine(AppContext.BaseDirectory, "Logs"); Directory.CreateDirectory(logs);
         if (_testMode)
         {
@@ -85,11 +87,11 @@ public sealed class AppController : IAsyncDisposable
 
     private void Attach(ILiveTimingSource source)
     {
-        source.SnapshotReceived += OnSnapshot; source.ConnectionChanged += OnConnection; source.Failed += OnFailure;
+        source.SnapshotReceived += OnSnapshot; source.DeltaReceived += OnDelta; source.ConnectionChanged += OnConnection; source.Failed += OnFailure;
     }
     private void Detach(ILiveTimingSource source)
     {
-        source.SnapshotReceived -= OnSnapshot; source.ConnectionChanged -= OnConnection; source.Failed -= OnFailure;
+        source.SnapshotReceived -= OnSnapshot; source.DeltaReceived -= OnDelta; source.ConnectionChanged -= OnConnection; source.Failed -= OnFailure;
     }
     private void OnSnapshot(TimingSnapshot snapshot)
     {
@@ -100,6 +102,19 @@ public sealed class AppController : IAsyncDisposable
             $"{standing.Code}:{standing.GapToLeader ?? "—"}/{standing.IntervalToPositionAhead ?? "—"}"));
         Log($"Live snapshot: {snapshot.Championship}; {snapshot.Meeting} — {snapshot.Session}; {snapshot.Competitors.Count} competitors; " +
             $"lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}; time remaining {snapshot.TimeRemaining ?? "—"}; gaps {gaps}");
+    }
+    private void OnDelta(TimingDelta delta)
+    {
+        if (delta.Topic != "WrcStage") return;
+        var stage = delta.Data.AsObject();
+        var id = JsonSupport.Int(stage["stageId"]);
+        var status = JsonSupport.String(stage["status"]);
+        var key = $"{id}:{status}";
+        if (key == _wrcTransitionKey) return;
+        _wrcTransitionKey = key;
+        var code = JsonSupport.String(stage["code"]) ?? "SS";
+        var name = JsonSupport.String(stage["name"]) ?? "";
+        Log($"WRC stage transition: {code} ({name}) stage {id} -> {status}");
     }
     private void OnConnection(ConnectionState state) { StatusChanged?.Invoke(state); Log($"Connection: {state}"); }
     private void OnFailure(FeedFailure failure) => Log($"Feed failure: {failure.Message}");

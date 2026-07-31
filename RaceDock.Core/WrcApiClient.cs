@@ -14,8 +14,17 @@ internal sealed class WrcApiClient : IDisposable
     public WrcApiClient(HttpClient? httpClient = null)
     {
         _ownsHttp = httpClient is null;
-        _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        _http = httpClient ?? new HttpClient(CreateDefaultHandler()) { Timeout = TimeSpan.FromSeconds(30) };
     }
+
+    // Bound pooled connections so a broken socket or stale DNS entry is retired on its own rather than
+    // surviving until the feed is manually restarted. The idle timeout stays below the WRC idle poll interval.
+    internal static SocketsHttpHandler CreateDefaultHandler() => new()
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(1),
+        ConnectTimeout = TimeSpan.FromSeconds(10)
+    };
 
     public async Task<IReadOnlyList<WrcSeason>> GetSeasonsAsync(CancellationToken ct)
     {

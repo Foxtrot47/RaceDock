@@ -40,7 +40,12 @@ var tests = new (string Name, Action Run)[]
     ("WRC source stays hidden before the next rally", WrcSourceIdleLifecycle),
     ("WRC source schedules idle polling around the next stage", WrcSourceStageSchedule),
     ("WRC source faults and hides when event metadata fails", WrcSourceFailureLifecycle),
-    ("WRC source publishes proven stage timing once", WrcSourceStageLifecycle)
+    ("WRC source publishes proven stage timing once", WrcSourceStageLifecycle),
+    ("WRC running stage hides once the WRC1 field is done", WrcRunningStageHidesWhenWrc1Done),
+    ("WRC stage settles when a WRC1 crew retires on the road", WrcRetiredWrc1CrewSettlesStage),
+    ("WRC completed to running reopens the stage", WrcCompletedToRunningReopens),
+    ("WRC poll failure recovers with confirmation delay", WrcFailureRecoveryConfirmation),
+    ("WRC production handler has bounded connection lifetime", WrcHandlerBounds)
 };
 var failures = 0;
 foreach (var test in tests)
@@ -722,6 +727,212 @@ static TimingSnapshot Snapshot(string meeting, SessionLifecycle lifecycle = Sess
     [new CompetitorStanding("1", 1, "AAA", "Driver", "Team", "LEAD", null, null, 0, false, false, false, false)],
     DateTimeOffset.UtcNow, lifecycle);
 
+static void WrcRunningStageHidesWhenWrc1Done()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 7, 31, 7, 30, 0, TimeSpan.Zero));
+    var alerts = new AlertArbiter(clock);
+    var delay = new StepDelay(5);
+    // The provider keeps reporting the stage as Running (support/national classes still on the road) while
+    // the WRC1 field has finished. The stage must settle and hide once WRC1 is complete and stable.
+    var stageRunning = """
+    [{"stageId": 11307, "eventId": 644, "number": 1, "code": "SS1", "name": "Harju 1", "status": "Running",
+      "controls": [{"type": "StageStart", "firstCarDueDateTime": "2026-07-31T07:05:00Z"}]}]
+    """;
+    var timesSettled = """
+    [{"entryId": 62978, "position": 1, "elapsedDurationMs": 125400, "diffFirstMs": 0, "diffPrevMs": 0, "status": "Completed"},
+     {"entryId": 62979, "position": 2, "elapsedDurationMs": 126200, "diffFirstMs": 800, "diffPrevMs": 800, "status": "Completed"}]
+    """;
+    var resultsSettled = """
+    [{"entryId": 62978, "position": 1, "totalTimeMs": 125400},
+     {"entryId": 62979, "position": 2, "totalTimeMs": 126200}]
+    """;
+    using var handler = new SequenceHttpHandler(new()
+    {
+        ["seasons.json"] = [FixtureText("seasons.json")],
+        ["season-detail.json?seasonId=47"] = [FixtureText("season-detail.json")],
+        ["events/644.json"] = [FixtureText("event-finland.json")],
+        ["events/644/rallies/712/entries.json"] = [FixtureText("entries-finland.json")],
+        ["events/644/stages.json"] = [stageRunning, stageRunning, stageRunning],
+        ["events/644/stages/11307/stagetimes.json?rallyId=712"] = [timesSettled, timesSettled, timesSettled],
+        ["events/644/stages/11307/results.json?rallyId=712"] = [resultsSettled, resultsSettled, resultsSettled]
+    });
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var options = TestWrcOptions() with { ResultStablePolls = 2 };
+    var source = new WrcLiveTimingSource(api, clock, delay, alerts, options);
+    List<TimingSnapshot> snapshots = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitForCalls(3, TimeSpan.FromSeconds(2)));
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    // Live while the WRC1 rows are stabilising, then hidden once they settle even though the stage still runs.
+    True(snapshots.Any(s => s.Lifecycle == SessionLifecycle.Live && s.Session == "SS1  Harju 1"));
+    var settled = snapshots.FindLast(s => s.ConnectionState == ConnectionState.Connected);
+    True(settled is not null && settled.Lifecycle != SessionLifecycle.Live);
+}
+
+static void WrcRetiredWrc1CrewSettlesStage()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 7, 31, 7, 30, 0, TimeSpan.Zero));
+    var alerts = new AlertArbiter(clock);
+    var delay = new StepDelay(5);
+    // A WRC1 crew retires on the road (terminal but never classified in results). The field is still
+    // "complete" for settlement — the stage must hide once the remaining rows stabilise, not hang Live.
+    var stageRunning = """
+    [{"stageId": 11307, "eventId": 644, "number": 1, "code": "SS1", "name": "Harju 1", "status": "Running",
+      "controls": [{"type": "StageStart", "firstCarDueDateTime": "2026-07-31T07:05:00Z"}]}]
+    """;
+    var timesSettled = """
+    [{"entryId": 62978, "position": 1, "elapsedDurationMs": 125400, "diffFirstMs": 0, "diffPrevMs": 0, "status": "Completed"},
+     {"entryId": 62979, "position": null, "elapsedDurationMs": null, "diffFirstMs": null, "diffPrevMs": null, "status": "Retired"}]
+    """;
+    var resultsSettled = """
+    [{"entryId": 62978, "position": 1, "totalTimeMs": 125400}]
+    """;
+    using var handler = new SequenceHttpHandler(new()
+    {
+        ["seasons.json"] = [FixtureText("seasons.json")],
+        ["season-detail.json?seasonId=47"] = [FixtureText("season-detail.json")],
+        ["events/644.json"] = [FixtureText("event-finland.json")],
+        ["events/644/rallies/712/entries.json"] = [FixtureText("entries-finland.json")],
+        ["events/644/stages.json"] = [stageRunning, stageRunning, stageRunning],
+        ["events/644/stages/11307/stagetimes.json?rallyId=712"] = [timesSettled, timesSettled, timesSettled],
+        ["events/644/stages/11307/results.json?rallyId=712"] = [resultsSettled, resultsSettled, resultsSettled]
+    });
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var options = TestWrcOptions() with { ResultStablePolls = 2 };
+    var source = new WrcLiveTimingSource(api, clock, delay, alerts, options);
+    List<TimingSnapshot> snapshots = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitForCalls(3, TimeSpan.FromSeconds(2)));
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    // A retired crew never classifies, but the WRC1 field is still complete, so the stage settles and hides.
+    True(snapshots.Any(s => s.Lifecycle == SessionLifecycle.Live && s.Session == "SS1  Harju 1"));
+    var settled = snapshots.FindLast(s => s.ConnectionState == ConnectionState.Connected);
+    True(settled is not null && settled.Lifecycle != SessionLifecycle.Live);
+}
+
+static void WrcCompletedToRunningReopens()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 7, 31, 7, 30, 0, TimeSpan.Zero));
+    var alerts = new AlertArbiter(clock);
+    var delay = new StepDelay(3);
+    var stageCompleted = """
+    [{"stageId": 11307, "eventId": 644, "number": 1, "code": "SS1", "name": "Harju 1", "status": "Completed",
+      "controls": [{"type": "StageStart", "firstCarDueDateTime": "2026-07-31T07:05:00Z"}]}]
+    """;
+    var stageRunning = """
+    [{"stageId": 11307, "eventId": 644, "number": 1, "code": "SS1", "name": "Harju 1", "status": "Running",
+      "controls": [{"type": "StageStart", "firstCarDueDateTime": "2026-07-31T07:05:00Z"}]}]
+    """;
+    // Both WRC1 entries terminal and classified so the completed polls settle and blacklist the stage.
+    var timesComplete = """
+    [{"entryId": 62978, "position": 1, "elapsedDurationMs": 125400, "diffFirstMs": 0, "status": "Completed"},
+     {"entryId": 62979, "position": 2, "elapsedDurationMs": 126200, "diffFirstMs": 800, "status": "Completed"}]
+    """;
+    var resultsComplete = """
+    [{"entryId": 62978, "position": 1, "totalTimeMs": 125400},
+     {"entryId": 62979, "position": 2, "totalTimeMs": 126200}]
+    """;
+    var timesActive = """
+    [{"entryId": 62978, "position": 1, "elapsedDurationMs": 125400, "diffFirstMs": 0, "status": "Completed"},
+     {"entryId": 62979, "position": null, "elapsedDurationMs": 100000, "diffFirstMs": null, "status": "Running"}]
+    """;
+    using var handler = new SequenceHttpHandler(new()
+    {
+        ["seasons.json"] = [FixtureText("seasons.json")],
+        ["season-detail.json?seasonId=47"] = [FixtureText("season-detail.json")],
+        ["events/644.json"] = [FixtureText("event-finland.json")],
+        ["events/644/rallies/712/entries.json"] = [FixtureText("entries-finland.json")],
+        // Running (goes active) -> Completed -> Completed (settles, blacklists) -> Running (must reopen).
+        ["events/644/stages.json"] = [stageRunning, stageCompleted, stageCompleted, stageRunning],
+        ["events/644/stages/11307/stagetimes.json?rallyId=712"] = [timesComplete, timesComplete, timesComplete, timesActive],
+        ["events/644/stages/11307/results.json?rallyId=712"] = [resultsComplete, resultsComplete, resultsComplete, "[]"]
+    });
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var options = TestWrcOptions() with { ResultStablePolls = 2 };
+    var source = new WrcLiveTimingSource(api, clock, delay, alerts, options);
+    List<TimingSnapshot> snapshots = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitForCalls(4, TimeSpan.FromSeconds(2)));
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    // The stage settled (hidden) on the third poll; a Live snapshot published afterwards proves it reopened.
+    True(snapshots.Any(s => s.Lifecycle == SessionLifecycle.Live));
+    True(snapshots.Any(s => s.Lifecycle != SessionLifecycle.Live && s.ConnectionState == ConnectionState.Connected));
+    Equal(SessionLifecycle.Live, snapshots[^1].Lifecycle);
+    Equal("SS1  Harju 1", snapshots[^1].Session);
+}
+
+static void WrcFailureRecoveryConfirmation()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 7, 31, 7, 30, 0, TimeSpan.Zero));
+    var alerts = new AlertArbiter(clock);
+    var delay = new StepDelay(2);
+    // A future ToRun stage keeps the recovered poll idle: without the confirmation fix it would return
+    // to the 5-minute idle interval; the fix must instead force one 15-second confirmation poll.
+    var stageIdle = """
+    [{"stageId": 11308, "eventId": 644, "number": 2, "code": "SS2", "name": "Laukaa 1", "status": "ToRun",
+      "controls": [{"type": "StageStart", "firstCarDueDateTime": "2026-08-01T05:03:00Z"}]}]
+    """;
+    var stageRunning = """
+    [{"stageId": 11307, "eventId": 644, "number": 1, "code": "SS1", "name": "Harju 1", "status": "Running",
+      "controls": [{"type": "StageStart", "firstCarDueDateTime": "2026-07-31T07:05:00Z"}]}]
+    """;
+    var times = """
+    [{"entryId": 62978, "position": 1, "elapsedDurationMs": 125400, "diffFirstMs": 0, "status": "Running"}]
+    """;
+    using var handler = new SequenceHttpHandler(new()
+    {
+        ["seasons.json"] = [FixtureText("seasons.json")],
+        ["season-detail.json?seasonId=47"] = [FixtureText("season-detail.json")],
+        ["events/644.json"] = [FixtureText("event-finland.json")],
+        ["events/644/rallies/712/entries.json"] = [FixtureText("entries-finland.json")],
+        ["events/644/stages.json"] = ["__FAIL__", stageIdle, stageRunning, stageRunning],
+        ["events/644/stages/11307/stagetimes.json?rallyId=712"] = [times, times],
+        ["events/644/stages/11307/results.json?rallyId=712"] = ["[]", "[]"]
+    });
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var options = TestWrcOptions() with
+    {
+        PollInterval = TimeSpan.FromSeconds(15),
+        IdlePollInterval = TimeSpan.FromMinutes(5),
+        PollBackoff = [TimeSpan.FromSeconds(1)]
+    };
+    var source = new WrcLiveTimingSource(api, clock, delay, alerts, options);
+    List<FeedFailure> failures = [];
+    source.Failed += failures.Add;
+    List<ConnectionState> connections = [];
+    source.ConnectionChanged += connections.Add;
+    List<TimingSnapshot> snapshots = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitForCalls(3, TimeSpan.FromSeconds(3)));
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    Equal(1, failures.Count);
+    True(failures[0].Message.Contains("polling failed"));
+    var delays = delay.Durations.ToList();
+    True(delays.Count >= 3);
+    Equal(TimeSpan.FromSeconds(1), delays[0]);
+    Equal(TimeSpan.FromSeconds(15), delays[1]);
+    True(connections.Contains(ConnectionState.Faulted));
+    var live = snapshots.Where(s => s.Lifecycle == SessionLifecycle.Live).ToList();
+    True(live.Count >= 1);
+    Equal("SS1  Harju 1", live[^1].Session);
+}
+
+static void WrcHandlerBounds()
+{
+    using var handler = WrcApiClient.CreateDefaultHandler();
+    Equal(TimeSpan.FromMinutes(2), handler.PooledConnectionLifetime);
+    Equal(TimeSpan.FromMinutes(1), handler.PooledConnectionIdleTimeout);
+    Equal(TimeSpan.FromSeconds(10), handler.ConnectTimeout);
+}
+
 static (FakeClock clock, AlertArbiter alerts, TimingStateProcessor processor) Fixture() { var c = new FakeClock(); var a = new AlertArbiter(c); return (c, a, new TimingStateProcessor(c, a)); }
 static JsonObject BaseState() => JsonNode.Parse("""{"SessionInfo":{"Name":"Race","Meeting":{"Name":"Test","Circuit":{"ShortName":"Ring"}}},"TrackStatus":{"Status":"1"},"DriverList":{"1":{"Tla":"AAA"},"2":{"Tla":"BBB"}},"TimingData":{"Lines":{"1":{"Position":1,"NumberOfLaps":1},"2":{"Position":2,"GapToLeader":"+1.0","NumberOfLaps":1}}}}""")!.AsObject();
 static void Track(TimingStateProcessor p, string status) => p.ProcessDelta("TrackStatus", new JsonObject { ["Status"] = status }, DateTimeOffset.UtcNow);
@@ -754,6 +965,53 @@ sealed class BlockingDelay : IAsyncDelay
         await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
     }
     public bool WaitUntilCalled(TimeSpan timeout) => _called.Wait(timeout);
+}
+
+sealed class StepDelay(int autoRelease) : IAsyncDelay
+{
+    private readonly Lock _gate = new();
+    private readonly List<TimeSpan> _durations = [];
+    private int _calls;
+    public IReadOnlyList<TimeSpan> Durations { get { lock (_gate) return _durations.ToArray(); } }
+    public async Task DelayAsync(TimeSpan duration, CancellationToken cancellationToken)
+    {
+        bool release;
+        lock (_gate) { _durations.Add(duration); release = ++_calls <= autoRelease; }
+        if (release) return;
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+    }
+    public bool WaitForCalls(int count, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            lock (_gate) if (_calls >= count) return true;
+            Thread.Sleep(10);
+        }
+        lock (_gate) return _calls >= count;
+    }
+}
+
+// Returns each path's queued bodies in order, repeating the last body once the queue is exhausted.
+// A body equal to "__FAIL__" makes the request throw, simulating a transport failure.
+sealed class SequenceHttpHandler(Dictionary<string, string[]> routes) : HttpMessageHandler
+{
+    private readonly Dictionary<string, int> _index = [];
+    public List<string> Paths { get; } = [];
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var path = request.RequestUri!.PathAndQuery.TrimStart('/');
+        const string prefix = "rb-wrccom-lintegration-yv-prod/api/";
+        if (path.StartsWith(prefix, StringComparison.Ordinal)) path = path[prefix.Length..];
+        Paths.Add(path);
+        if (!routes.TryGetValue(path, out var bodies) || bodies.Length == 0)
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
+        var at = _index.TryGetValue(path, out var i) ? i : 0;
+        _index[path] = Math.Min(at + 1, bodies.Length - 1);
+        var body = bodies[Math.Min(at, bodies.Length - 1)];
+        if (body == "__FAIL__") throw new HttpRequestException("Simulated WRC transport failure.");
+        return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) });
+    }
 }
 
 sealed class RouteHttpHandler(Dictionary<string, Queue<HttpResponseMessage>> routes) : HttpMessageHandler
