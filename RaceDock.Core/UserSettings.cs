@@ -18,6 +18,7 @@ public sealed record UserSettings
     public bool ShowPositionColors { get; init; } = true;
     public bool UseManufacturerLogos { get; init; }
     public bool ShowFlagAlerts { get; init; } = true;
+    public bool AutoStartOnWindowsBoot { get; init; } = true;
 
     public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableWrc;
 

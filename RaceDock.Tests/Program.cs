@@ -563,6 +563,10 @@ static void UserSettingsPersistence()
     try
     {
         var store = new UserSettingsStore(path);
+        True(new UserSettings().AutoStartOnWindowsBoot);
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(path, "{\"EnableFormula1\":true}");
+        True(store.Load().AutoStartOnWindowsBoot);
         store.Save(new UserSettings
         {
             EnableFormula1 = false,
@@ -571,13 +575,15 @@ static void UserSettingsPersistence()
             EnableWrc = false,
             DriverCount = 99,
             RotationSeconds = 1,
-            UseManufacturerLogos = true
+            UseManufacturerLogos = true,
+            AutoStartOnWindowsBoot = false
         });
         var loaded = store.Load();
         True(loaded.EnableFormula1);
         Equal(5, loaded.DriverCount);
         Equal(2, loaded.RotationSeconds);
         True(loaded.UseManufacturerLogos);
+        False(loaded.AutoStartOnWindowsBoot);
     }
     finally
     {

@@ -33,6 +33,8 @@ public sealed class AppController : IAsyncDisposable
     public AppController(Dispatcher dispatcher)
     {
         _dispatcher = dispatcher; _alerts = new(_clock); _processor = new(_clock, _alerts); _settings = _settingsStore.Load();
+        try { WindowsStartupRegistration.Apply(_settings.AutoStartOnWindowsBoot); }
+        catch (Exception ex) { Log($"Windows startup registration failed: {ex.Message}"); }
         _alerts.VisibleAlertChanged += alert => _dispatcher.BeginInvoke(() => _taskbar?.SetAlert(alert));
         _renderTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => RenderPending(), dispatcher);
         _healthTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) =>
@@ -151,6 +153,7 @@ public sealed class AppController : IAsyncDisposable
             settings.RotationSeconds != _settings.RotationSeconds;
         _settingsStore.Save(settings);
         _settings = settings.Normalize();
+        WindowsStartupRegistration.Apply(_settings.AutoStartOnWindowsBoot);
         _taskbar?.ApplySettings(_settings);
         if (restartFeeds && !_testMode) await SwitchSourceAsync();
     }

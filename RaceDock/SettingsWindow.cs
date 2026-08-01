@@ -31,6 +31,7 @@ public sealed class SettingsWindow : Window
     private readonly CheckBox _positionColors = Toggle("Position colours", "Use coloured cards for the leading positions");
     private readonly CheckBox _manufacturerLogos = Toggle("Manufacturer logos", "Replace taskbar position cards with a team or manufacturer mark when the feed supplies one");
     private readonly CheckBox _flagAlerts = Toggle("Flag alerts", "Show FIA flag indicators beside the event name");
+    private readonly CheckBox _autoStart = Toggle("Start RaceDock when I sign in to Windows", "Launch RaceDock automatically from this location after signing in");
     private readonly Slider _driverCount = IntegerSlider(1, 5);
     private readonly Slider _rotation = IntegerSlider(2, 30);
     private readonly TextBlock _driverCountValue = ValueLabel();
@@ -75,6 +76,7 @@ public sealed class SettingsWindow : Window
         layout.Children.Add(heading);
 
         var tabs = new System.Windows.Controls.TabControl { Margin = new Thickness(0, 0, 0, 14) };
+        tabs.Items.Add(new TabItem { Header = "General", Content = BuildGeneralTab() });
         tabs.Items.Add(new TabItem { Header = "Streams", Content = BuildStreamsTab() });
         tabs.Items.Add(new TabItem { Header = "Appearance", Content = BuildAppearanceTab() });
         tabs.Items.Add(new TabItem { Header = "Testing", Content = BuildTestingTab() });
@@ -118,9 +120,18 @@ public sealed class SettingsWindow : Window
         _positionColors.IsChecked = settings.ShowPositionColors;
         _manufacturerLogos.IsChecked = settings.UseManufacturerLogos;
         _flagAlerts.IsChecked = settings.ShowFlagAlerts;
+        _autoStart.IsChecked = settings.AutoStartOnWindowsBoot;
         UpdateSliderLabels();
         SyncTestingMode();
         _message.Text = "";
+    }
+
+    private UIElement BuildGeneralTab()
+    {
+        var panel = TabPanel();
+        panel.Children.Add(SectionTitle("Windows startup", "Control whether RaceDock starts automatically for your Windows account."));
+        panel.Children.Add(_autoStart);
+        return Scroll(panel);
     }
 
     private UIElement BuildStreamsTab()
@@ -419,7 +430,8 @@ public sealed class SettingsWindow : Window
             ShowGaps = _gaps.IsChecked == true,
             ShowPositionColors = _positionColors.IsChecked == true,
             UseManufacturerLogos = _manufacturerLogos.IsChecked == true,
-            ShowFlagAlerts = _flagAlerts.IsChecked == true
+            ShowFlagAlerts = _flagAlerts.IsChecked == true,
+            AutoStartOnWindowsBoot = _autoStart.IsChecked == true
         }.Normalize();
 
         _save.IsEnabled = false;

@@ -37,9 +37,10 @@ RaceDock runs from the Windows notification area. Open **Settings** from the tra
 - enable or disable live championships;
 - choose how quickly active sessions rotate;
 - show between one and five drivers;
-- show or hide event, session, gap, position-colour, logo, and flag information.
+- show or hide event, session, gap, position-colour, logo, and flag information;
+- choose whether RaceDock starts automatically when you sign in to Windows.
 
-Settings are saved in `%LocalAppData%\RaceDock\settings.json`. The app does not add itself to Windows startup.
+Settings are saved in `%LocalAppData%\RaceDock\settings.json`. Windows startup is enabled by default and can be disabled from the **General** settings tab. Keep the extracted app in a stable folder because the startup entry points to that copy of `RaceDock.exe`.
 
 Application logs are stored in the `Logs` folder beside the executable. The Formula 1 diagnostic recorder is optional, limited to 2 MiB, and excludes connection credentials.
 
