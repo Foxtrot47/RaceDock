@@ -239,12 +239,15 @@ public sealed class ClassificationFlyout : Window
         };
         grid.Children.Add(positionCard);
 
-        var driver = new StackPanel
+        var driver = new Grid
         {
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(4, 0, 8, 0),
             ToolTip = string.IsNullOrWhiteSpace(standing.Name) ? null : standing.Name
         };
+        driver.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        driver.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var driverCopy = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         var driverLine = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
         var driverName = new TextBlock
         {
@@ -274,8 +277,17 @@ public sealed class ClassificationFlyout : Window
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         team.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
-        driver.Children.Add(driverLine);
-        driver.Children.Add(team);
+        driverCopy.Children.Add(driverLine);
+        driverCopy.Children.Add(team);
+        if (_settings.UseManufacturerLogos && ManufacturerLogo.TryCreate(standing.Team, 26, out var logo))
+        {
+            logo.Margin = new Thickness(0, 0, 6, 0);
+            logo.VerticalAlignment = VerticalAlignment.Center;
+            driver.Children.Add(logo);
+            Grid.SetColumn(driverCopy, 1);
+        }
+        else Grid.SetColumnSpan(driverCopy, 2);
+        driver.Children.Add(driverCopy);
         Grid.SetColumn(driver, 1);
         grid.Children.Add(driver);
 

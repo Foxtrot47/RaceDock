@@ -29,7 +29,7 @@ public sealed class SettingsWindow : Window
     private readonly CheckBox _sessionProgress = Toggle("Session progress", "Show session, clock, lap or stage below the event");
     private readonly CheckBox _gaps = Toggle("Driver gaps", "Show leader gaps below driver codes");
     private readonly CheckBox _positionColors = Toggle("Position colours", "Use coloured cards for the leading positions");
-    private readonly CheckBox _manufacturerLogos = Toggle("Manufacturer logos", "Replace taskbar position cards with a team or manufacturer mark when the feed supplies one");
+    private readonly CheckBox _manufacturerLogos = Toggle("Manufacturer logos", "Show team or manufacturer marks in the taskbar and full classification when the feed supplies one");
     private readonly CheckBox _flagAlerts = Toggle("Flag alerts", "Show FIA flag indicators beside the event name");
     private readonly CheckBox _autoStart = Toggle("Start RaceDock when I sign in to Windows", "Launch RaceDock automatically from this location after signing in");
     private readonly Slider _driverCount = IntegerSlider(1, 5);
