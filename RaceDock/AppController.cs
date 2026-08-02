@@ -73,6 +73,7 @@ public sealed class AppController : IAsyncDisposable
             if (_settings.EnableFormula1) factories.Add(() => new F1LiveTimingSource(_processor, _clock, logs) { DiagnosticRecordingEnabled = _diagnosticRecording });
             if (_settings.EnableFormula2) factories.Add(() => new F2LiveTimingSource(_clock, _alerts));
             if (_settings.EnableFormula3) factories.Add(() => new F2LiveTimingSource(_clock, _alerts, "F3"));
+            if (_settings.EnableGtWorldChallengeEurope) factories.Add(() => new GtwcLiveTimingSource(_clock, _alerts));
             if (_settings.EnableWrc) factories.Add(() => new WrcLiveTimingSource(_clock, _alerts));
             _source = new CompositeLiveTimingSource(factories, _clock, TimeSpan.FromSeconds(_settings.RotationSeconds));
         }
@@ -82,6 +83,7 @@ public sealed class AppController : IAsyncDisposable
             _settings.EnableFormula1 ? "F1" : null,
             _settings.EnableFormula2 ? "F2" : null,
             _settings.EnableFormula3 ? "F3" : null,
+            _settings.EnableGtWorldChallengeEurope ? "GTWC" : null,
             _settings.EnableWrc ? "WRC" : null
         }.Where(value => value is not null));
         Log(_testMode ? "Source started: deterministic test scenario (paused)" : $"Source started: {enabled}; rotation {_settings.RotationSeconds}s");
@@ -149,6 +151,7 @@ public sealed class AppController : IAsyncDisposable
         var restartFeeds = settings.EnableFormula1 != _settings.EnableFormula1 ||
             settings.EnableFormula2 != _settings.EnableFormula2 ||
             settings.EnableFormula3 != _settings.EnableFormula3 ||
+            settings.EnableGtWorldChallengeEurope != _settings.EnableGtWorldChallengeEurope ||
             settings.EnableWrc != _settings.EnableWrc ||
             settings.RotationSeconds != _settings.RotationSeconds;
         _settingsStore.Save(settings);

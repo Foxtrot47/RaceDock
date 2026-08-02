@@ -22,6 +22,7 @@ public static class ChampionshipDisplay
         Championship.Formula2 => "F2",
         Championship.Formula3 => "F3",
         Championship.WorldRallyChampionship => "WRC",
+        Championship.GtWorldChallengeEurope => "GTWC",
         _ => ""
     };
 
@@ -31,6 +32,7 @@ public static class ChampionshipDisplay
         Championship.Formula2 => "Formula 2",
         Championship.Formula3 => "Formula 3",
         Championship.WorldRallyChampionship => "World Rally Championship",
+        Championship.GtWorldChallengeEurope => "GT World Challenge Europe",
         _ => ""
     };
 

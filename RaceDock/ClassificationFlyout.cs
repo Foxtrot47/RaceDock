@@ -122,8 +122,22 @@ public sealed class ClassificationFlyout : Window
     {
         _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : ChampionshipDisplay.FullEvent(snapshot);
         var rally = IsRallySnapshot(snapshot);
-        _tyreHeader.Text = rally ? "TIME" : "TYRE";
-        _categoryHeader.Text = rally ? "CLASS" : "LAP";
+        var gtwc = snapshot.Championship == Championship.GtWorldChallengeEurope;
+        if (rally)
+        {
+            _tyreHeader.Text = "TIME";
+            _categoryHeader.Text = "CLASS";
+        }
+        else if (gtwc)
+        {
+            _tyreHeader.Text = "BEST";
+            _categoryHeader.Text = "CLASS";
+        }
+        else
+        {
+            _tyreHeader.Text = "TYRE";
+            _categoryHeader.Text = "LAP";
+        }
         _sessionDetails.Text = string.Join("  ·  ", new[]
         {
             snapshot.Session,
@@ -136,7 +150,7 @@ public sealed class ClassificationFlyout : Window
 
         _rows.Children.Clear();
         foreach (var standing in snapshot.Competitors.OrderBy(standing => standing.Position))
-            _rows.Children.Add(CreateStandingRow(standing, rally));
+            _rows.Children.Add(CreateStandingRow(standing, rally, gtwc));
     }
 
     public void ScheduleClose()
@@ -153,9 +167,16 @@ public sealed class ClassificationFlyout : Window
         if (IsRallySnapshot(snapshot)) return snapshot.Session;
         if (!string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
         {
-            var timedSession = snapshot.Session.Contains("Practice", StringComparison.OrdinalIgnoreCase) ||
+            var gtwc = snapshot.Championship == Championship.GtWorldChallengeEurope;
+            var timedSession = gtwc ||
+                snapshot.Session.Contains("Practice", StringComparison.OrdinalIgnoreCase) ||
                 snapshot.Session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase);
-            if (timedSession) return $"Time remaining {snapshot.TimeRemaining}";
+            if (timedSession)
+            {
+                if (gtwc && snapshot.CurrentLap > 0)
+                    return $"Lap {snapshot.CurrentLap} · {snapshot.TimeRemaining} remaining";
+                return $"Time remaining {snapshot.TimeRemaining}";
+            }
             if (snapshot.TotalLaps is null && snapshot.CurrentLap > 0)
                 return $"Lap {snapshot.CurrentLap} · {snapshot.TimeRemaining} remaining";
         }
@@ -208,7 +229,7 @@ public sealed class ClassificationFlyout : Window
         return header;
     }
 
-    private UIElement CreateStandingRow(CompetitorStanding standing, bool rally)
+    private UIElement CreateStandingRow(CompetitorStanding standing, bool rally, bool gtwc)
     {
         var grid = CreateColumns();
         grid.MinHeight = 38;
@@ -279,7 +300,7 @@ public sealed class ClassificationFlyout : Window
         team.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
         driverCopy.Children.Add(driverLine);
         driverCopy.Children.Add(team);
-        if (_settings.UseManufacturerLogos && ManufacturerLogo.TryCreate(standing.Team, 26, out var logo))
+        if (_settings.UseManufacturerLogos && ManufacturerLogo.TryCreate(standing.Manufacturer ?? standing.Team, 26, out var logo))
         {
             logo.Margin = new Thickness(0, 0, 6, 0);
             logo.VerticalAlignment = VerticalAlignment.Center;
@@ -295,7 +316,7 @@ public sealed class ClassificationFlyout : Window
             standing.Position == 1 ? FontWeights.SemiBold : FontWeights.Normal);
         AddValue(grid, standing.Position == 1 ? "—" : standing.IntervalToPositionAhead ?? "—", 3);
 
-        if (rally) AddValue(grid, standing.ResultTime ?? "—", 4);
+        if (rally || gtwc) AddValue(grid, standing.ResultTime ?? "—", 4);
         else
         {
             var tyre = CreateTyreBadge(standing.Tyre);
@@ -303,7 +324,7 @@ public sealed class ClassificationFlyout : Window
             grid.Children.Add(tyre);
         }
 
-        AddValue(grid, rally ? standing.Category ?? "—" : standing.Lap.ToString(), 5, alignment: TextAlignment.Center);
+        AddValue(grid, rally || gtwc ? standing.Category ?? "—" : standing.Lap.ToString(), 5, alignment: TextAlignment.Center);
 
         var status = CreateStatusBadge(standing);
         Grid.SetColumn(status, 6);
@@ -391,6 +412,8 @@ public sealed class ClassificationFlyout : Window
             { Stopped: true } => ("STOP", BrushFrom(199, 45, 70, 0.35)),
             { InPit: true } => ("PIT", BrushFrom(33, 132, 188, 0.3)),
             { StatusLabel: "RUN" } => ("RUN", BrushFrom(33, 132, 188, 0.3)),
+            { StatusLabel: "FIN" } => ("FIN", BrushFrom(30, 138, 88, 0.28)),
+            { StatusLabel: "N/S" } => ("N/S", BrushFrom(92, 96, 106, 0.3)),
             { StatusLabel: "DUE" } => ("DUE", BrushFrom(92, 96, 106, 0.3)),
             _ => ("", Brushes.Transparent)
         };

@@ -29,6 +29,12 @@ var tests = new (string Name, Action Run)[]
     ("WRC missing shakedown data is not a feed failure", WrcOptionalShakedown),
     ("championship labels use compact taskbar and full flyout names", ChampionshipLabels),
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
+    ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
+    ("GTWC standings map teams manufacturers and classes", GtwcStandings),
+    ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
+    ("GTWC client uppercases ids and busts caches", GtwcClientPaths),
+    ("GTWC source publishes an active classification", GtwcSourceLifecycle),
+    ("GTWC production handler has bounded connection lifetime", GtwcHandlerBounds),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
     ("F3 standings include roster teams", F3RosterTeams),
     ("F2 standings include roster teams", F2RosterTeams),
@@ -550,10 +556,14 @@ static void ChampionshipLabels()
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Formula1);
     var wrc = new TimingSnapshot("Secto Rally Finland", "SS1", "", 0, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.WorldRallyChampionship);
+    var gtwc = new TimingSnapshot("Magny-Cours", "Qualifying 1 Group B", "Magny-Cours", 3, null,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.GtWorldChallengeEurope);
     Equal("F1 Spa", ChampionshipDisplay.CompactEvent(f1));
     Equal("Formula 1 · Belgian Grand Prix", ChampionshipDisplay.FullEvent(f1));
     Equal("WRC Secto Rally Finland", ChampionshipDisplay.CompactEvent(wrc));
     Equal("World Rally Championship · Secto Rally Finland", ChampionshipDisplay.FullEvent(wrc));
+    Equal("GTWC Magny", ChampionshipDisplay.CompactEvent(gtwc));
+    Equal("GT World Challenge Europe · Magny-Cours", ChampionshipDisplay.FullEvent(gtwc));
 }
 
 static void UserSettingsPersistence()
@@ -566,12 +576,15 @@ static void UserSettingsPersistence()
         True(new UserSettings().AutoStartOnWindowsBoot);
         Directory.CreateDirectory(directory);
         File.WriteAllText(path, "{\"EnableFormula1\":true}");
-        True(store.Load().AutoStartOnWindowsBoot);
+        var legacy = store.Load();
+        True(legacy.AutoStartOnWindowsBoot);
+        True(legacy.EnableGtWorldChallengeEurope);
         store.Save(new UserSettings
         {
             EnableFormula1 = false,
             EnableFormula2 = false,
             EnableFormula3 = false,
+            EnableGtWorldChallengeEurope = false,
             EnableWrc = false,
             DriverCount = 99,
             RotationSeconds = 1,
@@ -584,12 +597,164 @@ static void UserSettingsPersistence()
         Equal(2, loaded.RotationSeconds);
         True(loaded.UseManufacturerLogos);
         False(loaded.AutoStartOnWindowsBoot);
+        False(loaded.EnableGtWorldChallengeEurope);
+        var gtwcOnly = new UserSettings
+        {
+            EnableFormula1 = false,
+            EnableFormula2 = false,
+            EnableFormula3 = false,
+            EnableGtWorldChallengeEurope = true,
+            EnableWrc = false
+        }.Normalize();
+        False(gtwcOnly.EnableFormula1);
+        True(gtwcOnly.EnableGtWorldChallengeEurope);
     }
     finally
     {
         if (Directory.Exists(directory)) Directory.Delete(directory, true);
     }
 }
+
+static void GtwcDiscoveryFiltering()
+{
+    var season = JsonNode.Parse("""
+        {"PresentationMeetingId":"meeting-1","Meetings":{"meeting-1":{"TrackName":"Magny-Cours","State":1}}}
+        """)!.AsObject();
+    var meeting = GtwcTiming.PresentationMeeting(season);
+    Equal("Magny-Cours", meeting?.Name);
+    True(GtwcTiming.IsGtwcEuropeName("GTWorldChEU pwrd by AWS Sprint Cup"));
+    True(GtwcTiming.IsGtwcEuropeName("GT World Challenge Europe Endurance Cup"));
+    False(GtwcTiming.IsGtwcEuropeName("GT4 European Series"));
+
+    var schedule = JsonNode.Parse("""
+        {"PresentationRoundId":"support","Series":{
+           "gt":{"Name":"GTWorldChEu pwrd by AWS Sprint Cup"},"f4":{"Name":"FFSA F4"}},
+         "Competitions":{"gtc":{"SerieId":"gt","Name":"GTWorldChEu pwrd by AWS Sprint Cup"},
+           "f4c":{"SerieId":"f4","Name":"FFSA F4"}},
+         "Units":{"gtwc":{"Id":"gtwc","Name":"Qualifying 1 Group B","Code":"Q1B","CompetitionId":"gtc","State":1},
+           "support":{"Id":"support","Name":"F4 Race","CompetitionId":"f4c","State":1}}}
+        """)!.AsObject();
+    Equal<GtwcUnit?>(null, GtwcTiming.PresentedUnit(schedule));
+    schedule["PresentationRoundId"] = "gtwc";
+    var unit = GtwcTiming.PresentedUnit(schedule);
+    Equal("gtwc", unit?.Id);
+    Equal("Qualifying 1 Group B", unit?.Name);
+}
+
+static void GtwcStandings()
+{
+    var meeting = new GtwcMeeting("meeting-1", "Magny-Cours", "Magny-Cours", 1);
+    var unit = new GtwcUnit("unit-1", "Qualifying 1 Group B", "gtc", 1);
+    var timing = JsonNode.Parse("""
+        {"UnitId":"unit-1","UntInfo":{"RemainingTime":"1:27","TrackFlag":1,"SectorFlags":[1,1,1]},"Results":{
+          "car-1":{"CompetitorId":"car-1","ListIndex":0,"MainResult":{"Rank":1,"BestTime":{"Time":"1:36.500"},"TotalLapCount":3,"Status":2}},
+          "car-2":{"CompetitorId":"car-2","ListIndex":1,"MainResult":{"Rank":2,"BestTime":{"Time":"1:36.500"},"Behind":"0.200","Diff":"0.200","TotalLapCount":4,"Status":2}},
+          "car-3":{"CompetitorId":"car-3","ListIndex":2,"MainResult":{"Rank":3,"BestTime":{"Time":"1:37.100"},"Behind":"0.600","Diff":"0.400","TotalLapCount":2,"Status":4}}}}
+        """)!.AsObject();
+    var detail = JsonNode.Parse("""
+        {"UnitId":"unit-1","Classes":{"pro":{"ShortName":"Pro"},"silver":{"ShortName":"Silver"}},"Competitors":{
+          "car-1":{"Bib":"3","ClassId":"pro","TeamName":"Winward Racing","ManufacturerName":"Mercedes-AMG","CurrentDriverId":"driver-1","InPitLane":false,
+            "Drivers":{"driver-1":{"ListIndex":1,"FirstName":"Jules","LastName":"Gounon","ShortName":"GOU"}}},
+          "car-2":{"Bib":"46","ClassId":"silver","TeamName":"Team WRT","ManufacturerName":"BMW M","InPitLane":true,
+            "Drivers":{"later":{"ListIndex":2,"FirstName":"Second","LastName":"Driver","ShortName":"SEC"},"first":{"ListIndex":1,"FirstName":"Max","LastName":"Hesse","ShortName":"HES"}}},
+          "car-3":{"Bib":"7","ClassId":"pro","TeamName":"Comtoyou Racing","ManufacturerName":"Aston Martin","InPitLane":false,
+            "Drivers":{"driver-3":{"ListIndex":1,"FirstName":"Kobe","LastName":"Pauwels","ShortName":"PAU"}}}}}
+        """)!.AsObject();
+    var snapshot = GtwcTiming.BuildSnapshot(meeting, unit, timing, detail,
+        new DateTimeOffset(2026, 8, 1, 13, 18, 0, TimeSpan.Zero), ConnectionState.Connected);
+    Equal(SessionLifecycle.Live, snapshot.Lifecycle);
+    Equal(Championship.GtWorldChallengeEurope, snapshot.Championship);
+    Equal("1:27", snapshot.TimeRemaining);
+    Equal(4, snapshot.CurrentLap);
+    Equal("GOU", snapshot.Competitors[0].Code);
+    Equal("Winward Racing", snapshot.Competitors[0].Team);
+    Equal("Mercedes-AMG", snapshot.Competitors[0].Manufacturer);
+    Equal("Pro", snapshot.Competitors[0].Category);
+    Equal("1:36.500", snapshot.Competitors[0].ResultTime);
+    Equal("+0.200", snapshot.Competitors[1].GapToLeader);
+    Equal("HES", snapshot.Competitors[1].Code);
+    True(snapshot.Competitors[1].InPit);
+    True(snapshot.Competitors[2].Retired);
+    Equal(1, snapshot.Competitors.Count(standing => standing.IsOverallFastest));
+    True(snapshot.Competitors[0].IsOverallFastest);
+    timing["UntInfo"]!["ChequeredFlag"] = true;
+    Equal(SessionLifecycle.Ended, GtwcTiming.BuildSnapshot(meeting, unit, timing, detail,
+        new DateTimeOffset(2026, 8, 1, 13, 20, 0, TimeSpan.Zero), ConnectionState.Connected).Lifecycle);
+}
+
+static void GtwcFlagsAndStatuses()
+{
+    Equal("FIN", GtwcTiming.StatusLabel(1));
+    Equal("RUN", GtwcTiming.StatusLabel(2));
+    Equal("RET", GtwcTiming.StatusLabel(4));
+    Equal("RET", GtwcTiming.StatusLabel(16));
+    Equal("N/S", GtwcTiming.StatusLabel(32));
+    Equal("+0.257", GtwcTiming.FormatGap("0.257"));
+    Equal("1 LAP", GtwcTiming.FormatGap("1 LAP"));
+    Equal(TrackCondition.AllClear, GtwcTiming.TrackState(JsonNode.Parse("{\"TrackFlag\":1}")!.AsObject()).Condition);
+    Equal(TrackCondition.Yellow, GtwcTiming.TrackState(JsonNode.Parse("{\"TrackFlag\":1,\"SectorFlags\":[1,4,1]}")!.AsObject()).Condition);
+    var fcy = GtwcTiming.TrackState(JsonNode.Parse("{\"TrackFlag\":4,\"SectorFlags\":[1,1,1]}")!.AsObject());
+    Equal(TrackCondition.VirtualSafetyCar, fcy.Condition);
+    Equal("FULL COURSE YELLOW", fcy.Detail);
+    Equal(TrackCondition.RedFlag, GtwcTiming.TrackState(JsonNode.Parse("{\"TrackFlag\":1,\"SectorFlags\":[4,8,32]}")!.AsObject()).Condition);
+}
+
+static void GtwcClientPaths()
+{
+    using var handler = new GtwcHttpHandler([]);
+    using var http = new HttpClient(handler);
+    using var client = new GtwcApiClient(http);
+    client.GetScheduleAsync("2026", "meeting-ab", CancellationToken.None).GetAwaiter().GetResult();
+    client.GetScheduleAsync("2026", "meeting-ab", CancellationToken.None).GetAwaiter().GetResult();
+    Equal(2, handler.Paths.Count);
+    True(handler.Paths.All(path => path.Contains("SRO_2026_SCHEDULE_MEETING-AB_JSON.json", StringComparison.Ordinal)));
+    False(handler.Paths[0] == handler.Paths[1]);
+}
+
+static void GtwcSourceLifecycle()
+{
+    var routes = new Dictionary<string, string>
+    {
+        ["SRO_SEASONS_JSON.json"] = GtwcEnvelope("{\"CurrentSeason\":\"2026\"}"),
+        ["SRO_2026_SEASON_JSON.json"] = GtwcEnvelope("{\"PresentationMeetingId\":\"meeting-1\",\"Meetings\":{\"meeting-1\":{\"TrackName\":\"Magny-Cours\",\"State\":1}}}"),
+        ["SRO_2026_SCHEDULE_MEETING-1_JSON.json"] = GtwcEnvelope("{\"MeetingId\":\"meeting-1\",\"PresentationRoundId\":\"unit-1\",\"Series\":{\"gt\":{\"Name\":\"GTWorldChEU pwrd by AWS Sprint Cup\"}},\"Competitions\":{\"gtc\":{\"SerieId\":\"gt\"}},\"Units\":{\"unit-1\":{\"Name\":\"Qualifying 1 Group B\",\"Code\":\"Q1B\",\"CompetitionId\":\"gtc\",\"State\":1}}}"),
+        ["SRO_2026_TIMING_UNIT-1_JSON.json"] = GtwcEnvelope("{\"UnitId\":\"unit-1\",\"UntInfo\":{\"RemainingTime\":\"8:15\",\"TrackFlag\":1,\"SectorFlags\":[1,1,1]},\"Results\":{\"car-1\":{\"CompetitorId\":\"car-1\",\"ListIndex\":0,\"MainResult\":{\"Rank\":1,\"BestTime\":{\"Time\":\"1:36.500\"},\"TotalLapCount\":2,\"Status\":2}}}}"),
+        ["SRO_2026_COMP_DETAIL_UNIT-1_JSON.json"] = GtwcEnvelope("{\"UnitId\":\"unit-1\",\"Classes\":{\"pro\":{\"ShortName\":\"Pro\"}},\"Competitors\":{\"car-1\":{\"Bib\":\"3\",\"ClassId\":\"pro\",\"TeamName\":\"Winward Racing\",\"ManufacturerName\":\"Mercedes-AMG\",\"CurrentDriverId\":\"driver-1\",\"Drivers\":{\"driver-1\":{\"ListIndex\":1,\"FirstName\":\"Jules\",\"LastName\":\"Gounon\",\"ShortName\":\"GOU\"}}}}}"),
+    };
+    using var handler = new GtwcHttpHandler(routes);
+    using var http = new HttpClient(handler);
+    using var api = new GtwcApiClient(http);
+    var clock = new FakeClock(new DateTimeOffset(2026, 8, 1, 13, 18, 0, TimeSpan.Zero));
+    var delay = new BlockingDelay();
+    var options = new GtwcPollingOptions(TimeSpan.FromHours(1), TimeSpan.FromHours(1), TimeSpan.FromHours(1),
+        [TimeSpan.FromHours(1)], [TimeSpan.FromHours(1)]);
+    var source = new GtwcLiveTimingSource(api, clock, delay, new AlertArbiter(clock), options);
+    List<TimingSnapshot> snapshots = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    var live = snapshots.Single(snapshot => snapshot.Lifecycle == SessionLifecycle.Live);
+    Equal("Magny-Cours", live.Meeting);
+    Equal("Qualifying 1 Group B", live.Session);
+    Equal("GOU", live.Competitors.Single().Code);
+}
+
+static void GtwcHandlerBounds()
+{
+    using var handler = GtwcApiClient.CreateDefaultHandler();
+    Equal(TimeSpan.FromMinutes(2), handler.PooledConnectionLifetime);
+    Equal(TimeSpan.FromMinutes(1), handler.PooledConnectionIdleTimeout);
+    Equal(TimeSpan.FromSeconds(10), handler.ConnectTimeout);
+}
+
+static string GtwcEnvelope(string fullJson) => new JsonObject
+{
+    ["uid"] = 1,
+    ["hash"] = "fixture",
+    ["content"] = new JsonObject { ["full"] = JsonNode.Parse(fullJson) }
+}.ToJsonString();
 
 static void WrcSourceIdleLifecycle()
 {
@@ -1016,6 +1181,18 @@ sealed class SequenceHttpHandler(Dictionary<string, string[]> routes) : HttpMess
         _index[path] = Math.Min(at + 1, bodies.Length - 1);
         var body = bodies[Math.Min(at, bodies.Length - 1)];
         if (body == "__FAIL__") throw new HttpRequestException("Simulated WRC transport failure.");
+        return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) });
+    }
+}
+
+sealed class GtwcHttpHandler(Dictionary<string, string> routes) : HttpMessageHandler
+{
+    public List<string> Paths { get; } = [];
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        Paths.Add(request.RequestUri!.PathAndQuery);
+        var file = request.RequestUri.AbsolutePath.Split('/').Last();
+        var body = routes.GetValueOrDefault(file) ?? "{\"content\":{\"full\":{}}}";
         return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) });
     }
 }

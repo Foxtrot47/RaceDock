@@ -122,6 +122,8 @@ public sealed class TaskbarWindow : Window
         if (!string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
         {
             var time = CompactTime(snapshot.TimeRemaining);
+            if (snapshot.Championship == Championship.GtWorldChallengeEurope)
+                return snapshot.CurrentLap > 0 ? $"{session} {snapshot.CurrentLap} · {time}" : $"{session} {time}";
             if (IsTimedSession(snapshot.Session)) return $"{session} {time}";
             if (snapshot.TotalLaps is null && snapshot.CurrentLap > 0) return $"{session} {snapshot.CurrentLap} · {time}";
         }
@@ -141,9 +143,17 @@ public sealed class TaskbarWindow : Window
         "Sprint" or "Sprint Race" => "SPR",
         "Feature Race" => "FEA",
         "Qualifying" or "Qualifying 1" => "Q1",
+        "Qualifying 1 Group A" => "Q1A",
+        "Qualifying 1 Group B" => "Q1B",
+        "Combined Qualifying 1" => "CQ1",
         "Qualifying 2" => "Q2",
+        "Qualifying 2 Group A" => "Q2A",
+        "Qualifying 2 Group B" => "Q2B",
+        "Combined Qualifying 2" => "CQ2",
         "Qualifying 3" => "Q3",
         "Race" => "RAC",
+        "Race 1" => "R1",
+        "Race 2" => "R2",
         _ => session.ToUpperInvariant()
     };
 
@@ -206,7 +216,7 @@ public sealed class TaskbarWindow : Window
         layout.ColumnDefinitions.Add(new() { Width = new GridLength(30) });
         layout.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
         Border marker;
-        if (!_settings.UseManufacturerLogos || !ManufacturerLogo.TryCreate(standing.Team, 26, out marker))
+        if (!_settings.UseManufacturerLogos || !ManufacturerLogo.TryCreate(standing.Manufacturer ?? standing.Team, 26, out marker))
             marker = CreatePositionCard(standing.Position, standing.Position.ToString());
         marker.Margin = new Thickness(1);
         layout.Children.Add(marker);

@@ -24,10 +24,11 @@ public sealed class SettingsWindow : Window
     private readonly CheckBox _formula1 = Toggle("Formula 1", "Official Formula 1 live timing");
     private readonly CheckBox _formula2 = Toggle("Formula 2", "Official FIA Formula 2 live timing");
     private readonly CheckBox _formula3 = Toggle("Formula 3", "Official FIA Formula 3 live timing");
+    private readonly CheckBox _gtwc = Toggle("GT World Challenge Europe", "Live Sprint Cup and Endurance Cup timing");
     private readonly CheckBox _wrc = Toggle("World Rally Championship", "Live WRC stage timing");
     private readonly CheckBox _eventHeader = Toggle("Event name", "Show the championship and venue on the taskbar");
     private readonly CheckBox _sessionProgress = Toggle("Session progress", "Show session, clock, lap or stage below the event");
-    private readonly CheckBox _gaps = Toggle("Driver gaps", "Show leader gaps below driver codes");
+    private readonly CheckBox _gaps = Toggle("Competitor gaps", "Show leader gaps below competitor codes");
     private readonly CheckBox _positionColors = Toggle("Position colours", "Use coloured cards for the leading positions");
     private readonly CheckBox _manufacturerLogos = Toggle("Manufacturer logos", "Show team or manufacturer marks in the taskbar and full classification when the feed supplies one");
     private readonly CheckBox _flagAlerts = Toggle("Flag alerts", "Show FIA flag indicators beside the event name");
@@ -111,6 +112,7 @@ public sealed class SettingsWindow : Window
         _formula1.IsChecked = settings.EnableFormula1;
         _formula2.IsChecked = settings.EnableFormula2;
         _formula3.IsChecked = settings.EnableFormula3;
+        _gtwc.IsChecked = settings.EnableGtWorldChallengeEurope;
         _wrc.IsChecked = settings.EnableWrc;
         _rotation.Value = settings.RotationSeconds;
         _driverCount.Value = settings.DriverCount;
@@ -141,6 +143,7 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(_formula1);
         panel.Children.Add(_formula2);
         panel.Children.Add(_formula3);
+        panel.Children.Add(_gtwc);
         panel.Children.Add(_wrc);
         panel.Children.Add(SectionTitle("Rotation", "When several selected championships are live, rotate between them at this interval."));
         panel.Children.Add(SliderRow("Seconds per championship", _rotation, _rotationValue));
@@ -152,7 +155,7 @@ public sealed class SettingsWindow : Window
     {
         var panel = TabPanel();
         panel.Children.Add(SectionTitle("Taskbar layout", "Changes apply immediately to the live taskbar."));
-        panel.Children.Add(SliderRow("Visible drivers", _driverCount, _driverCountValue));
+        panel.Children.Add(SliderRow("Visible competitors", _driverCount, _driverCountValue));
         _driverCount.ValueChanged += (_, _) => UpdateSliderLabels();
         panel.Children.Add(_eventHeader);
         panel.Children.Add(_sessionProgress);
@@ -411,7 +414,7 @@ public sealed class SettingsWindow : Window
 
     private async Task SaveAsync()
     {
-        if (_formula1.IsChecked != true && _formula2.IsChecked != true && _formula3.IsChecked != true && _wrc.IsChecked != true)
+        if (_formula1.IsChecked != true && _formula2.IsChecked != true && _formula3.IsChecked != true && _gtwc.IsChecked != true && _wrc.IsChecked != true)
         {
             _message.Text = "Select at least one live stream.";
             return;
@@ -422,6 +425,7 @@ public sealed class SettingsWindow : Window
             EnableFormula1 = _formula1.IsChecked == true,
             EnableFormula2 = _formula2.IsChecked == true,
             EnableFormula3 = _formula3.IsChecked == true,
+            EnableGtWorldChallengeEurope = _gtwc.IsChecked == true,
             EnableWrc = _wrc.IsChecked == true,
             RotationSeconds = (int)Math.Round(_rotation.Value),
             DriverCount = (int)Math.Round(_driverCount.Value),
