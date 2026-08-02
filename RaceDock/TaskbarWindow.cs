@@ -122,6 +122,8 @@ public sealed class TaskbarWindow : Window
         if (!string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
         {
             var time = CompactTime(snapshot.TimeRemaining);
+            if (snapshot.Championship == Championship.Imsa)
+                return $"{session} {time}";
             if (snapshot.Championship == Championship.GtWorldChallengeEurope)
                 return snapshot.CurrentLap > 0 ? $"{session} {snapshot.CurrentLap} · {time}" : $"{session} {time}";
             if (IsTimedSession(snapshot.Session)) return $"{session} {time}";

@@ -5,7 +5,7 @@ namespace RaceDock.Core;
 
 public enum ConnectionState { Disconnected, Connecting, Connected, Stale, Faulted }
 public enum SessionLifecycle { OffSession, PreSession, Live, Ended }
-public enum Championship { Unknown, Formula1, Formula2, Formula3, WorldRallyChampionship, GtWorldChallengeEurope }
+public enum Championship { Unknown, Formula1, Formula2, Formula3, WorldRallyChampionship, GtWorldChallengeEurope, Imsa }
 public enum TrackCondition { Unknown, AllClear, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, RedFlag }
 public enum AlertKind { Information, SessionStart, FastestLap, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, Chequered, RedFlag }
 

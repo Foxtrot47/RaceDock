@@ -122,13 +122,13 @@ public sealed class ClassificationFlyout : Window
     {
         _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : ChampionshipDisplay.FullEvent(snapshot);
         var rally = IsRallySnapshot(snapshot);
-        var gtwc = snapshot.Championship == Championship.GtWorldChallengeEurope;
+        var endurance = IsEnduranceSnapshot(snapshot);
         if (rally)
         {
             _tyreHeader.Text = "TIME";
             _categoryHeader.Text = "CLASS";
         }
-        else if (gtwc)
+        else if (endurance)
         {
             _tyreHeader.Text = "BEST";
             _categoryHeader.Text = "CLASS";
@@ -150,7 +150,7 @@ public sealed class ClassificationFlyout : Window
 
         _rows.Children.Clear();
         foreach (var standing in snapshot.Competitors.OrderBy(standing => standing.Position))
-            _rows.Children.Add(CreateStandingRow(standing, rally, gtwc));
+            _rows.Children.Add(CreateStandingRow(standing, rally, endurance));
     }
 
     public void ScheduleClose()
@@ -162,18 +162,19 @@ public sealed class ClassificationFlyout : Window
     public void CancelClose() => _closeTimer.Stop();
 
     private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Championship == Championship.WorldRallyChampionship || snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
+    private static bool IsEnduranceSnapshot(TimingSnapshot snapshot) => snapshot.Championship is Championship.GtWorldChallengeEurope or Championship.Imsa;
     private static string SessionProgress(TimingSnapshot snapshot)
     {
         if (IsRallySnapshot(snapshot)) return snapshot.Session;
         if (!string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
         {
-            var gtwc = snapshot.Championship == Championship.GtWorldChallengeEurope;
-            var timedSession = gtwc ||
+            var endurance = IsEnduranceSnapshot(snapshot);
+            var timedSession = endurance ||
                 snapshot.Session.Contains("Practice", StringComparison.OrdinalIgnoreCase) ||
                 snapshot.Session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase);
             if (timedSession)
             {
-                if (gtwc && snapshot.CurrentLap > 0)
+                if (endurance && snapshot.CurrentLap > 0)
                     return $"Lap {snapshot.CurrentLap} · {snapshot.TimeRemaining} remaining";
                 return $"Time remaining {snapshot.TimeRemaining}";
             }
@@ -229,7 +230,7 @@ public sealed class ClassificationFlyout : Window
         return header;
     }
 
-    private UIElement CreateStandingRow(CompetitorStanding standing, bool rally, bool gtwc)
+    private UIElement CreateStandingRow(CompetitorStanding standing, bool rally, bool endurance)
     {
         var grid = CreateColumns();
         grid.MinHeight = 38;
@@ -316,7 +317,7 @@ public sealed class ClassificationFlyout : Window
             standing.Position == 1 ? FontWeights.SemiBold : FontWeights.Normal);
         AddValue(grid, standing.Position == 1 ? "—" : standing.IntervalToPositionAhead ?? "—", 3);
 
-        if (rally || gtwc) AddValue(grid, standing.ResultTime ?? "—", 4);
+        if (rally || endurance) AddValue(grid, standing.ResultTime ?? "—", 4);
         else
         {
             var tyre = CreateTyreBadge(standing.Tyre);
@@ -324,7 +325,7 @@ public sealed class ClassificationFlyout : Window
             grid.Children.Add(tyre);
         }
 
-        AddValue(grid, rally || gtwc ? standing.Category ?? "—" : standing.Lap.ToString(), 5, alignment: TextAlignment.Center);
+        AddValue(grid, rally || endurance ? standing.Category ?? "—" : standing.Lap.ToString(), 5, alignment: TextAlignment.Center);
 
         var status = CreateStatusBadge(standing);
         Grid.SetColumn(status, 6);
@@ -412,8 +413,11 @@ public sealed class ClassificationFlyout : Window
             { Stopped: true } => ("STOP", BrushFrom(199, 45, 70, 0.35)),
             { InPit: true } => ("PIT", BrushFrom(33, 132, 188, 0.3)),
             { StatusLabel: "RUN" } => ("RUN", BrushFrom(33, 132, 188, 0.3)),
+            { StatusLabel: "OUT" } => ("OUT", BrushFrom(33, 132, 188, 0.3)),
             { StatusLabel: "FIN" } => ("FIN", BrushFrom(30, 138, 88, 0.28)),
             { StatusLabel: "N/S" } => ("N/S", BrushFrom(92, 96, 106, 0.3)),
+            { StatusLabel: "N/C" } => ("N/C", BrushFrom(92, 96, 106, 0.3)),
+            { StatusLabel: "DSQ" } => ("DSQ", BrushFrom(199, 45, 70, 0.35)),
             { StatusLabel: "DUE" } => ("DUE", BrushFrom(92, 96, 106, 0.3)),
             _ => ("", Brushes.Transparent)
         };

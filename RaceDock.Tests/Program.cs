@@ -35,6 +35,10 @@ var tests = new (string Name, Action Run)[]
     ("GTWC client uppercases ids and busts caches", GtwcClientPaths),
     ("GTWC source publishes an active classification", GtwcSourceLifecycle),
     ("GTWC production handler has bounded connection lifetime", GtwcHandlerBounds),
+    ("IMSA SockJS frames preserve DDP messages", ImsaSockJsProtocol),
+    ("IMSA standings map endurance timing", ImsaStandings),
+    ("IMSA flags statuses and clocks map provider values", ImsaFlagsAndClock),
+    ("IMSA source subscribes and publishes an active classification", ImsaSourceLifecycle),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
     ("F3 standings include roster teams", F3RosterTeams),
     ("F2 standings include roster teams", F2RosterTeams),
@@ -558,12 +562,16 @@ static void ChampionshipLabels()
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.WorldRallyChampionship);
     var gtwc = new TimingSnapshot("Magny-Cours", "Qualifying 1 Group B", "Magny-Cours", 3, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.GtWorldChallengeEurope);
+    var imsa = new TimingSnapshot("Motul SportsCar Endurance Grand Prix", "Race", "Road America", 33, null,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Imsa);
     Equal("F1 Spa", ChampionshipDisplay.CompactEvent(f1));
     Equal("Formula 1 · Belgian Grand Prix", ChampionshipDisplay.FullEvent(f1));
     Equal("WRC Secto Rally Finland", ChampionshipDisplay.CompactEvent(wrc));
     Equal("World Rally Championship · Secto Rally Finland", ChampionshipDisplay.FullEvent(wrc));
     Equal("GTWC Magny", ChampionshipDisplay.CompactEvent(gtwc));
     Equal("GT World Challenge Europe · Magny-Cours", ChampionshipDisplay.FullEvent(gtwc));
+    Equal("IMSA Road America", ChampionshipDisplay.CompactEvent(imsa));
+    Equal("IMSA WeatherTech SportsCar Championship · Motul SportsCar Endurance Grand Prix", ChampionshipDisplay.FullEvent(imsa));
 }
 
 static void UserSettingsPersistence()
@@ -579,6 +587,7 @@ static void UserSettingsPersistence()
         var legacy = store.Load();
         True(legacy.AutoStartOnWindowsBoot);
         True(legacy.EnableGtWorldChallengeEurope);
+        False(legacy.EnableImsa);
         store.Save(new UserSettings
         {
             EnableFormula1 = false,
@@ -586,6 +595,7 @@ static void UserSettingsPersistence()
             EnableFormula3 = false,
             EnableGtWorldChallengeEurope = false,
             EnableWrc = false,
+            EnableImsa = false,
             DriverCount = 99,
             RotationSeconds = 1,
             UseManufacturerLogos = true,
@@ -604,10 +614,22 @@ static void UserSettingsPersistence()
             EnableFormula2 = false,
             EnableFormula3 = false,
             EnableGtWorldChallengeEurope = true,
-            EnableWrc = false
+            EnableWrc = false,
+            EnableImsa = false
         }.Normalize();
         False(gtwcOnly.EnableFormula1);
         True(gtwcOnly.EnableGtWorldChallengeEurope);
+        var imsaOnly = new UserSettings
+        {
+            EnableFormula1 = false,
+            EnableFormula2 = false,
+            EnableFormula3 = false,
+            EnableGtWorldChallengeEurope = false,
+            EnableWrc = false,
+            EnableImsa = true
+        }.Normalize();
+        False(imsaOnly.EnableFormula1);
+        True(imsaOnly.EnableImsa);
     }
     finally
     {
@@ -748,6 +770,194 @@ static void GtwcHandlerBounds()
     Equal(TimeSpan.FromMinutes(1), handler.PooledConnectionIdleTimeout);
     Equal(TimeSpan.FromSeconds(10), handler.ConnectTimeout);
 }
+
+static void ImsaSockJsProtocol()
+{
+    var connect = new JsonObject
+    {
+        ["msg"] = "connect",
+        ["version"] = "1",
+        ["support"] = new JsonArray("1")
+    };
+    var encoded = ImsaDdpClient.EncodeMessage(connect);
+    var outer = JsonNode.Parse(encoded)!.AsArray();
+    Equal(1, outer.Count);
+    Equal("connect", JsonSupport.String(JsonNode.Parse(outer[0]!.GetValue<string>())!["msg"]));
+
+    var frame = "a" + new JsonArray(connect.ToJsonString()).ToJsonString();
+    var decoded = ImsaDdpClient.DecodeFrame(frame, out var opened, out var heartbeat);
+    False(opened);
+    False(heartbeat);
+    Equal("connect", JsonSupport.String(decoded.Single()["msg"]));
+    Equal(0, ImsaDdpClient.DecodeFrame("h", out opened, out heartbeat).Count);
+    True(heartbeat);
+    Equal(0, ImsaDdpClient.DecodeFrame("o", out opened, out heartbeat).Count);
+    True(opened);
+
+    var endpoint = ImsaDdpClient.CreateEndpoint();
+    Equal("livetiming.alkamelsystems.com", endpoint.Host);
+    True(endpoint.AbsolutePath.StartsWith("/sockjs/", StringComparison.Ordinal));
+    True(endpoint.AbsolutePath.EndsWith("/websocket", StringComparison.Ordinal));
+}
+
+static void ImsaStandings()
+{
+    var session = JsonNode.Parse("""{"name":"Race"}""")!.AsObject();
+    var info = JsonNode.Parse("""{"eventName":"Motul SportsCar Endurance Grand Prix","champName":"IMSA WeatherTech SportsCar Championship","name":"RACE","type":"RACE","closed":false}""")!.AsObject();
+    var entries = JsonNode.Parse("""
+        {"01":{"driver":"Wit","name":"M. WITTMANN","team":"BMW M Team WRT","vehicle":"BMW M HYBRID V8","class":"GTP"},
+         "24":{"driver":"Van","name":"S. VAN DER LINDE","team":"BMW M Team WRT","vehicle":"BMW M HYBRID V8","class":"GTP"},
+         "7":{"driver":"Nas","name":"F. NASR","team":"Porsche Penske Motorsport","vehicle":"PORSCHE 963","class":"GTP"}}
+        """)!.AsObject();
+    var track = JsonNode.Parse("""{"name":"Road America","sectors":{"1":{},"2":{},"3":{}}}""")!.AsObject();
+    var standings = JsonNode.Parse("""
+        {"displayDrivers":true,"hasClasses":true,"standings":{
+          "1":{"data":"1;01;CLASSIFIED;1;10;1;0;1000000;TRACK;11;","class":"GTP","isRunning":true,"isCheckered":false,"bestLapTime":112373,"currentLoopSectors":"1;10000;2;20000;","previousLoopSectors":"1;10000;2;20000;"},
+          "2":{"data":"2;24;CLASSIFIED;2;10;2;0;1000500;BOX;11;","class":"GTP","isRunning":true,"isCheckered":false,"bestLapTime":112124,"currentLoopSectors":"1;11000;","previousLoopSectors":"1;10000;2;20000;"},
+          "3":{"data":"3;7;RETIRED;3;9;1;0;900000;STOPPED;10;","class":"GTP","isRunning":false,"isCheckered":false,"bestLapTime":113638,"currentLoopSectors":"1;9000;","previousLoopSectors":"1;10000;2;20000;"}}}
+        """)!.AsObject();
+    var status = JsonNode.Parse("""
+        {"currentFlag":"GF","currentLap":11,"finalType":"BY_TIME","finalTime":600,"startTime":1000,"stopTime":0,
+         "stoppedSeconds":0,"isSessionRunning":true,"isFinished":false,"isClosed":false,"isTimeFinished":false}
+        """)!.AsObject();
+    var best = JsonNode.Parse("""{"bestLap":{"participantNumber":"24","time":112124}}""")!.AsObject();
+    var snapshot = ImsaTiming.BuildSnapshot(session, info, entries, track, standings, status, best,
+        DateTimeOffset.FromUnixTimeSeconds(1100), ConnectionState.Connected);
+
+    Equal(Championship.Imsa, snapshot.Championship);
+    Equal(SessionLifecycle.Live, snapshot.Lifecycle);
+    Equal("Motul SportsCar Endurance Grand Prix", snapshot.Meeting);
+    Equal("Road America", snapshot.Circuit);
+    Equal(11, snapshot.CurrentLap);
+    Equal<int?>(null, snapshot.TotalLaps);
+    Equal("00:08:20", snapshot.TimeRemaining);
+    Equal(3, snapshot.Competitors.Count);
+    Equal("01", snapshot.Competitors[0].DriverId);
+    Equal("WIT", snapshot.Competitors[0].Code);
+    Equal("BMW", snapshot.Competitors[0].Manufacturer);
+    Equal("GTP", snapshot.Competitors[0].Category);
+    Equal("LEAD", snapshot.Competitors[0].GapToLeader);
+    Equal("+1.500", snapshot.Competitors[1].GapToLeader);
+    True(snapshot.Competitors[1].InPit);
+    True(snapshot.Competitors[1].IsOverallFastest);
+    Equal("1:52.124", snapshot.Competitors[1].ResultTime);
+    True(snapshot.Competitors[2].Retired);
+    True(snapshot.Competitors[2].Stopped);
+
+    var qualifyingInfo = (JsonObject)info.DeepClone();
+    qualifyingInfo["type"] = "QUALIFYING";
+    var qualifyingStandings = (JsonObject)standings.DeepClone();
+    qualifyingStandings["standings"]!["2"]!["bestLapTime"] = 112873;
+    var qualifyingBest = JsonNode.Parse("""{"bestLap":{"participantNumber":"01","time":112373}}""")!.AsObject();
+    var qualifying = ImsaTiming.BuildSnapshot(session, qualifyingInfo, entries, track, qualifyingStandings, status,
+        qualifyingBest, DateTimeOffset.FromUnixTimeSeconds(1100), ConnectionState.Connected);
+    Equal("+0.500", qualifying.Competitors[1].GapToLeader);
+
+    var pausedStatus = (JsonObject)status.DeepClone();
+    pausedStatus["isSessionRunning"] = false;
+    pausedStatus["stopTime"] = 1100;
+    Equal(SessionLifecycle.Live, ImsaTiming.BuildSnapshot(session, info, entries, track, standings, pausedStatus, best,
+        DateTimeOffset.FromUnixTimeSeconds(1200), ConnectionState.Connected).Lifecycle);
+
+    var lappedStandings = (JsonObject)standings.DeepClone();
+    lappedStandings["standings"]!["3"]!["data"] = "3;7;CLASSIFIED;3;8;1;0;900000;TRACK;9;";
+    lappedStandings["standings"]!["3"]!["isRunning"] = true;
+    var lapped = ImsaTiming.BuildSnapshot(session, info, entries, track, lappedStandings, status, best,
+        DateTimeOffset.FromUnixTimeSeconds(1100), ConnectionState.Connected);
+    Equal("1 LAP", lapped.Competitors[2].GapToLeader);
+}
+
+static void ImsaFlagsAndClock()
+{
+    Equal(TrackCondition.AllClear, ImsaTiming.TrackState(JsonNode.Parse("{\"currentFlag\":\"GF\"}")!.AsObject()).Condition);
+    var fcy = ImsaTiming.TrackState(JsonNode.Parse("{\"currentFlag\":\"FCY\"}")!.AsObject());
+    Equal(TrackCondition.Yellow, fcy.Condition);
+    Equal("FULL COURSE YELLOW", fcy.Detail);
+    Equal(TrackCondition.SafetyCar, ImsaTiming.TrackState(JsonNode.Parse("{\"currentFlag\":\"SC\"}")!.AsObject()).Condition);
+    Equal(TrackCondition.RedFlag, ImsaTiming.TrackState(JsonNode.Parse("{\"currentFlag\":\"RF\"}")!.AsObject()).Condition);
+    Equal("RET", ImsaTiming.StatusLabel("RETIRED", "STOPPED", false));
+    Equal("N/C", ImsaTiming.StatusLabel("NOT_CLASSIFIED", "", false));
+    Equal("N/S", ImsaTiming.StatusLabel("NOT_STARTED", "", false));
+    Equal("DSQ", ImsaTiming.StatusLabel("DISQUALIFIED", "", false));
+    Equal("FIN", ImsaTiming.StatusLabel("CLASSIFIED", "TRACK", true));
+    Equal("OUT", ImsaTiming.StatusLabel("CLASSIFIED", "OUT_LAP", false));
+    Equal("00:08:20", ImsaTiming.TimeRemaining(JsonNode.Parse(
+        "{\"startTime\":1000,\"finalTime\":600,\"stopTime\":0,\"stoppedSeconds\":0,\"isSessionRunning\":true}")!.AsObject(),
+        DateTimeOffset.FromUnixTimeSeconds(1100)));
+    Equal("00:08:40", ImsaTiming.TimeRemaining(JsonNode.Parse(
+        "{\"startTime\":1000,\"finalTime\":600,\"stopTime\":1100,\"stoppedSeconds\":20,\"isSessionRunning\":false}")!.AsObject(),
+        DateTimeOffset.FromUnixTimeSeconds(1300)));
+}
+
+static void ImsaSourceLifecycle()
+{
+    var sessionReference = ImsaSessionReference("session-1");
+    var messages = new List<JsonObject>
+    {
+        new() { ["msg"] = "connected", ["session"] = "test" },
+        DdpAdded("feeds", "feed", new JsonObject { ["running"] = true, ["sessions"] = new JsonArray { sessionReference.DeepClone() } }),
+        DdpAdded("sessions", "session-1", new JsonObject { ["name"] = "Race", ["date"] = 1000000 }),
+        DdpAdded("session_info", "info", new JsonObject { ["session"] = sessionReference.DeepClone(), ["info"] = JsonNode.Parse("{\"eventName\":\"Road America\",\"name\":\"RACE\",\"type\":\"RACE\",\"closed\":false}") }),
+        DdpAdded("session_entry", "entry", new JsonObject { ["session"] = sessionReference.DeepClone(), ["entry"] = JsonNode.Parse("{\"01\":{\"driver\":\"Wit\",\"name\":\"M. WITTMANN\",\"team\":\"BMW M Team WRT\",\"vehicle\":\"BMW M HYBRID V8\",\"class\":\"GTP\"}}") }),
+        DdpAdded("track_info", "track", new JsonObject { ["session"] = sessionReference.DeepClone(), ["track"] = JsonNode.Parse("{\"name\":\"Road America\",\"sectors\":{\"1\":{},\"2\":{},\"3\":{}}}") }),
+        DdpAdded("session_status", "status", new JsonObject { ["session"] = sessionReference.DeepClone(), ["status"] = JsonNode.Parse("{\"currentFlag\":\"GF\",\"currentLap\":11,\"finalType\":\"BY_TIME\",\"finalTime\":600,\"startTime\":1000,\"isSessionRunning\":true,\"isFinished\":false}") }),
+        DdpAdded("best_results", "best", new JsonObject { ["session"] = sessionReference.DeepClone(), ["bestResults"] = JsonNode.Parse("{\"bestLap\":{\"participantNumber\":\"01\"}}") }),
+        DdpAdded("standings", "standings", new JsonObject { ["session"] = sessionReference.DeepClone(), ["standings"] = JsonNode.Parse("{\"standings\":{\"1\":{\"data\":\"1;01;CLASSIFIED;1;10;1;0;1000000;TRACK;11;\",\"class\":\"GTP\",\"isRunning\":true,\"bestLapTime\":112373,\"currentLoopSectors\":\"1;10000;\",\"previousLoopSectors\":\"1;10000;\"}}}") }),
+        DdpChanged("feeds", "feed", new JsonObject { ["running"] = false }),
+        new() { ["msg"] = "nosub", ["id"] = "2" },
+        new() { ["msg"] = "nosub", ["id"] = "3" },
+        new() { ["msg"] = "nosub", ["id"] = "4" },
+        new() { ["msg"] = "nosub", ["id"] = "5" },
+        new() { ["msg"] = "nosub", ["id"] = "6" },
+        new() { ["msg"] = "nosub", ["id"] = "7" },
+        new() { ["msg"] = "nosub", ["id"] = "8" },
+        DdpChanged("feeds", "feed", new JsonObject { ["running"] = true })
+    };
+    var client = new FakeImsaDdpClient(messages);
+    var clock = new FakeClock(DateTimeOffset.FromUnixTimeSeconds(1100));
+    var alerts = new AlertArbiter(clock);
+    var source = new ImsaLiveTimingSource(() => client, clock, new BlockingDelay(), alerts,
+        new ImsaTimingOptions(TimeSpan.FromHours(1), [TimeSpan.FromHours(1)]));
+    TimingSnapshot? snapshot = null;
+    List<FeedFailure> failures = [];
+    source.Failed += failures.Add;
+    using var ready = new ManualResetEventSlim();
+    source.SnapshotReceived += value =>
+    {
+        if (value.Lifecycle != SessionLifecycle.Live) return;
+        snapshot = value;
+        ready.Set();
+    };
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(ready.Wait(TimeSpan.FromSeconds(2)));
+    True(SpinWait.SpinUntil(() => client.SubscriptionCount("sessions") >= 2, TimeSpan.FromSeconds(2)));
+    Task.WhenAll(source.DisposeAsync().AsTask(), source.DisposeAsync().AsTask()).GetAwaiter().GetResult();
+    Equal(Championship.Imsa, snapshot?.Championship);
+    Equal("WIT", snapshot?.Competitors.Single().Code);
+    Equal(AlertKind.SessionStart, alerts.Current?.Kind);
+    Equal(0, failures.Count);
+    True(client.Sent.Any(message => JsonSupport.String(message["name"]) == "livetimingFeed"));
+    True(client.Sent.Any(message => JsonSupport.String(message["name"]) == "standings"));
+    True(client.SubscriptionCount("sessions") >= 2);
+}
+
+static JsonObject ImsaSessionReference(string value) => new() { ["$type"] = "oid", ["$value"] = value };
+
+static JsonObject DdpAdded(string collection, string id, JsonObject fields) => new()
+{
+    ["msg"] = "added",
+    ["collection"] = collection,
+    ["id"] = id,
+    ["fields"] = fields
+};
+
+static JsonObject DdpChanged(string collection, string id, JsonObject fields) => new()
+{
+    ["msg"] = "changed",
+    ["collection"] = collection,
+    ["id"] = id,
+    ["fields"] = fields
+};
 
 static string GtwcEnvelope(string fullJson) => new JsonObject
 {
@@ -1195,6 +1405,31 @@ sealed class GtwcHttpHandler(Dictionary<string, string> routes) : HttpMessageHan
         var body = routes.GetValueOrDefault(file) ?? "{\"content\":{\"full\":{}}}";
         return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) });
     }
+}
+
+sealed class FakeImsaDdpClient(IEnumerable<JsonObject> messages) : IImsaDdpClient
+{
+    private readonly Lock _gate = new();
+    private readonly Queue<JsonObject> _messages = new(messages.Select(message => (JsonObject)message.DeepClone()));
+    private readonly List<JsonObject> _sent = [];
+    public IReadOnlyList<JsonObject> Sent { get { lock (_gate) return _sent.Select(message => (JsonObject)message.DeepClone()).ToList(); } }
+    public Task ConnectAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public async Task<JsonObject?> ReceiveAsync(CancellationToken cancellationToken)
+    {
+        lock (_gate) if (_messages.Count > 0) return _messages.Dequeue();
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+        return null;
+    }
+    public Task SendAsync(JsonObject message, CancellationToken cancellationToken)
+    {
+        lock (_gate) _sent.Add((JsonObject)message.DeepClone());
+        return Task.CompletedTask;
+    }
+    public int SubscriptionCount(string name)
+    {
+        lock (_gate) return _sent.Count(message => JsonSupport.String(message["msg"]) == "sub" && JsonSupport.String(message["name"]) == name);
+    }
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 sealed class RouteHttpHandler(Dictionary<string, Queue<HttpResponseMessage>> routes) : HttpMessageHandler

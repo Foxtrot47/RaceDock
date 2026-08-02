@@ -26,6 +26,7 @@ public sealed class SettingsWindow : Window
     private readonly CheckBox _formula3 = Toggle("Formula 3", "Official FIA Formula 3 live timing");
     private readonly CheckBox _gtwc = Toggle("GT World Challenge Europe", "Live Sprint Cup and Endurance Cup timing");
     private readonly CheckBox _wrc = Toggle("World Rally Championship", "Live WRC stage timing");
+    private readonly CheckBox _imsa = Toggle("IMSA WeatherTech SportsCar Championship", "Live IMSA timing for practice, qualifying, and races");
     private readonly CheckBox _eventHeader = Toggle("Event name", "Show the championship and venue on the taskbar");
     private readonly CheckBox _sessionProgress = Toggle("Session progress", "Show session, clock, lap or stage below the event");
     private readonly CheckBox _gaps = Toggle("Competitor gaps", "Show leader gaps below competitor codes");
@@ -114,6 +115,7 @@ public sealed class SettingsWindow : Window
         _formula3.IsChecked = settings.EnableFormula3;
         _gtwc.IsChecked = settings.EnableGtWorldChallengeEurope;
         _wrc.IsChecked = settings.EnableWrc;
+        _imsa.IsChecked = settings.EnableImsa;
         _rotation.Value = settings.RotationSeconds;
         _driverCount.Value = settings.DriverCount;
         _eventHeader.IsChecked = settings.ShowEventHeader;
@@ -145,6 +147,7 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(_formula3);
         panel.Children.Add(_gtwc);
         panel.Children.Add(_wrc);
+        panel.Children.Add(_imsa);
         panel.Children.Add(SectionTitle("Rotation", "When several selected championships are live, rotate between them at this interval."));
         panel.Children.Add(SliderRow("Seconds per championship", _rotation, _rotationValue));
         _rotation.ValueChanged += (_, _) => UpdateSliderLabels();
@@ -414,7 +417,7 @@ public sealed class SettingsWindow : Window
 
     private async Task SaveAsync()
     {
-        if (_formula1.IsChecked != true && _formula2.IsChecked != true && _formula3.IsChecked != true && _gtwc.IsChecked != true && _wrc.IsChecked != true)
+        if (_formula1.IsChecked != true && _formula2.IsChecked != true && _formula3.IsChecked != true && _gtwc.IsChecked != true && _wrc.IsChecked != true && _imsa.IsChecked != true)
         {
             _message.Text = "Select at least one live stream.";
             return;
@@ -427,6 +430,7 @@ public sealed class SettingsWindow : Window
             EnableFormula3 = _formula3.IsChecked == true,
             EnableGtWorldChallengeEurope = _gtwc.IsChecked == true,
             EnableWrc = _wrc.IsChecked == true,
+            EnableImsa = _imsa.IsChecked == true,
             RotationSeconds = (int)Math.Round(_rotation.Value),
             DriverCount = (int)Math.Round(_driverCount.Value),
             ShowEventHeader = _eventHeader.IsChecked == true,

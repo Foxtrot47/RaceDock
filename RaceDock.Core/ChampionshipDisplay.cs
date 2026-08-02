@@ -23,6 +23,7 @@ public static class ChampionshipDisplay
         Championship.Formula3 => "F3",
         Championship.WorldRallyChampionship => "WRC",
         Championship.GtWorldChallengeEurope => "GTWC",
+        Championship.Imsa => "IMSA",
         _ => ""
     };
 
@@ -33,6 +34,7 @@ public static class ChampionshipDisplay
         Championship.Formula3 => "Formula 3",
         Championship.WorldRallyChampionship => "World Rally Championship",
         Championship.GtWorldChallengeEurope => "GT World Challenge Europe",
+        Championship.Imsa => "IMSA WeatherTech SportsCar Championship",
         _ => ""
     };
 
