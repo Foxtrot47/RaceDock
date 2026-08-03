@@ -20,14 +20,15 @@ public sealed class ClassificationFlyout : Window
     ];
 
     private readonly StackPanel _rows = new();
-    private readonly TextBlock _title = new();
-    private readonly TextBlock _sessionDetails = new();
+    private readonly ScrollingTextClock _scrollClock = new();
+    private readonly ScrollingTextBlock _title = new();
+    private readonly ScrollingTextBlock _sessionDetails = new();
     private readonly TextBlock _connectionText = new();
     private readonly Border _connectionBadge = new();
     private readonly TextBlock _trackText = new();
     private readonly Border _trackBadge = new();
-    private TextBlock _tyreHeader = null!;
-    private TextBlock _categoryHeader = null!;
+    private ScrollingTextBlock _tyreHeader = null!;
+    private ScrollingTextBlock _categoryHeader = null!;
     private readonly DispatcherTimer _closeTimer;
     private UserSettings _settings;
 
@@ -36,6 +37,8 @@ public sealed class ClassificationFlyout : Window
     public ClassificationFlyout(UserSettings settings)
     {
         _settings = settings.Normalize();
+        _title.Clock = _scrollClock;
+        _sessionDetails.Clock = _scrollClock;
         Width = 610;
         Height = 470;
         WindowStyle = WindowStyle.None;
@@ -104,6 +107,10 @@ public sealed class ClassificationFlyout : Window
             CancelClose();
         };
         MouseLeave += (_, _) => ScheduleClose();
+        IsVisibleChanged += (_, _) =>
+        {
+            if (IsVisible) _scrollClock.Reset();
+        };
     }
 
     public void ApplySettings(UserSettings settings)
@@ -193,10 +200,10 @@ public sealed class ClassificationFlyout : Window
         var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         _title.FontSize = 15;
         _title.FontWeight = FontWeights.SemiBold;
-        _title.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+        _title.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
         _sessionDetails.FontSize = 10.5;
         _sessionDetails.Margin = new Thickness(0, 2, 0, 0);
-        _sessionDetails.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        _sessionDetails.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorSecondaryBrush");
         copy.Children.Add(_title);
         copy.Children.Add(_sessionDetails);
         header.Children.Add(copy);
@@ -269,37 +276,46 @@ public sealed class ClassificationFlyout : Window
         };
         driver.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         driver.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var driverCopy = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var driverLine = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
-        var driverName = new TextBlock
+        var driverCopy = new Grid { VerticalAlignment = VerticalAlignment.Center };
+        driverCopy.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        driverCopy.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var driverLine = new Grid();
+        driverLine.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        driverLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var driverName = new ScrollingTextBlock
         {
             Text = string.IsNullOrWhiteSpace(standing.Name) ? standing.Code : standing.Name,
             FontSize = 11.5,
             FontWeight = FontWeights.SemiBold,
-            TextTrimming = TextTrimming.CharacterEllipsis
+            ToolTip = string.IsNullOrWhiteSpace(standing.Name) ? standing.Code : standing.Name,
+            Clock = _scrollClock
         };
-        driverName.SetResourceReference(TextBlock.ForegroundProperty,
+        driverName.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty,
             standing.Retired ? "TextFillColorTertiaryBrush" : "TextFillColorPrimaryBrush");
         driverLine.Children.Add(driverName);
         if (standing.IsOverallFastest)
         {
-            driverLine.Children.Add(new TextBlock
+            var fastest = new TextBlock
             {
                 Text = "●",
                 Foreground = new SolidColorBrush(Color.FromRgb(196, 87, 255)),
                 FontSize = 9,
                 Margin = new Thickness(5, 1, 0, 0),
                 ToolTip = "Overall fastest lap"
-            });
+            };
+            Grid.SetColumn(fastest, 1);
+            driverLine.Children.Add(fastest);
         }
-        var team = new TextBlock
+        var team = new ScrollingTextBlock
         {
             Text = standing.Team,
             FontSize = 9.5,
-            TextTrimming = TextTrimming.CharacterEllipsis
+            ToolTip = standing.Team,
+            Clock = _scrollClock
         };
-        team.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
+        team.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorTertiaryBrush");
         driverCopy.Children.Add(driverLine);
+        Grid.SetRow(team, 1);
         driverCopy.Children.Add(team);
         if (_settings.UseManufacturerLogos && ManufacturerLogo.TryCreate(standing.Manufacturer ?? standing.Team, 26, out var logo))
         {
@@ -451,37 +467,39 @@ public sealed class ClassificationFlyout : Window
         return grid;
     }
 
-    private static TextBlock AddHeaderLabel(Grid grid, string text, int column, TextAlignment alignment = TextAlignment.Left)
+    private ScrollingTextBlock AddHeaderLabel(Grid grid, string text, int column, TextAlignment alignment = TextAlignment.Left)
     {
-        var label = new TextBlock
+        var label = new ScrollingTextBlock
         {
             Text = text,
             FontSize = 9,
             FontWeight = FontWeights.SemiBold,
             TextAlignment = alignment,
             VerticalAlignment = VerticalAlignment.Center,
+            Clock = _scrollClock,
             Margin = new Thickness(column == 0 ? 5 : 4, 0, 8, 0),
         };
-        label.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorTertiaryBrush");
+        label.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorTertiaryBrush");
         Grid.SetColumn(label, column);
         grid.Children.Add(label);
         return label;
     }
 
-    private static void AddValue(Grid grid, string text, int column, FontWeight? weight = null,
+    private void AddValue(Grid grid, string text, int column, FontWeight? weight = null,
         TextAlignment alignment = TextAlignment.Left)
     {
-        var value = new TextBlock
+        var value = new ScrollingTextBlock
         {
             Text = text,
             FontSize = 11,
             FontWeight = weight ?? FontWeights.Normal,
             TextAlignment = alignment,
             VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
+            ToolTip = text,
+            Clock = _scrollClock,
             Margin = new Thickness(4, 0, 8, 0)
         };
-        value.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+        value.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
         Grid.SetColumn(value, column);
         grid.Children.Add(value);
     }

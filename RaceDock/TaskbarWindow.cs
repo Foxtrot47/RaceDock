@@ -25,8 +25,8 @@ public sealed class TaskbarWindow : Window
     private readonly ColumnDefinition _contextColumn = new() { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 150 };
     private readonly UniformGrid _strip = new() { Rows = 1, Columns = 5, Margin = new(2) };
     private readonly StackPanel _raceContext = new() { Margin = new(6, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _raceText = new() { FontSize = 10.5, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
-    private readonly TextBlock _lapText = new() { FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly ScrollingTextBlock _raceText = new() { FontSize = 10.5, FontWeight = FontWeights.SemiBold };
+    private readonly ScrollingTextBlock _lapText = new() { FontSize = 10 };
     private readonly Grid _eventHeader = new();
     private readonly Border _alert = new()
     {
@@ -224,25 +224,21 @@ public sealed class TaskbarWindow : Window
         layout.Children.Add(marker);
 
         var details = new StackPanel { Margin = new(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        var driverLine = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
-        var driver = new TextBlock
+        var driver = new ScrollingTextBlock
         {
             Text = standing.Code,
             FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
-            TextTrimming = TextTrimming.CharacterEllipsis
+            FontWeight = FontWeights.SemiBold
         };
-        driver.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
-        driverLine.Children.Add(driver);
-        var gap = new TextBlock
+        driver.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+        var gap = new ScrollingTextBlock
         {
             Text = standing.Position == 1 ? "LEADER" : standing.GapToLeader ?? "—",
             FontSize = 11,
-            MinHeight = 11,
-            TextTrimming = TextTrimming.CharacterEllipsis
+            MinHeight = 11
         };
-        gap.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        details.Children.Add(driverLine);
+        gap.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorSecondaryBrush");
+        details.Children.Add(driver);
         if (_settings.ShowGaps) details.Children.Add(gap);
         Grid.SetColumn(details, 1); layout.Children.Add(details);
         return CreateCellContainer(layout);
