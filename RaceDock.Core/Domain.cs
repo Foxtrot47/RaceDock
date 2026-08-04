@@ -45,7 +45,7 @@ public interface ILiveTimingSource : IAsyncDisposable
     Task StopAsync();
 }
 
-public interface ITimingScenarioSource : ILiveTimingSource
+public interface ITimingPlaybackSource : ILiveTimingSource
 {
     bool IsPaused { get; }
     double Speed { get; set; }
@@ -53,8 +53,21 @@ public interface ITimingScenarioSource : ILiveTimingSource
     void Resume();
     void Restart();
     void Step();
+}
+
+public interface ITimingScenarioSource : ITimingPlaybackSource
+{
     void Trigger(ScenarioCommand command);
     void SetTopFive(IReadOnlyList<ManualStanding> standings);
+}
+
+public interface ITimingArchiveSource : ITimingPlaybackSource
+{
+    string ArchivePath { get; }
+    string ArchiveName { get; }
+    bool IsCompleted { get; }
+    int FrameIndex { get; }
+    int FrameCount { get; }
 }
 
 public sealed record ManualStanding(string Code, string? GapToLeader);

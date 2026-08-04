@@ -17,7 +17,7 @@ Follow the leaders from the taskbar, open the full classification when you need 
 - Supports Formula 1, Formula 2, Formula 3, GT World Challenge Europe, the IMSA WeatherTech SportsCar Championship, and the World Rally Championship.
 - Connects to several enabled championships at once and rotates between active sessions.
 - Uses position cards or team and manufacturer logos.
-- Includes a deterministic testing mode, so contributors can check the interface without waiting for a live event.
+- Includes deterministic scenarios and archive replay, so contributors can check the interface without waiting for a live event.
 
 RaceDock stays hidden until an enabled stream provides live timing data.
 
@@ -43,6 +43,12 @@ RaceDock runs from the Windows notification area. Open **Settings** from the tra
 Settings are saved in `%LocalAppData%\RaceDock\settings.json`. Windows startup is enabled by default and can be disabled from the **General** settings tab. Keep the extracted app in a stable folder because the startup entry points to that copy of `RaceDock.exe`.
 
 Application logs are stored in the `Logs` folder beside the executable. The Formula 1 diagnostic recorder is optional, limited to 2 MiB, and excludes connection credentials.
+
+### Replay recorded timing
+
+Open **Settings → Testing → Choose archive…** to replay a Timing71 ZIP export or a HAR containing Timing71 manifest and state messages. Replay uses the normal taskbar widget and classification flyout. The Testing tab provides pause, resume, restart, single-step, and 0.25×–20× speed controls. Long recording gaps over 30 seconds are compressed to one second so sparse archives do not appear frozen.
+
+Archive replay is temporary and does not change the selected live streams. Choose **Return to live** to reconnect them. HAR files from arbitrary provider protocols are not converted automatically; the HAR must contain Timing71-compatible manifest and state payloads.
 
 ## Live timing sources
 

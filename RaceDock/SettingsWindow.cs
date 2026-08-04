@@ -42,7 +42,9 @@ public sealed class SettingsWindow : Window
     private readonly Button _save = new() { Content = "Save settings", MinWidth = 110, Padding = new Thickness(14, 7, 14, 7) };
     private readonly CheckBox _testMode = Toggle("Enable deterministic test mode", "Temporarily replace live streams with the scripted testing feed");
     private readonly StackPanel _testingControls = new();
+    private readonly StackPanel _scenarioControls = new();
     private readonly TextBlock _testStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 4, 2, 8) };
+    private readonly System.Windows.Controls.TextBox _archivePath = new() { IsReadOnly = true, MinWidth = 390, VerticalContentAlignment = VerticalAlignment.Center };
     private readonly System.Windows.Controls.TextBox _topFive = new() { Text = "NOR:LEAD,PIA:+0.8,LEC:+1.5,VER:+2.0,RUS:+2.8", MinWidth = 430 };
     private readonly Slider _speed = new() { Minimum = .25, Maximum = 20, Value = 4, Width = 240, TickFrequency = .25 };
     private readonly Dictionary<ScenarioCommand, System.Windows.Controls.Primitives.ToggleButton> _commandButtons = [];
@@ -172,10 +174,23 @@ public sealed class SettingsWindow : Window
     private UIElement BuildTestingTab()
     {
         var panel = TabPanel();
-        panel.Children.Add(SectionTitle("Deterministic scenario", "Exercise taskbar states without waiting for a live session. Disabling test mode returns to the selected streams."));
-        _testMode.Checked += async (_, _) => await ToggleTestModeAsync(true);
-        _testMode.Unchecked += async (_, _) => await ToggleTestModeAsync(false);
-        panel.Children.Add(_testMode);
+        panel.Children.Add(SectionTitle("Archive replay", "Load a Timing71 ZIP export or a HAR containing Timing71 manifest and state messages. Long inactive gaps are compressed during playback."));
+        var archiveRow = new Grid { Margin = new Thickness(2, 4, 2, 8) };
+        archiveRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        archiveRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        archiveRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        archiveRow.Children.Add(_archivePath);
+        var browse = new Button { Content = "Choose archive…", MinWidth = 112, Padding = new Thickness(8, 5, 8, 5), Margin = new Thickness(6, 0, 2, 0) };
+        browse.Click += async (_, _) => await ChooseArchiveAsync();
+        Grid.SetColumn(browse, 1);
+        archiveRow.Children.Add(browse);
+        var live = new Button { Content = "Return to live", MinWidth = 94, Padding = new Thickness(8, 5, 8, 5), Margin = new Thickness(4, 0, 0, 0) };
+        live.Click += async (_, _) => await ReturnToLiveAsync();
+        Grid.SetColumn(live, 2);
+        archiveRow.Children.Add(live);
+        panel.Children.Add(archiveRow);
+
+        panel.Children.Add(SectionTitle("Playback controls", "Pause, step, restart, or change the speed of the active archive or deterministic scenario."));
         _testStatus.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         panel.Children.Add(_testStatus);
 
@@ -186,23 +201,31 @@ public sealed class SettingsWindow : Window
         transport.Children.Add(_resume);
         transport.Children.Add(ActionButton("Single step", () =>
         {
-            if (TryScenario(out var scenario)) scenario.Step();
+            if (!TryPlayback(out var playback)) return;
+            playback.Step();
+            SetTransportState(true);
         }));
         transport.Children.Add(ActionButton("Restart", () =>
         {
-            if (!TryScenario(out var scenario)) return;
-            scenario.Restart();
+            if (!TryPlayback(out var playback)) return;
+            playback.Restart();
             SetTransportState(true);
         }));
         transport.Children.Add(new TextBlock { Text = " Speed ", VerticalAlignment = VerticalAlignment.Center });
         transport.Children.Add(_speed);
         _speed.ValueChanged += (_, _) =>
         {
-            if (_controller.Scenario is { } scenario) scenario.Speed = _speed.Value;
+            if (_controller.Playback is { } playback) playback.Speed = _speed.Value;
         };
         _testingControls.Children.Add(transport);
+        panel.Children.Add(_testingControls);
 
-        _testingControls.Children.Add(new TextBlock
+        panel.Children.Add(SectionTitle("Deterministic scenario", "Exercise taskbar states without waiting for a live session. Disabling test mode returns to the selected streams."));
+        _testMode.Checked += async (_, _) => await ToggleTestModeAsync(true);
+        _testMode.Unchecked += async (_, _) => await ToggleTestModeAsync(false);
+        panel.Children.Add(_testMode);
+
+        _scenarioControls.Children.Add(new TextBlock
         {
             Text = "Track and feed controls (click an active state again to clear it)",
             Margin = new Thickness(2, 4, 2, 4)
@@ -214,9 +237,9 @@ public sealed class SettingsWindow : Window
             _commandButtons[command] = button;
             commands.Children.Add(button);
         }
-        _testingControls.Children.Add(commands);
+        _scenarioControls.Children.Add(commands);
 
-        _testingControls.Children.Add(new TextBlock
+        _scenarioControls.Children.Add(new TextBlock
         {
             Text = "Top five (CODE:GAP; use — for a missing gap)",
             Margin = new Thickness(2, 16, 2, 4)
@@ -224,8 +247,8 @@ public sealed class SettingsWindow : Window
         var edit = new WrapPanel();
         edit.Children.Add(_topFive);
         edit.Children.Add(ActionButton("Apply", ApplyTopFive));
-        _testingControls.Children.Add(edit);
-        panel.Children.Add(_testingControls);
+        _scenarioControls.Children.Add(edit);
+        panel.Children.Add(_scenarioControls);
 
         panel.Children.Add(SectionTitle("Diagnostics", "Raw recording is bounded to 2 MiB and excludes connection credentials. Restart the live feed after changing it."));
         var diagnostic = new CheckBox { Content = "Record bounded raw Formula 1 feed", Margin = new Thickness(2, 4, 2, 8) };
@@ -240,13 +263,14 @@ public sealed class SettingsWindow : Window
     public void UpdateSnapshot(TimingSnapshot snapshot)
     {
         if (!_controller.TestMode) return;
-        var mode = _controller.Scenario?.IsPaused == true ? "PAUSED" : "RUNNING";
-        var timed = snapshot.Session.Contains("Practice", StringComparison.OrdinalIgnoreCase) || snapshot.Session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase);
-        var progress = timed && !string.IsNullOrWhiteSpace(snapshot.TimeRemaining)
+        var mode = PlaybackState(_controller.Playback, _controller.Archive?.IsCompleted == true);
+        var progress = !string.IsNullOrWhiteSpace(snapshot.TimeRemaining)
             ? $"Time {snapshot.TimeRemaining}"
             : $"Lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}";
-        _testStatus.Text = $"{snapshot.ConnectionState} · {snapshot.Meeting} {snapshot.Session} · {progress} · {snapshot.TrackCondition} · {mode}";
-        SyncScenarioState(snapshot);
+        var archive = _controller.Archive is { } replay ? $" · frame {replay.FrameIndex}/{replay.FrameCount}" : "";
+        _testStatus.Text = $"{snapshot.ConnectionState} · {snapshot.Meeting} {snapshot.Session} · {progress} · {snapshot.TrackCondition} · {mode}{archive}";
+        if (_controller.Playback is { } playback) SetTransportState(playback.IsPaused);
+        if (_controller.Scenario is not null) SyncScenarioState(snapshot);
     }
 
     private async Task ToggleTestModeAsync(bool enabled)
@@ -263,7 +287,7 @@ public sealed class SettingsWindow : Window
         {
             _testStatus.Text = $"Could not switch feed: {ex.Message}";
             _syncingTestControls = true;
-            _testMode.IsChecked = _controller.TestMode;
+            _testMode.IsChecked = _controller.Scenario is not null;
             _syncingTestControls = false;
         }
         finally { _testMode.IsEnabled = true; }
@@ -272,23 +296,45 @@ public sealed class SettingsWindow : Window
     private void SyncTestingMode()
     {
         _syncingTestControls = true;
-        _testMode.IsChecked = _controller.TestMode;
+        _testMode.IsChecked = _controller.Scenario is not null;
         _syncingTestControls = false;
-        _testingControls.IsEnabled = _controller.TestMode;
-        if (_controller.TestMode)
+        _testingControls.IsEnabled = _controller.Playback is not null;
+        _scenarioControls.IsEnabled = _controller.Scenario is not null;
+        if (_controller.Playback is { } playback)
         {
-            var paused = _controller.Scenario?.IsPaused != false;
-            SetTransportState(paused);
-            _testStatus.Text = paused ? "Test scenario ready · PAUSED" : "Test scenario ready · RUNNING";
+            _speed.Value = playback.Speed;
+            SetTransportState(playback.IsPaused);
+            if (_controller.Archive is { } archive)
+            {
+                _archivePath.Text = archive.ArchivePath;
+                _archivePath.ToolTip = archive.ArchiveName;
+                var state = PlaybackState(playback, archive.IsCompleted);
+                _testStatus.Text = $"Archive ready · {archive.FrameCount} frames · {state}";
+            }
+            else
+            {
+                _archivePath.Text = "";
+                _testStatus.Text = playback.IsPaused ? "Test scenario ready · PAUSED" : "Test scenario ready · RUNNING";
+            }
         }
-        else _testStatus.Text = "Live streams are active.";
+        else
+        {
+            _archivePath.Text = "";
+            _archivePath.ToolTip = null;
+            _testStatus.Text = "Live streams are active.";
+        }
     }
 
     private void SetPaused(bool paused)
     {
-        if (_syncingTestControls || !TryScenario(out var scenario)) return;
-        if (paused) scenario.Pause(); else scenario.Resume();
-        SetTransportState(paused);
+        if (_syncingTestControls || !TryPlayback(out var playback)) return;
+        if (paused) playback.Pause(); else playback.Resume();
+        SetTransportState(playback.IsPaused);
+        if (_controller.Archive is { } archive)
+        {
+            var state = PlaybackState(playback, archive.IsCompleted);
+            _testStatus.Text = $"Archive · frame {archive.FrameIndex}/{archive.FrameCount} · {state}";
+        }
     }
 
     private void SetTransportState(bool paused)
@@ -297,6 +343,12 @@ public sealed class SettingsWindow : Window
         _pause.IsChecked = paused;
         _resume.IsChecked = !paused;
         _syncingTestControls = false;
+    }
+
+    private static string PlaybackState(ITimingPlaybackSource? playback, bool completed)
+    {
+        if (completed) return "COMPLETED";
+        return playback?.IsPaused == true ? "PAUSED" : "RUNNING";
     }
 
     private void ApplyTopFive()
@@ -407,12 +459,53 @@ public sealed class SettingsWindow : Window
         if (_commandButtons.TryGetValue(command, out var button)) button.IsChecked = value;
     }
 
+    private bool TryPlayback(out ITimingPlaybackSource playback)
+    {
+        playback = _controller.Playback!;
+        if (playback is not null) return true;
+        _testStatus.Text = "Load an archive or enable deterministic test mode before using playback controls.";
+        return false;
+    }
+
     private bool TryScenario(out ITimingScenarioSource scenario)
     {
         scenario = _controller.Scenario!;
         if (scenario is not null) return true;
-        _testStatus.Text = "Enable deterministic test mode before using these controls.";
+        _testStatus.Text = "Enable deterministic test mode before using scenario controls.";
         return false;
+    }
+
+    private async Task ChooseArchiveAsync()
+    {
+        var picker = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Choose timing archive",
+            Filter = "Timing archives (*.zip;*.har)|*.zip;*.har|Timing71 exports (*.zip)|*.zip|HTTP archives (*.har)|*.har",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (picker.ShowDialog(this) != true) return;
+        _testStatus.Text = "Loading archive…";
+        try
+        {
+            await _controller.LoadArchiveReplayAsync(picker.FileName);
+            SyncTestingMode();
+        }
+        catch (Exception ex)
+        {
+            _testStatus.Text = $"Could not load archive: {ex.Message}";
+        }
+    }
+
+    private async Task ReturnToLiveAsync()
+    {
+        _testStatus.Text = "Returning to live streams…";
+        try
+        {
+            await _controller.ReturnToLiveAsync();
+            SyncTestingMode();
+        }
+        catch (Exception ex) { _testStatus.Text = $"Could not restore live streams: {ex.Message}"; }
     }
 
     private async Task SaveAsync()

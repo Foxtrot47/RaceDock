@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+using System.IO.Compression;
 using System.Text.Json.Nodes;
 using RaceDock.Core;
 
@@ -18,6 +19,9 @@ var tests = new (string Name, Action Run)[]
     ("stale and off-session transitions", FreshnessAndVisibility),
     ("archived F1 startup data remains hidden", ArchivedF1Startup),
     ("scenario timeline integration", ScenarioIntegration),
+    ("Timing71 ZIP archives replay full and incremental states", TimingArchiveZipReplay),
+    ("Timing71 HAR archives load embedded manifest and states", TimingArchiveHarReplay),
+    ("Timing71 archive patches enforce complexity limits", TimingArchivePatchLimits),
     ("active feeds rotate at the display interval", FeedRotation),
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
     ("WRC season discovery excludes ERC and finds the next rally", WrcSeasonDiscovery),
@@ -222,6 +226,180 @@ static void ScenarioIntegration()
     s.Trigger(ScenarioCommand.Yellow); Equal(AlertKind.Yellow, alerts.Current?.Kind); s.Trigger(ScenarioCommand.SafetyCar); Equal(AlertKind.SafetyCar, alerts.Current?.Kind); s.Trigger(ScenarioCommand.Green); Equal(null, alerts.Current);
     s.Trigger(ScenarioCommand.RedFlag); Equal(AlertKind.RedFlag, alerts.Current?.Kind); s.Trigger(ScenarioCommand.Green); Equal(null, alerts.Current); s.Trigger(ScenarioCommand.Disconnect); Equal(ConnectionState.Disconnected, p.Current.ConnectionState); s.Trigger(ScenarioCommand.Reconnect); Equal(ConnectionState.Connected, p.Current.ConnectionState); s.Trigger(ScenarioCommand.Chequered); Equal(AlertKind.Chequered, alerts.Current?.Kind);
     s.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
+static void TimingArchiveZipReplay()
+{
+    var directory = Path.Combine(Path.GetTempPath(), $"RaceDock-archive-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    var path = Path.Combine(directory, "sample.zip");
+    try
+    {
+        using (var archive = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            WriteZipJson(archive, "manifest.json", ArchiveManifest());
+            WriteZipJson(archive, "01700000000.json", ArchiveState(10, 1.25));
+            WriteZipJson(archive, "01700000001i.json", new JsonObject
+            {
+                ["cars"] = new JsonArray
+                {
+                    new JsonArray("add", "", new JsonArray
+                    {
+                        new JsonArray(2, new JsonArray("60", "RUN", "GTP", 3, "BRAUN, Colin", "Acura Meyer Shank Racing", "ACURA ARX-06", 10, 2.5, 1.75, new JsonArray(113.4, "")))
+                    }),
+                    new JsonArray("change", new JsonArray(0, 7), new JsonArray(10, 11)),
+                    new JsonArray("change", new JsonArray(1, 8), new JsonArray(1.25, 0.75)),
+                    new JsonArray("remove", "", new JsonArray { new JsonArray(1, "removed row") })
+                },
+                ["session"] = new JsonArray
+                {
+                    new JsonArray("change", "timeRemain", new JsonArray(3600, 3599))
+                }
+            });
+        }
+
+        var source = new TimingArchiveReplaySource(path, new FakeClock());
+        TimingSnapshot? snapshot = null;
+        var received = 0;
+        source.SnapshotReceived += value => { snapshot = value; Interlocked.Increment(ref received); };
+        source.Speed = 20;
+        source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        Thread.Sleep(10);
+        source.Pause();
+        Thread.Sleep(100);
+        Equal(1, received);
+        Equal(2, source.FrameCount);
+        Equal(Championship.Imsa, snapshot?.Championship);
+        Equal("Endurance Grand Prix", snapshot?.Meeting);
+        Equal("Race", snapshot?.Session);
+        Equal("Marco Wittmann", snapshot?.Competitors[0].Name);
+        Equal("WIT", snapshot?.Competitors[0].Code);
+        Equal("BMW M Team WRT", snapshot?.Competitors[0].Team);
+        Equal("LEAD", snapshot?.Competitors[0].GapToLeader);
+        Equal("+1.250", snapshot?.Competitors[1].GapToLeader);
+        Equal("1:00:00", snapshot?.TimeRemaining);
+        source.Step();
+        Equal(11, snapshot?.CurrentLap);
+        Equal(2, snapshot?.Competitors.Count);
+        Equal("60", snapshot?.Competitors[1].DriverId);
+        Equal(3, snapshot?.Competitors[1].Position);
+        Equal("+2.500", snapshot?.Competitors[1].GapToLeader);
+        Equal("59:59", snapshot?.TimeRemaining);
+        True(source.IsCompleted);
+        var completedLap = snapshot?.CurrentLap;
+        source.Step();
+        Equal(completedLap, snapshot?.CurrentLap);
+        Equal(2, source.FrameIndex);
+        Task.WhenAll(Enumerable.Range(0, 8).Select(_ => source.DisposeAsync().AsTask())).GetAwaiter().GetResult();
+        try
+        {
+            source.Step();
+            throw new Exception("Expected stepping a disposed replay to fail.");
+        }
+        catch (ObjectDisposedException) { }
+    }
+    finally { Directory.Delete(directory, true); }
+}
+
+static void TimingArchiveHarReplay()
+{
+    var directory = Path.Combine(Path.GetTempPath(), $"RaceDock-har-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    var path = Path.Combine(directory, "sample.har");
+    try
+    {
+        var embeddedState = ArchiveState(10, 1.25);
+        embeddedState["manifest"] = ArchiveManifest();
+        var entries = new JsonArray(HarEntry("2026-08-02T20:00:01Z", embeddedState));
+        File.WriteAllText(path, new JsonObject { ["log"] = new JsonObject { ["entries"] = entries } }.ToJsonString());
+        var source = new TimingArchiveReplaySource(path, new FakeClock());
+        TimingSnapshot? snapshot = null;
+        source.SnapshotReceived += value => snapshot = value;
+        source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        source.Pause();
+        Equal(1, source.FrameCount);
+        Equal(2, snapshot?.Competitors.Count);
+        Equal(TrackCondition.AllClear, snapshot?.TrackCondition);
+        source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    }
+    finally { Directory.Delete(directory, true); }
+}
+
+static void TimingArchivePatchLimits()
+{
+    var directory = Path.Combine(Path.GetTempPath(), $"RaceDock-archive-limit-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    var path = Path.Combine(directory, "unsafe.zip");
+    try
+    {
+        var operations = new JsonArray();
+        for (var index = 0; index < 30; index++)
+        {
+            var key = $"sparse{index}";
+            operations.Add(new JsonArray("add", "", new JsonArray { new JsonArray(key, new JsonArray()) }));
+            operations.Add(new JsonArray("add", key, new JsonArray { new JsonArray(10_000, "x") }));
+        }
+        using (var archive = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            WriteZipJson(archive, "manifest.json", ArchiveManifest());
+            WriteZipJson(archive, "01700000000.json", ArchiveState(10, 1.25));
+            WriteZipJson(archive, "01700000001i.json", new JsonObject
+            {
+                ["cars"] = new JsonArray(),
+                ["session"] = operations
+            });
+        }
+
+        try
+        {
+            _ = new TimingArchiveReplaySource(path, new FakeClock());
+            throw new Exception("Expected an unsafe sparse patch to be rejected.");
+        }
+        catch (InvalidDataException ex)
+        {
+            True(ex.Message.Contains("node limit", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+    finally { Directory.Delete(directory, true); }
+}
+
+static JsonObject ArchiveManifest() => new()
+{
+    ["version"] = 1,
+    ["name"] = "IMSA WeatherTech SportsCar Championship",
+    ["description"] = "Endurance Grand Prix - Race",
+    ["colSpec"] = new JsonArray
+    {
+        new JsonArray("Num", "text"), new JsonArray("State", "text"), new JsonArray("Class", "class"),
+        new JsonArray("PIC", "numeric"), new JsonArray("Driver", "text"), new JsonArray("Team", "text"),
+        new JsonArray("Car", "text"), new JsonArray("Laps", "numeric"), new JsonArray("Gap", "delta"),
+        new JsonArray("Int", "delta"), new JsonArray("Best", "laptime")
+    },
+    ["trackDataSpec"] = new JsonArray()
+};
+
+static JsonObject ArchiveState(int laps, double secondGap) => new()
+{
+    ["cars"] = new JsonArray
+    {
+        new JsonArray("25", "RUN", "GTP", 1, "WITTMANN, Marco", "BMW M Team WRT", "BMW M HYBRID V8", laps, "", "", new JsonArray(112.1, "sb")),
+        new JsonArray("7", "PIT", "GTP", 2, "NASR, Felipe", "Porsche Penske Motorsport", "PORSCHE 963", laps, secondGap, secondGap, new JsonArray(113.2, ""))
+    },
+    ["session"] = new JsonObject { ["flagState"] = "green", ["timeRemain"] = 3600, ["timeElapsed"] = 1800 },
+    ["messages"] = new JsonArray(),
+    ["highlight"] = new JsonArray()
+};
+
+static JsonObject HarEntry(string timestamp, JsonObject content) => new()
+{
+    ["startedDateTime"] = timestamp,
+    ["response"] = new JsonObject { ["content"] = new JsonObject { ["text"] = content.ToJsonString() } }
+};
+
+static void WriteZipJson(ZipArchive archive, string name, JsonObject value)
+{
+    using var writer = new StreamWriter(archive.CreateEntry(name).Open());
+    writer.Write(value.ToJsonString());
 }
 
 static void FeedRotation()

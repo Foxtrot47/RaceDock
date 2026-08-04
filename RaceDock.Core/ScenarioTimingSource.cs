@@ -6,6 +6,7 @@ namespace RaceDock.Core;
 public sealed class ScenarioTimingSource(TimingStateProcessor processor, IClock clock) : ITimingScenarioSource
 {
     private CancellationTokenSource? _cts;
+    private Task? _worker;
     private int _step;
     private readonly SemaphoreSlim _advance = new(0);
     public bool IsPaused { get; private set; } = true;
@@ -22,17 +23,27 @@ public sealed class ScenarioTimingSource(TimingStateProcessor processor, IClock 
         processor.SnapshotChanged += Forward;
         processor.ProcessInitial(CreateInitial()); processor.SetConnection(ConnectionState.Connected);
         ConnectionChanged?.Invoke(ConnectionState.Connected);
-        _ = Task.Run(() => RunAsync(_cts.Token), _cts.Token).ContinueWith(task =>
+        _worker = Task.Run(async () =>
         {
-            if (task.Exception is { } ex) Failed?.Invoke(new(ex.GetBaseException().Message, ex.GetBaseException(), clock.UtcNow));
-        }, TaskScheduler.Default);
+            try { await RunAsync(_cts.Token); }
+            catch (OperationCanceledException) when (_cts.IsCancellationRequested) { }
+            catch (Exception ex) { Failed?.Invoke(new(ex.Message, ex, clock.UtcNow)); }
+        }, _cts.Token);
         return Task.CompletedTask;
     }
 
     public async Task StopAsync()
     {
         if (_cts is null) return;
-        await _cts.CancelAsync(); _cts.Dispose(); _cts = null; processor.SnapshotChanged -= Forward;
+        await _cts.CancelAsync();
+        _advance.Release();
+        if (_worker is not null)
+            try { await _worker; }
+            catch (OperationCanceledException) { }
+        _worker = null;
+        _cts.Dispose();
+        _cts = null;
+        processor.SnapshotChanged -= Forward;
         ConnectionChanged?.Invoke(ConnectionState.Disconnected);
     }
 
@@ -59,7 +70,7 @@ public sealed class ScenarioTimingSource(TimingStateProcessor processor, IClock 
             if (IsPaused) { await _advance.WaitAsync(ct); continue; }
             try { await Task.Delay(TimeSpan.FromSeconds(2 / Math.Clamp(Speed, .25, 20)), ct); }
             catch (OperationCanceledException) { break; }
-            ApplyStep(_step++ % 12);
+            if (!IsPaused) ApplyStep(_step++ % 12);
         }
     }
 
