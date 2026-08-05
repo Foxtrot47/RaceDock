@@ -31,7 +31,12 @@ public partial class App : System.Windows.Application
         _statusItem = new System.Windows.Forms.ToolStripMenuItem("Connection: starting") { Enabled = false }; menu.Items.Add(_statusItem);
         menu.Items.Add(new System.Windows.Forms.ToolStripMenuItem($"Version {AppVersion.Display}") { Enabled = false });
         menu.Items.Add("Settings", null, (_, _) => _controller?.ShowSettings());
-        menu.Items.Add("Restart feed", null, async (_, _) => { if (_controller is not null) await _controller.RestartAsync(); });
+        menu.Items.Add("Restart feed", null, async (_, _) =>
+        {
+            // Restart was interrupted because the application is shutting down.
+            try { if (_controller is not null) await _controller.RestartAsync(); }
+            catch (OperationCanceledException) when (System.Windows.Application.Current.Dispatcher.HasShutdownStarted) { }
+        });
         menu.Items.Add("View logs", null, (_, _) => _controller?.OpenLogs());
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add("Exit", null, async (_, _) => { if (_controller is not null) await _controller.DisposeAsync(); Shutdown(); });
