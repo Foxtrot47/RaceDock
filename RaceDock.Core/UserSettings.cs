@@ -9,6 +9,9 @@ public sealed record UserSettings
     public bool EnableFormula1 { get; init; } = true;
     public bool EnableFormula2 { get; init; } = true;
     public bool EnableFormula3 { get; init; } = true;
+    public bool EnableMotoGp { get; init; }
+    public bool EnableMoto2 { get; init; }
+    public bool EnableMoto3 { get; init; }
     public bool EnableGtWorldChallengeEurope { get; init; } = true;
     public bool EnableWrc { get; init; } = true;
     public bool EnableImsa { get; init; }
@@ -22,7 +25,7 @@ public sealed record UserSettings
     public bool ShowFlagAlerts { get; init; } = true;
     public bool AutoStartOnWindowsBoot { get; init; } = true;
 
-    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableGtWorldChallengeEurope || EnableWrc || EnableImsa;
+    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 || EnableMoto3 || EnableGtWorldChallengeEurope || EnableWrc || EnableImsa;
 
     public UserSettings Normalize()
     {

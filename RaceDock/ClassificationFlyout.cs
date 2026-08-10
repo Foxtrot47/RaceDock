@@ -317,7 +317,7 @@ public sealed class ClassificationFlyout : Window
         driverCopy.Children.Add(driverLine);
         Grid.SetRow(team, 1);
         driverCopy.Children.Add(team);
-        if (_settings.UseManufacturerLogos && ManufacturerLogo.TryCreate(standing.Manufacturer ?? standing.Team, 26, out var logo))
+        if (_settings.UseManufacturerLogos && ManufacturerLogo.TryCreateForStanding(standing, 26, out var logo))
         {
             logo.Margin = new Thickness(0, 0, 6, 0);
             logo.VerticalAlignment = VerticalAlignment.Center;

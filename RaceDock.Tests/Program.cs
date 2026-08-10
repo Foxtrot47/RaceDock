@@ -20,6 +20,7 @@ var tests = new (string Name, Action Run)[]
     ("archived F1 startup data remains hidden", ArchivedF1Startup),
     ("scenario timeline integration", ScenarioIntegration),
     ("Timing71 ZIP archives replay full and incremental states", TimingArchiveZipReplay),
+    ("Timing71 MotoGP archives map Bike manufacturers", TimingArchiveMotoGp),
     ("Timing71 HAR archives load embedded manifest and states", TimingArchiveHarReplay),
     ("Timing71 archive patches enforce complexity limits", TimingArchivePatchLimits),
     ("active feeds rotate at the display interval", FeedRotation),
@@ -44,6 +45,8 @@ var tests = new (string Name, Action Run)[]
     ("IMSA flags statuses and clocks map provider values", ImsaFlagsAndClock),
     ("IMSA source subscribes and publishes an active classification", ImsaSourceLifecycle),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
+    ("MotoGP lite payload maps Moto3 timing", MotoGpLitePayload),
+    ("MotoGP source filters categories and publishes lifecycle", MotoGpSourceLifecycle),
     ("F3 standings include roster teams", F3RosterTeams),
     ("F2 standings include roster teams", F2RosterTeams),
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
@@ -297,6 +300,58 @@ static void TimingArchiveZipReplay()
             throw new Exception("Expected stepping a disposed replay to fail.");
         }
         catch (ObjectDisposedException) { }
+    }
+    finally { Directory.Delete(directory, true); }
+}
+
+static void TimingArchiveMotoGp()
+{
+    var directory = Path.Combine(Path.GetTempPath(), $"RaceDock-motogp-archive-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    var path = Path.Combine(directory, "motogp.zip");
+    try
+    {
+        var manifest = new JsonObject
+        {
+            ["version"] = 1,
+            ["name"] = "MotoGP",
+            ["description"] = "Qatar Airways Grand Prix of Great Britain - Grand Prix",
+            ["colSpec"] = new JsonArray
+            {
+                new JsonArray("Num", "text"), new JsonArray("State", "text"), new JsonArray("Driver", "text"),
+                new JsonArray("Team", "text"), new JsonArray("Bike", "text"), new JsonArray("Laps", "numeric"),
+                new JsonArray("Gap", "delta"), new JsonArray("Int", "delta"),
+                new JsonArray("Last", "laptime"), new JsonArray("Best", "laptime")
+            }
+        };
+        var state = new JsonObject
+        {
+            ["cars"] = new JsonArray
+            {
+                new JsonArray("25", "RUN", "FERNANDEZ, Raul", "SuperFile Trackhouse MotoGP Team", "Aprilia", 1, "", "", new JsonArray(120.991, ""), new JsonArray(198.173, "")),
+                new JsonArray("49", "RUN", "DI GIANNANTONIO, Fabio", "Pertamina Enduro VR46 Racing Team", "Ducati", 1, 1.5, 1.5, new JsonArray(121.5, ""), new JsonArray(199.673, "")),
+                new JsonArray("73", "RUN", "MARQUEZ, Alex", "BK8 Gresini Racing MotoGP", "Ducati", 1, 2.0, 0.5, new JsonArray(122.0, ""), new JsonArray(200.173, ""))
+            },
+            ["session"] = new JsonObject { ["flagState"] = "green", ["lapsRemain"] = 19 },
+            ["messages"] = new JsonArray(),
+            ["highlight"] = new JsonArray()
+        };
+        using (var archive = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            WriteZipJson(archive, "manifest.json", manifest);
+            WriteZipJson(archive, "01786276651.json", state);
+        }
+
+        var source = new TimingArchiveReplaySource(path, new FakeClock());
+        TimingSnapshot? snapshot = null;
+        source.SnapshotReceived += value => snapshot = value;
+        source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        source.Pause();
+        Equal(Championship.MotoGp, snapshot?.Championship);
+        Equal("Aprilia", snapshot?.Competitors[0].Manufacturer);
+        Equal("Ducati", snapshot?.Competitors[1].Manufacturer);
+        Equal("Ducati", snapshot?.Competitors[2].Manufacturer);
+        source.DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
     finally { Directory.Delete(directory, true); }
 }
@@ -690,6 +745,140 @@ static void F3QualifyingSnapshot()
     Equal("TST", snapshot.Competitors[0].Code);
 }
 
+static void MotoGpLitePayload()
+{
+    var now = new DateTimeOffset(2026, 8, 7, 13, 22, 40, TimeSpan.Zero);
+    var payload = JsonNode.Parse("""
+        {
+          "head": {
+            "category": "Moto3", "circuit_name": "Silverstone Circuit",
+            "event_tv_name": "Qatar Airways Grand Prix of Great Britain",
+            "num_laps": 0, "session_name": "Practice", "session_shortname": "PR", "remaining": "1658", "session_status_id": "S"
+          },
+          "rider": {
+            "1": {
+              "order": 1, "rider_id": 10424, "status_name": "CL", "rider_number": "22", "rider_shortname": "Almansa", "pos": 1,
+              "rider_name": "David", "rider_surname": "ALMANSA", "lap_time": "2'10.057", "num_lap": 2,
+              "team_name": "Liqui Moly Dynavolt Intact GP", "bike_name": "KTM", "gap_first": "0.000", "gap_prev": "0.000", "on_pit": false
+            },
+            "2": {
+              "order": 2, "rider_id": 10506, "status_name": "CL", "rider_number": "51", "pos": 2,
+              "rider_name": "Brian", "rider_surname": "URIARTE", "lap_time": "2'10.149", "num_lap": 3,
+              "team_name": "Red Bull KTM Ajo", "bike_name": "KTM", "gap_first": "0.092", "gap_prev": "0.092", "on_pit": true
+            },
+            "3": {
+              "order": 3, "rider_id": 10291, "status_name": "NC", "rider_number": "5", "pos": -1,
+              "rider_name": "Leo", "rider_surname": "RAMMERSTORFER", "lap_time": "0.000", "num_lap": 0,
+              "team_name": "SIC58 Squadra Corse", "bike_name": "Honda", "gap_first": "0.000", "gap_prev": "0.000", "on_pit": false
+            }
+          }
+        }
+        """)!.AsObject();
+
+    var snapshot = MotoGpTiming.BuildSnapshot(payload, now, ConnectionState.Connected);
+    True(snapshot is not null);
+    Equal(Championship.Moto3, snapshot!.Championship);
+    Equal("Qatar Airways Grand Prix of Great Britain", snapshot.Meeting);
+    Equal("Moto3 Practice", snapshot.Session);
+    Equal("PR", snapshot.SessionShortName);
+    Equal("Silverstone Circuit", snapshot.Circuit);
+    Equal(SessionLifecycle.Live, snapshot.Lifecycle);
+    Equal(ConnectionState.Connected, snapshot.ConnectionState);
+    Equal("27:38", snapshot.TimeRemaining);
+    Equal(3, snapshot.CurrentLap);
+    Equal<int?>(null, snapshot.TotalLaps);
+    Equal(3, snapshot.Competitors.Count);
+    Equal("ALM", snapshot.Competitors[0].Code);
+    Equal("David ALMANSA", snapshot.Competitors[0].Name);
+    Equal("LEAD", snapshot.Competitors[0].GapToLeader);
+    True(snapshot.Competitors[0].IsOverallFastest);
+    Equal("KTM", snapshot.Competitors[0].Manufacturer);
+    Equal("+0.092", snapshot.Competitors[1].GapToLeader);
+    Equal("+0.092", snapshot.Competitors[1].IntervalToPositionAhead);
+    True(snapshot.Competitors[1].InPit);
+    Equal(3, snapshot.Competitors[2].Position);
+    Equal("NC", snapshot.Competitors[2].PositionLabel);
+    False(snapshot.Competitors[2].Retired);
+    Equal(SessionLifecycle.Ended, MotoGpTiming.SessionLifecycleFor("F"));
+    Equal(Championship.MotoGp, MotoGpTiming.ChampionshipForCategory("MotoGP"));
+    Equal(Championship.Moto2, MotoGpTiming.ChampionshipForCategory("Moto2"));
+    Equal(Championship.Moto3, MotoGpTiming.ChampionshipForCategory("Moto3"));
+    Equal(Championship.Unknown, MotoGpTiming.ChampionshipForCategory("BWC"));
+    Equal("KTM", MotoGpTiming.ManufacturerFor(null, "Red Bull KTM Ajo"));
+    Equal("Ducati", MotoGpTiming.ManufacturerFor(null, "BK8 Gresini Racing MotoGP"));
+    Equal("Ducati", MotoGpTiming.ManufacturerFor("Desmosedici GP", "Pertamina Enduro VR46 Racing Team"));
+    Equal("Aprilia", MotoGpTiming.ManufacturerFor("RS-GP", "SuperFile Trackhouse MotoGP Team"));
+    Equal("Honda", MotoGpTiming.ManufacturerFor("Honda", "Red Bull KTM Ajo"));
+    var tiedPayload = (JsonObject)payload.DeepClone();
+    tiedPayload["rider"]!["2"]!["lap_time"] = "2'10.057";
+    var tied = MotoGpTiming.BuildSnapshot(tiedPayload, now, ConnectionState.Connected)!;
+    Equal(1, tied.Competitors.Count(standing => standing.IsOverallFastest));
+    True(tied.Competitors[0].IsOverallFastest);
+    Equal("https://api.pulselive.motogp.com/motogp/v1/timing-gateway/livetiming-lite", MotoGpLiveTimingSource.Endpoint);
+}
+
+static void MotoGpSourceLifecycle()
+{
+    const string body = """
+        {
+          "head": {
+            "category": "Moto3", "circuit_name": "Silverstone Circuit", "event_tv_name": "British Grand Prix",
+            "num_laps": 18, "session_name": "Race", "session_shortname": "RAC", "remaining": "120", "session_status_id": "S"
+          },
+          "rider": {
+            "1": {
+              "order": 1, "rider_id": 10424, "status_name": "CL", "rider_number": "22", "rider_shortname": "Almansa", "pos": 1,
+              "rider_name": "David", "rider_surname": "ALMANSA", "lap_time": "2'10.057", "num_lap": 3,
+              "team_name": "Liqui Moly Dynavolt Intact GP", "bike_name": "KTM", "gap_first": "0.000", "gap_prev": "0.000", "on_pit": false
+            }
+          }
+        }
+        """;
+    var clock = new FakeClock(new DateTimeOffset(2026, 8, 7, 14, 0, 0, TimeSpan.Zero));
+    var alerts = new AlertArbiter(clock);
+    var delay = new BlockingDelay();
+    using var http = new HttpClient(new StaticJsonHandler(body));
+    var source = new MotoGpLiveTimingSource(http, clock, delay, alerts, TimeSpan.FromHours(1), targetChampionship: Championship.Moto3);
+    List<TimingSnapshot> snapshots = [];
+    List<ConnectionState> connections = [];
+    var deltas = 0;
+    source.SnapshotReceived += snapshots.Add;
+    source.ConnectionChanged += connections.Add;
+    source.DeltaReceived += _ => deltas++;
+
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    Equal(SessionLifecycle.Live, snapshots.Last().Lifecycle);
+    Equal(Championship.Moto3, snapshots.Last().Championship);
+    Equal(AlertKind.SessionStart, alerts.Current?.Kind);
+    Equal(1, deltas);
+
+    var ended = JsonNode.Parse(body)!.AsObject();
+    ended["head"]!["session_status_id"] = "F";
+    source.ProcessPayload(ended);
+    Equal(SessionLifecycle.Ended, snapshots.Last().Lifecycle);
+    Equal(AlertKind.Chequered, alerts.Current?.Kind);
+    Equal(2, deltas);
+
+    var otherCategory = JsonNode.Parse(body)!.AsObject();
+    otherCategory["head"]!["category"] = "Moto2";
+    source.ProcessPayload(otherCategory);
+    Equal(SessionLifecycle.OffSession, snapshots.Last().Lifecycle);
+    Equal(2, deltas);
+
+    var unsupportedCategory = JsonNode.Parse(body)!.AsObject();
+    unsupportedCategory["head"]!["category"] = "BWC";
+    source.ProcessPayload(unsupportedCategory);
+    Equal(SessionLifecycle.OffSession, snapshots.Last().Lifecycle);
+    Equal(2, deltas);
+
+    source.StopAsync().GetAwaiter().GetResult();
+    Equal(ConnectionState.Connecting, connections[0]);
+    Equal(ConnectionState.Connected, connections[1]);
+    Equal(ConnectionState.Disconnected, connections[^1]);
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
 static void F3RosterTeams() => FiaRosterTeams("F3", "Formula 3 2026", Championship.Formula3,
     ("1", "NAE", "Campos Racing"), ("14", "YAM", "Van Amersfoort Racing"), ("29", "LAC", "DAMS Lucas Oil"));
 
@@ -733,6 +922,9 @@ static void FiaRosterTeams(string series, string season, Championship championsh
 
 static void ChampionshipLabels()
 {
+    Equal(4, (int)Championship.WorldRallyChampionship);
+    Equal(5, (int)Championship.GtWorldChallengeEurope);
+    Equal(6, (int)Championship.Imsa);
     var now = DateTimeOffset.UtcNow;
     var f1 = new TimingSnapshot("Belgian Grand Prix", "Race", "Spa-Francorchamps", 1, 44,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Formula1);
@@ -742,6 +934,8 @@ static void ChampionshipLabels()
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.GtWorldChallengeEurope);
     var imsa = new TimingSnapshot("Motul SportsCar Endurance Grand Prix", "Race", "Road America", 33, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Imsa);
+    var moto3 = new TimingSnapshot("Qatar Airways Grand Prix of Great Britain", "Moto3 Practice", "Silverstone Circuit", 3, null,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Moto3);
     Equal("F1 Spa", ChampionshipDisplay.CompactEvent(f1));
     Equal("Formula 1 · Belgian Grand Prix", ChampionshipDisplay.FullEvent(f1));
     Equal("WRC Secto Rally Finland", ChampionshipDisplay.CompactEvent(wrc));
@@ -750,6 +944,13 @@ static void ChampionshipLabels()
     Equal("GT World Challenge Europe · Magny-Cours", ChampionshipDisplay.FullEvent(gtwc));
     Equal("IMSA Road America", ChampionshipDisplay.CompactEvent(imsa));
     Equal("IMSA WeatherTech SportsCar Championship · Motul SportsCar Endurance Grand Prix", ChampionshipDisplay.FullEvent(imsa));
+    Equal("Moto3 Silverstone", ChampionshipDisplay.CompactEvent(moto3));
+    Equal("Moto3 · Qatar Airways Grand Prix of Great Britain", ChampionshipDisplay.FullEvent(moto3));
+    Equal("MotoGP Silverstone", ChampionshipDisplay.CompactEvent(moto3 with
+    {
+        Championship = Championship.MotoGp,
+        Circuit = "MotoGP Silverstone Circuit"
+    }));
 }
 
 static void UserSettingsPersistence()
@@ -808,6 +1009,22 @@ static void UserSettingsPersistence()
         }.Normalize();
         False(imsaOnly.EnableFormula1);
         True(imsaOnly.EnableImsa);
+        var moto3Only = new UserSettings
+        {
+            EnableFormula1 = false,
+            EnableFormula2 = false,
+            EnableFormula3 = false,
+            EnableMoto3 = true,
+            EnableGtWorldChallengeEurope = false,
+            EnableWrc = false,
+            EnableImsa = false
+        }.Normalize();
+        False(moto3Only.EnableFormula1);
+        True(moto3Only.EnableMoto3);
+        store.Save(moto3Only);
+        var persistedMoto3 = store.Load();
+        False(persistedMoto3.EnableFormula1);
+        True(persistedMoto3.EnableMoto3);
     }
     finally
     {
@@ -1549,6 +1766,12 @@ sealed class StepDelay(int autoRelease) : IAsyncDelay
         }
         lock (_gate) return _calls >= count;
     }
+}
+
+sealed class StaticJsonHandler(string body) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) });
 }
 
 // Returns each path's queued bodies in order, repeating the last body once the queue is exhausted.

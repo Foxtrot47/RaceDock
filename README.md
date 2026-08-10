@@ -14,7 +14,7 @@ Follow the leaders from the taskbar, open the full classification when you need 
 - Shows up to five leading drivers directly in the Windows taskbar.
 - Opens a full-field classification without taking focus from your current app.
 - Displays event, session, lap, stage, gap, tyre, class, pit, status, and flag information when the live feed provides it.
-- Supports Formula 1, Formula 2, Formula 3, GT World Challenge Europe, the IMSA WeatherTech SportsCar Championship, and the World Rally Championship.
+- Supports Formula 1, Formula 2, Formula 3, MotoGP, Moto2, Moto3, GT World Challenge Europe, the IMSA WeatherTech SportsCar Championship, and the World Rally Championship.
 - Connects to several enabled championships at once and rotates between active sessions.
 - Uses position cards or team and manufacturer logos.
 - Includes deterministic scenarios and archive replay, so contributors can check the interface without waiting for a live event.
@@ -54,6 +54,7 @@ Archive replay is temporary and does not change the selected live streams. Choos
 
 - **Formula 1:** the official Formula 1 SignalR Core live-timing stream.
 - **Formula 2 and Formula 3:** the official FIA timing hubs for practice, qualifying, and races.
+- **MotoGP, Moto2, and Moto3:** separate opt-in streams from the official MotoGP live-timing gateway.
 - **GT World Challenge Europe:** the public Swiss Timing SRO cache for practice, qualifying, and races.
 - **IMSA WeatherTech SportsCar Championship:** the Al Kamel live-timing stream for practice, qualifying, and races.
 - **World Rally Championship:** the public WRC Promoter API for entries, stages, and live stage times.

@@ -5,7 +5,19 @@ namespace RaceDock.Core;
 
 public enum ConnectionState { Disconnected, Connecting, Connected, Stale, Faulted }
 public enum SessionLifecycle { OffSession, PreSession, Live, Ended }
-public enum Championship { Unknown, Formula1, Formula2, Formula3, WorldRallyChampionship, GtWorldChallengeEurope, Imsa }
+public enum Championship
+{
+    Unknown = 0,
+    Formula1 = 1,
+    Formula2 = 2,
+    Formula3 = 3,
+    WorldRallyChampionship = 4,
+    GtWorldChallengeEurope = 5,
+    Imsa = 6,
+    MotoGp = 7,
+    Moto2 = 8,
+    Moto3 = 9
+}
 public enum TrackCondition { Unknown, AllClear, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, RedFlag }
 public enum AlertKind { Information, SessionStart, FastestLap, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, Chequered, RedFlag }
 
@@ -23,6 +35,8 @@ public sealed record TimingSnapshot(
     ConnectionState ConnectionState = ConnectionState.Connected, string? TimeRemaining = null,
     Championship Championship = Championship.Unknown)
 {
+    public string? SessionShortName { get; init; }
+
     public static TimingSnapshot Hidden(DateTimeOffset now) =>
         new("", "", "", 0, null, TrackCondition.Unknown, [], now, SessionLifecycle.OffSession, ConnectionState.Disconnected);
 }

@@ -118,7 +118,7 @@ public sealed class TaskbarWindow : Window
     private static string FormatSessionProgress(TimingSnapshot snapshot)
     {
         if (IsRallySnapshot(snapshot)) return snapshot.Session;
-        var session = ShortSessionName(snapshot.Session);
+        var session = SessionLabel(snapshot);
         if (!string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
         {
             var time = CompactTime(snapshot.TimeRemaining);
@@ -132,6 +132,34 @@ public sealed class TaskbarWindow : Window
         return snapshot.CurrentLap > 0
             ? $"{session} {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}"
             : session;
+    }
+
+    private static string SessionLabel(TimingSnapshot snapshot)
+    {
+        if ((snapshot.Championship is Championship.MotoGp or Championship.Moto2 or Championship.Moto3) &&
+            !string.IsNullOrWhiteSpace(snapshot.SessionShortName))
+            return ShortMotoSessionName(snapshot.SessionShortName!, snapshot.Session);
+        return ShortSessionName(snapshot.Session);
+    }
+
+    private static string ShortMotoSessionName(string shortName, string fullSession) => shortName.Trim().ToUpperInvariant() switch
+    {
+        "PR" or "P" or "PRACTICE" => "P",
+        "FP1" or "FP2" or "FP3" => shortName.Trim().ToUpperInvariant(),
+        "Q" or "QUALIFYING" => "Q",
+        "Q1" => "Q1",
+        "Q2" => "Q2",
+        "RAC" or "RACE" => "RAC",
+        "SPR" or "SPRINT" => "SPR",
+        "WUP" or "WARMUP" => "WUP",
+        _ => ShortSessionName(StripMotoCategory(fullSession))
+    };
+
+    private static string StripMotoCategory(string session)
+    {
+        foreach (var prefix in new[] { "MotoGP ", "Moto2 ", "Moto3 " })
+            if (session.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return session[prefix.Length..];
+        return session;
     }
 
     private static string ShortSessionName(string session) => session switch
@@ -218,7 +246,7 @@ public sealed class TaskbarWindow : Window
         layout.ColumnDefinitions.Add(new() { Width = new GridLength(30) });
         layout.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
         Border marker;
-        if (!_settings.UseManufacturerLogos || !ManufacturerLogo.TryCreate(standing.Manufacturer ?? standing.Team, 26, out marker))
+        if (!_settings.UseManufacturerLogos || !ManufacturerLogo.TryCreateForStanding(standing, 26, out marker))
             marker = CreatePositionCard(standing.Position, standing.Position.ToString());
         marker.Margin = new Thickness(1);
         layout.Children.Add(marker);

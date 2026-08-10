@@ -10,6 +10,7 @@ public static class ChampionshipDisplay
         var eventName = snapshot.Championship == Championship.WorldRallyChampionship
             ? RemovePrefix(snapshot.Meeting, "Rally ")
             : CompactCircuit(snapshot.Circuit, snapshot.Meeting);
+        eventName = RemovePrefix(eventName, $"{championship} ");
         return Join(championship, eventName, " ");
     }
 
@@ -21,6 +22,9 @@ public static class ChampionshipDisplay
         Championship.Formula1 => "F1",
         Championship.Formula2 => "F2",
         Championship.Formula3 => "F3",
+        Championship.MotoGp => "MotoGP",
+        Championship.Moto2 => "Moto2",
+        Championship.Moto3 => "Moto3",
         Championship.WorldRallyChampionship => "WRC",
         Championship.GtWorldChallengeEurope => "GTWC",
         Championship.Imsa => "IMSA",
@@ -32,6 +36,9 @@ public static class ChampionshipDisplay
         Championship.Formula1 => "Formula 1",
         Championship.Formula2 => "Formula 2",
         Championship.Formula3 => "Formula 3",
+        Championship.MotoGp => "MotoGP",
+        Championship.Moto2 => "Moto2",
+        Championship.Moto3 => "Moto3",
         Championship.WorldRallyChampionship => "World Rally Championship",
         Championship.GtWorldChallengeEurope => "GT World Challenge Europe",
         Championship.Imsa => "IMSA WeatherTech SportsCar Championship",
@@ -42,6 +49,7 @@ public static class ChampionshipDisplay
     {
         var value = string.IsNullOrWhiteSpace(circuit) ? meeting : circuit;
         value = RemovePrefix(value, "Circuit de ");
+        if (value.EndsWith(" Circuit", StringComparison.OrdinalIgnoreCase)) value = value[..^8];
         var hyphen = value.IndexOf('-');
         return hyphen > 0 ? value[..hyphen] : value;
     }

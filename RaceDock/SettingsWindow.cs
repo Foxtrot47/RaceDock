@@ -24,6 +24,9 @@ public sealed class SettingsWindow : Window
     private readonly CheckBox _formula1 = Toggle("Formula 1", "Official Formula 1 live timing");
     private readonly CheckBox _formula2 = Toggle("Formula 2", "Official FIA Formula 2 live timing");
     private readonly CheckBox _formula3 = Toggle("Formula 3", "Official FIA Formula 3 live timing");
+    private readonly CheckBox _motoGp = Toggle("MotoGP", "Official MotoGP class live timing");
+    private readonly CheckBox _moto2 = Toggle("Moto2", "Official Moto2 class live timing");
+    private readonly CheckBox _moto3 = Toggle("Moto3", "Official Moto3 class live timing");
     private readonly CheckBox _gtwc = Toggle("GT World Challenge Europe", "Live Sprint Cup and Endurance Cup timing");
     private readonly CheckBox _wrc = Toggle("World Rally Championship", "Live WRC stage timing");
     private readonly CheckBox _imsa = Toggle("IMSA WeatherTech SportsCar Championship", "Live IMSA timing for practice, qualifying, and races");
@@ -115,6 +118,9 @@ public sealed class SettingsWindow : Window
         _formula1.IsChecked = settings.EnableFormula1;
         _formula2.IsChecked = settings.EnableFormula2;
         _formula3.IsChecked = settings.EnableFormula3;
+        _motoGp.IsChecked = settings.EnableMotoGp;
+        _moto2.IsChecked = settings.EnableMoto2;
+        _moto3.IsChecked = settings.EnableMoto3;
         _gtwc.IsChecked = settings.EnableGtWorldChallengeEurope;
         _wrc.IsChecked = settings.EnableWrc;
         _imsa.IsChecked = settings.EnableImsa;
@@ -147,6 +153,9 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(_formula1);
         panel.Children.Add(_formula2);
         panel.Children.Add(_formula3);
+        panel.Children.Add(_motoGp);
+        panel.Children.Add(_moto2);
+        panel.Children.Add(_moto3);
         panel.Children.Add(_gtwc);
         panel.Children.Add(_wrc);
         panel.Children.Add(_imsa);
@@ -510,7 +519,7 @@ public sealed class SettingsWindow : Window
 
     private async Task SaveAsync()
     {
-        if (_formula1.IsChecked != true && _formula2.IsChecked != true && _formula3.IsChecked != true && _gtwc.IsChecked != true && _wrc.IsChecked != true && _imsa.IsChecked != true)
+        if (_formula1.IsChecked != true && _formula2.IsChecked != true && _formula3.IsChecked != true && _motoGp.IsChecked != true && _moto2.IsChecked != true && _moto3.IsChecked != true && _gtwc.IsChecked != true && _wrc.IsChecked != true && _imsa.IsChecked != true)
         {
             _message.Text = "Select at least one live stream.";
             return;
@@ -521,6 +530,9 @@ public sealed class SettingsWindow : Window
             EnableFormula1 = _formula1.IsChecked == true,
             EnableFormula2 = _formula2.IsChecked == true,
             EnableFormula3 = _formula3.IsChecked == true,
+            EnableMotoGp = _motoGp.IsChecked == true,
+            EnableMoto2 = _moto2.IsChecked == true,
+            EnableMoto3 = _moto3.IsChecked == true,
             EnableGtWorldChallengeEurope = _gtwc.IsChecked == true,
             EnableWrc = _wrc.IsChecked == true,
             EnableImsa = _imsa.IsChecked == true,

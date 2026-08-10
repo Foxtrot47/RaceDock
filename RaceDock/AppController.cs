@@ -101,6 +101,9 @@ public sealed class AppController : IAsyncDisposable
         if (_settings.EnableFormula1) factories.Add(() => new F1LiveTimingSource(_processor, _clock, logs) { DiagnosticRecordingEnabled = _diagnosticRecording });
         if (_settings.EnableFormula2) factories.Add(() => new F2LiveTimingSource(_clock, _alerts));
         if (_settings.EnableFormula3) factories.Add(() => new F2LiveTimingSource(_clock, _alerts, "F3"));
+        if (_settings.EnableMotoGp) factories.Add(() => new MotoGpLiveTimingSource(_clock, _alerts, Championship.MotoGp));
+        if (_settings.EnableMoto2) factories.Add(() => new MotoGpLiveTimingSource(_clock, _alerts, Championship.Moto2));
+        if (_settings.EnableMoto3) factories.Add(() => new MotoGpLiveTimingSource(_clock, _alerts, Championship.Moto3));
         if (_settings.EnableGtWorldChallengeEurope) factories.Add(() => new GtwcLiveTimingSource(_clock, _alerts));
         if (_settings.EnableWrc) factories.Add(() => new WrcLiveTimingSource(_clock, _alerts));
         if (_settings.EnableImsa) factories.Add(() => new ImsaLiveTimingSource(_clock, _alerts));
@@ -150,6 +153,9 @@ public sealed class AppController : IAsyncDisposable
             _settings.EnableFormula1 ? "F1" : null,
             _settings.EnableFormula2 ? "F2" : null,
             _settings.EnableFormula3 ? "F3" : null,
+            _settings.EnableMotoGp ? "MotoGP" : null,
+            _settings.EnableMoto2 ? "Moto2" : null,
+            _settings.EnableMoto3 ? "Moto3" : null,
             _settings.EnableGtWorldChallengeEurope ? "GTWC" : null,
             _settings.EnableWrc ? "WRC" : null,
             _settings.EnableImsa ? "IMSA" : null
@@ -224,6 +230,9 @@ public sealed class AppController : IAsyncDisposable
         var restartFeeds = settings.EnableFormula1 != _settings.EnableFormula1 ||
             settings.EnableFormula2 != _settings.EnableFormula2 ||
             settings.EnableFormula3 != _settings.EnableFormula3 ||
+            settings.EnableMotoGp != _settings.EnableMotoGp ||
+            settings.EnableMoto2 != _settings.EnableMoto2 ||
+            settings.EnableMoto3 != _settings.EnableMoto3 ||
             settings.EnableGtWorldChallengeEurope != _settings.EnableGtWorldChallengeEurope ||
             settings.EnableWrc != _settings.EnableWrc ||
             settings.EnableImsa != _settings.EnableImsa ||

@@ -643,7 +643,7 @@ internal static class TimingArchiveLoader
                 status,
                 null,
                 CellText(row, columns, "Class", "Category"),
-                Manufacturer(CellText(row, columns, "Car", "Vehicle"))), best));
+                Manufacturer(CellText(row, columns, "Car", "Vehicle", "Bike"))), best));
         }
         var fastest = parsed.Where(value => value.Best > 0).OrderBy(value => value.Best).FirstOrDefault().Standing?.DriverId;
         var competitors = parsed.Select(value => value.Standing with { IsOverallFastest = value.Standing.DriverId == fastest }).ToList();
@@ -739,18 +739,27 @@ internal static class TimingArchiveLoader
         return code.Length > 0 ? code : fallback.ToUpperInvariant();
     }
 
-    private static string? Manufacturer(string? car)
+    private static string? Manufacturer(string? vehicle)
     {
-        if (string.IsNullOrWhiteSpace(car)) return null;
-        var upper = car.ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(vehicle)) return null;
+        var upper = vehicle.ToUpperInvariant();
         foreach (var brand in new[] { "ACURA", "ASTON MARTIN", "AUDI", "BMW", "CADILLAC", "CHEVROLET", "FERRARI", "FORD", "LAMBORGHINI", "LEXUS", "MCLAREN", "MERCEDES", "PORSCHE" })
             if (upper.Contains(brand, StringComparison.Ordinal)) return brand;
+        foreach (var (brand, displayName) in new[]
+        {
+            ("APRILIA", "Aprilia"), ("BOSCOSCURO", "Boscoscuro"), ("DUCATI", "Ducati"),
+            ("HONDA", "Honda"), ("KALEX", "Kalex"), ("KTM", "KTM"), ("YAMAHA", "Yamaha")
+        })
+            if (upper.Contains(brand, StringComparison.Ordinal)) return displayName;
         return null;
     }
 
     private static Championship ChampionshipFor(string? name)
     {
         var value = name?.ToUpperInvariant() ?? "";
+        if (value.Contains("MOTOGP") || value.Contains("MOTO GP")) return Championship.MotoGp;
+        if (value.Contains("MOTO2") || value.Contains("MOTO 2")) return Championship.Moto2;
+        if (value.Contains("MOTO3") || value.Contains("MOTO 3")) return Championship.Moto3;
         if (value.Contains("IMSA")) return Championship.Imsa;
         if (value.Contains("FORMULA 1") || value.Contains("FORMULA ONE")) return Championship.Formula1;
         if (value.Contains("FORMULA 2")) return Championship.Formula2;

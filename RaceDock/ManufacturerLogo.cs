@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Xml.Linq;
+using RaceDock.Core;
 using Image = System.Windows.Controls.Image;
 
 namespace RaceDock.App;
@@ -18,6 +19,12 @@ internal static class ManufacturerLogo
     private static readonly Regex SvgTransformPattern = new(@"([A-Za-z]+)\s*\(([^)]*)\)", RegexOptions.Compiled);
     private static readonly Regex SvgNumberPattern = new(@"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?", RegexOptions.Compiled);
     private static readonly Lazy<IReadOnlyDictionary<string, LogoDefinition>> Catalog = new(LoadCatalog);
+
+    public static bool TryCreateForStanding(CompetitorStanding standing, double size, out Border logo)
+    {
+        if (TryCreate(standing.Manufacturer, size, out logo)) return true;
+        return TryCreate(standing.Team, size, out logo);
+    }
 
     public static bool TryCreate(string? manufacturer, double size, out Border logo)
     {
