@@ -16,6 +16,8 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
     private const int WmMouseActivate = 0x0021, MaNoActivate = 3;
     private readonly int _taskbarCreated = RegisterWindowMessage("TaskbarCreated");
     private IntPtr _hwnd;
+    private DateTime _lastAutomationScanUtc = DateTime.MinValue;
+    private IReadOnlyList<PixelRect> _automationRectangles = [];
     public event Action? ExplorerRestarted;
     public event Action<bool>? PositionChanged;
 
@@ -71,32 +73,49 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
             return true;
         }, IntPtr.Zero);
 
-        try
+        if (DateTime.UtcNow - _lastAutomationScanUtc >= TimeSpan.FromSeconds(30))
         {
-            var root = AutomationElement.FromHandle(taskbar);
-            var controls = root.FindAll(TreeScope.Descendants, new OrCondition(
-                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
-                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem),
-                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Thumb),
-                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Hyperlink)));
-            foreach (AutomationElement control in controls)
+            _lastAutomationScanUtc = DateTime.UtcNow;
+            try
             {
-                if (control.Current.IsOffscreen) continue;
-                var r = control.Current.BoundingRectangle;
-                Add((int)Math.Floor(r.Left), (int)Math.Floor(r.Top), (int)Math.Ceiling(r.Right), (int)Math.Ceiling(r.Bottom));
+                var automationRectangles = new List<PixelRect>();
+                var root = AutomationElement.FromHandle(taskbar);
+                var controls = root.FindAll(TreeScope.Descendants, new OrCondition(
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem),
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Thumb),
+                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Hyperlink)));
+                foreach (AutomationElement control in controls)
+                {
+                    if (control.Current.IsOffscreen) continue;
+                    var r = control.Current.BoundingRectangle;
+                    var clipped = Clip((int)Math.Floor(r.Left), (int)Math.Floor(r.Top),
+                        (int)Math.Ceiling(r.Right), (int)Math.Ceiling(r.Bottom));
+                    if (clipped is { } rectangle) automationRectangles.Add(rectangle);
+                }
+                _automationRectangles = automationRectangles;
             }
+            catch (ElementNotAvailableException) { }
+            catch (InvalidOperationException) { }
+            catch (COMException) { }
         }
-        catch (ElementNotAvailableException) { }
-        catch (InvalidOperationException) { }
 
+        foreach (var rectangle in _automationRectangles)
+            Add(rectangle.Left, rectangle.Top, rectangle.Right, rectangle.Bottom);
         return result;
 
         void Add(int left, int top, int right, int bottom)
         {
+            var clipped = Clip(left, top, right, bottom);
+            if (clipped is not { } rectangle) return;
+            if (result.Any(x => Math.Abs(x.Left - rectangle.Left) <= 2 && Math.Abs(x.Right - rectangle.Right) <= 2)) return;
+            result.Add(rectangle);
+        }
+
+        PixelRect? Clip(int left, int top, int right, int bottom)
+        {
             var clipped = new PixelRect(Math.Max(bounds.Left, left), Math.Max(bounds.Top, top), Math.Min(bounds.Right, right), Math.Min(bounds.Bottom, bottom));
-            if (clipped.Width <= 0 || clipped.Height < bounds.Height / 3 || clipped.Width > bounds.Width / 2) return;
-            if (result.Any(x => Math.Abs(x.Left - clipped.Left) <= 2 && Math.Abs(x.Right - clipped.Right) <= 2)) return;
-            result.Add(clipped);
+            return clipped.Width <= 0 || clipped.Height < bounds.Height / 3 || clipped.Width > bounds.Width / 2 ? null : clipped;
         }
     }
 
