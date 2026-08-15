@@ -130,6 +130,7 @@ public sealed class ClassificationFlyout : Window
         _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : ChampionshipDisplay.FullEvent(snapshot);
         var rally = IsRallySnapshot(snapshot);
         var endurance = IsEnduranceSnapshot(snapshot);
+        var formulaE = snapshot.Championship == Championship.FormulaE;
         if (rally)
         {
             _tyreHeader.Text = "TIME";
@@ -139,6 +140,11 @@ public sealed class ClassificationFlyout : Window
         {
             _tyreHeader.Text = "BEST";
             _categoryHeader.Text = "CLASS";
+        }
+        else if (formulaE)
+        {
+            _tyreHeader.Text = "BEST";
+            _categoryHeader.Text = "LAP";
         }
         else
         {
@@ -157,7 +163,7 @@ public sealed class ClassificationFlyout : Window
 
         _rows.Children.Clear();
         foreach (var standing in snapshot.Competitors.OrderBy(standing => standing.Position))
-            _rows.Children.Add(CreateStandingRow(standing, rally, endurance));
+            _rows.Children.Add(CreateStandingRow(standing, rally, endurance, formulaE));
     }
 
     public void ScheduleClose()
@@ -237,7 +243,7 @@ public sealed class ClassificationFlyout : Window
         return header;
     }
 
-    private UIElement CreateStandingRow(CompetitorStanding standing, bool rally, bool endurance)
+    private UIElement CreateStandingRow(CompetitorStanding standing, bool rally, bool endurance, bool formulaE)
     {
         var grid = CreateColumns();
         grid.MinHeight = 38;
@@ -333,7 +339,7 @@ public sealed class ClassificationFlyout : Window
             standing.Position == 1 ? FontWeights.SemiBold : FontWeights.Normal);
         AddValue(grid, standing.Position == 1 ? "—" : standing.IntervalToPositionAhead ?? "—", 3);
 
-        if (rally || endurance) AddValue(grid, standing.ResultTime ?? "—", 4);
+        if (rally || endurance || formulaE) AddValue(grid, standing.ResultTime ?? "—", 4);
         else
         {
             var tyre = CreateTyreBadge(standing.Tyre);

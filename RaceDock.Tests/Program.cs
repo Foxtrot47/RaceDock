@@ -44,6 +44,10 @@ var tests = new (string Name, Action Run)[]
     ("IMSA standings map endurance timing", ImsaStandings),
     ("IMSA flags statuses and clocks map provider values", ImsaFlagsAndClock),
     ("IMSA source subscribes and publishes an active classification", ImsaSourceLifecycle),
+    ("Formula E practice maps Al Kamel timing", FormulaEStandings),
+    ("Formula E duels publish only the active pairing", FormulaEDuelPairing),
+    ("Formula E future races remain pre-session", FormulaEFutureRace),
+    ("Formula E source subscribes and publishes an active classification", FormulaESourceLifecycle),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
     ("MotoGP lite payload maps Moto3 timing", MotoGpLitePayload),
     ("MotoGP source filters categories and publishes lifecycle", MotoGpSourceLifecycle),
@@ -1174,25 +1178,28 @@ static void ImsaSockJsProtocol()
         ["version"] = "1",
         ["support"] = new JsonArray("1")
     };
-    var encoded = ImsaDdpClient.EncodeMessage(connect);
+    var encoded = AlkamelDdpClient.EncodeMessage(connect);
     var outer = JsonNode.Parse(encoded)!.AsArray();
     Equal(1, outer.Count);
     Equal("connect", JsonSupport.String(JsonNode.Parse(outer[0]!.GetValue<string>())!["msg"]));
 
     var frame = "a" + new JsonArray(connect.ToJsonString()).ToJsonString();
-    var decoded = ImsaDdpClient.DecodeFrame(frame, out var opened, out var heartbeat);
+    var decoded = AlkamelDdpClient.DecodeFrame(frame, out var opened, out var heartbeat);
     False(opened);
     False(heartbeat);
     Equal("connect", JsonSupport.String(decoded.Single()["msg"]));
-    Equal(0, ImsaDdpClient.DecodeFrame("h", out opened, out heartbeat).Count);
+    Equal(0, AlkamelDdpClient.DecodeFrame("h", out opened, out heartbeat).Count);
     True(heartbeat);
-    Equal(0, ImsaDdpClient.DecodeFrame("o", out opened, out heartbeat).Count);
+    Equal(0, AlkamelDdpClient.DecodeFrame("o", out opened, out heartbeat).Count);
     True(opened);
 
-    var endpoint = ImsaDdpClient.CreateEndpoint();
+    var endpoint = AlkamelDdpClient.CreateEndpoint(AlkamelFeedDefinition.Imsa.SocketBase);
     Equal("livetiming.alkamelsystems.com", endpoint.Host);
     True(endpoint.AbsolutePath.StartsWith("/sockjs/", StringComparison.Ordinal));
     True(endpoint.AbsolutePath.EndsWith("/websocket", StringComparison.Ordinal));
+    var formulaEEndpoint = AlkamelDdpClient.CreateEndpoint(AlkamelFeedDefinition.FormulaE.SocketBase);
+    Equal("livetiming-formula-e.alkamelsystems.com", formulaEEndpoint.Host);
+    True(formulaEEndpoint.AbsolutePath.EndsWith("/websocket", StringComparison.Ordinal));
 }
 
 static void ImsaStandings()
@@ -1308,11 +1315,11 @@ static void ImsaSourceLifecycle()
         new() { ["msg"] = "nosub", ["id"] = "8" },
         DdpChanged("feeds", "feed", new JsonObject { ["running"] = true })
     };
-    var client = new FakeImsaDdpClient(messages);
+    var client = new FakeAlkamelDdpClient(messages);
     var clock = new FakeClock(DateTimeOffset.FromUnixTimeSeconds(1100));
     var alerts = new AlertArbiter(clock);
     var source = new ImsaLiveTimingSource(() => client, clock, new BlockingDelay(), alerts,
-        new ImsaTimingOptions(TimeSpan.FromHours(1), [TimeSpan.FromHours(1)]));
+        new AlkamelTimingOptions(TimeSpan.FromHours(1), [TimeSpan.FromHours(1)]));
     TimingSnapshot? snapshot = null;
     List<FeedFailure> failures = [];
     source.Failed += failures.Add;
@@ -1334,6 +1341,141 @@ static void ImsaSourceLifecycle()
     True(client.Sent.Any(message => JsonSupport.String(message["name"]) == "livetimingFeed"));
     True(client.Sent.Any(message => JsonSupport.String(message["name"]) == "standings"));
     True(client.SubscriptionCount("sessions") >= 2);
+}
+
+static void FormulaEStandings()
+{
+    var session = JsonNode.Parse("""{"name":"Free Practice 2"}""")!.AsObject();
+    var info = JsonNode.Parse("""{"eventName":"Example E-Prix","champName":"Formula E","name":"FREE PRACTICE 2","type":"FREE_PRACTICE","closed":false}""")!.AsObject();
+    var entries = JsonNode.Parse("""
+        {"9":{"driver":"AAA","name":"A. DRIVER","firstname":"Alex","lastname":"DRIVER","team":"Example Jaguar Team","vehicle":"JAGUAR I-TYPE 7"},
+         "27":{"driver":"BBB","name":"B. RACER","firstname":"Blake","lastname":"RACER","team":"Example Porsche Team","vehicle":"PORSCHE 99X ELECTRIC"}}
+        """)!.AsObject();
+    var track = JsonNode.Parse("""{"name":"Example Circuit","shortName":"Example","numberOfLoops":9}""")!.AsObject();
+    var standings = JsonNode.Parse("""
+        {"displayDrivers":true,"hasClasses":false,"standings":{
+          "1":{"data":"1;9;CLASSIFIED;0;21;2;0;1415549;TRACK;22;","isRunning":true,"isCheckered":false,"bestLapTime":67696,"currentLoopSectors":"0;0;","previousLoopSectors":"0;0;"},
+          "2":{"data":"2;27;CLASSIFIED;0;20;2;0;1416000;BOX;21;","isRunning":true,"isCheckered":false,"bestLapTime":68196,"currentLoopSectors":"0;0;","previousLoopSectors":"0;0;"}}}
+        """)!.AsObject();
+    var status = JsonNode.Parse("""
+        {"currentFlag":"YF","currentLap":22,"finalType":"BY_TIME","finalTime":2400,"startTime":1000,
+         "stoppedSeconds":0,"isSessionRunning":true,"isFinished":false,"isClosed":false,"isTimeFinished":false}
+        """)!.AsObject();
+    var best = JsonNode.Parse("""{"bestLap":{"participantNumber":"9","time":67696}}""")!.AsObject();
+    var snapshot = FormulaETiming.BuildSnapshot(session, info, entries, track, standings, status, best,
+        DateTimeOffset.FromUnixTimeSeconds(1100), ConnectionState.Connected);
+
+    Equal(Championship.FormulaE, snapshot.Championship);
+    Equal(SessionLifecycle.Live, snapshot.Lifecycle);
+    Equal("Example E-Prix", snapshot.Meeting);
+    Equal("Free Practice 2", snapshot.Session);
+    Equal("Example Circuit", snapshot.Circuit);
+    Equal(22, snapshot.CurrentLap);
+    Equal("00:38:20", snapshot.TimeRemaining);
+    Equal(TrackCondition.Yellow, snapshot.TrackCondition);
+    Equal(2, snapshot.Competitors.Count);
+    Equal("AAA", snapshot.Competitors[0].Code);
+    Equal("Example Jaguar Team", snapshot.Competitors[0].Team);
+    Equal("Jaguar", snapshot.Competitors[0].Manufacturer);
+    Equal("LEAD", snapshot.Competitors[0].GapToLeader);
+    Equal("+0.500", snapshot.Competitors[1].GapToLeader);
+    Equal("Porsche", snapshot.Competitors[1].Manufacturer);
+    Equal("1:08.196", snapshot.Competitors[1].ResultTime);
+    True(snapshot.Competitors[1].InPit);
+    True(snapshot.Competitors[0].IsOverallFastest);
+}
+
+static void FormulaEDuelPairing()
+{
+    var session = JsonNode.Parse("""{"name":"Qualifying Duel Quarter-Final 1"}""")!.AsObject();
+    var info = JsonNode.Parse("""{"eventName":"Example E-Prix","name":"QUALIFYING DUEL QUARTER-FINAL 1","type":"RACE","closed":false}""")!.AsObject();
+    var entries = JsonNode.Parse("""
+        {"9":{"driver":"AAA","name":"A. DRIVER"},"27":{"driver":"BBB","name":"B. RACER"}}
+        """)!.AsObject();
+    var standings = JsonNode.Parse("""
+        {"standings":{
+          "1":{"data":"1;9;CLASSIFIED;0;1;0;0;1000;TRACK;1;","isRunning":true,"bestLapTime":68000},
+          "2":{"data":"2;27;CLASSIFIED;0;1;0;0;1500;TRACK;1;","isRunning":true,"bestLapTime":68500},
+          "3":{"data":"3;7;CLASSIFIED;0;1;0;0;1700;TRACK;1;","isRunning":true,"bestLapTime":68700},
+          "4":{"data":"4;8;CLASSIFIED;0;1;0;0;1800;TRACK;1;","isRunning":true,"bestLapTime":68800}}}
+        """)!.AsObject();
+    var status = JsonNode.Parse("""{"currentFlag":"GF","currentLap":1,"startTime":1000,"isSessionRunning":true}""")!.AsObject();
+    var snapshot = FormulaETiming.BuildSnapshot(session, info, entries, [], standings, status, null,
+        DateTimeOffset.FromUnixTimeSeconds(1100), ConnectionState.Connected);
+
+    Equal(2, snapshot.Competitors.Count);
+    Equal("AAA", snapshot.Competitors[0].Code);
+    Equal("BBB", snapshot.Competitors[1].Code);
+}
+
+static void FormulaEFutureRace()
+{
+    var now = new DateTimeOffset(2026, 8, 15, 11, 0, 0, TimeSpan.Zero);
+    var session = new JsonObject
+    {
+        ["name"] = "Race",
+        ["date"] = now.AddHours(3).ToUnixTimeMilliseconds()
+    };
+    var info = JsonNode.Parse("""{"eventName":"Example E-Prix","name":"RACE","type":"RACE","closed":false}""")!.AsObject();
+    var entries = JsonNode.Parse("""{"9":{"driver":"AAA","name":"A. DRIVER"}}""")!.AsObject();
+    var standings = JsonNode.Parse("""{"standings":{"1":{"data":"1;9;CLASSIFIED;0;0;0;0;1000;TRACK;1;","isRunning":true}}}""")!.AsObject();
+    var status = new JsonObject
+    {
+        ["currentFlag"] = "GF",
+        ["currentLap"] = 1,
+        ["startTime"] = now.ToUnixTimeSeconds(),
+        ["isSessionRunning"] = true
+    };
+
+    var future = FormulaETiming.BuildSnapshot(session, info, entries, [], standings, status, null, now, ConnectionState.Connected);
+    Equal(SessionLifecycle.PreSession, future.Lifecycle);
+    var imminentSession = (JsonObject)session.DeepClone();
+    imminentSession["date"] = now.AddMinutes(5).ToUnixTimeMilliseconds();
+    var imminent = FormulaETiming.BuildSnapshot(imminentSession, info, entries, [], standings, status, null,
+        now, ConnectionState.Connected);
+    Equal(SessionLifecycle.Live, imminent.Lifecycle);
+}
+
+static void FormulaESourceLifecycle()
+{
+    var sessionReference = ImsaSessionReference("fe-session");
+    var messages = new List<JsonObject>
+    {
+        new() { ["msg"] = "connected", ["session"] = "test" },
+        DdpAdded("feeds", "feed", new JsonObject { ["running"] = true, ["sessions"] = new JsonArray { sessionReference.DeepClone() } }),
+        DdpAdded("sessions", "fe-session", new JsonObject { ["name"] = "Free Practice 2", ["date"] = 1000000 }),
+        DdpAdded("session_info", "info", new JsonObject { ["session"] = sessionReference.DeepClone(), ["info"] = JsonNode.Parse("{\"eventName\":\"Example Circuit E-Prix\",\"name\":\"FREE PRACTICE 2\",\"type\":\"FREE_PRACTICE\",\"closed\":false}") }),
+        DdpAdded("session_entry", "entry", new JsonObject { ["session"] = sessionReference.DeepClone(), ["entry"] = JsonNode.Parse("{\"9\":{\"driver\":\"AAA\",\"name\":\"A. DRIVER\",\"team\":\"Example Jaguar Team\",\"vehicle\":\"JAGUAR I-TYPE 7\"}}") }),
+        DdpAdded("track_info", "track", new JsonObject { ["session"] = sessionReference.DeepClone(), ["track"] = JsonNode.Parse("{\"name\":\"Example Circuit\"}") }),
+        DdpAdded("session_status", "status", new JsonObject { ["session"] = sessionReference.DeepClone(), ["status"] = JsonNode.Parse("{\"currentFlag\":\"GF\",\"currentLap\":22,\"finalType\":\"BY_TIME\",\"finalTime\":2400,\"startTime\":1000,\"isSessionRunning\":true,\"isFinished\":false}") }),
+        DdpAdded("best_results", "best", new JsonObject { ["session"] = sessionReference.DeepClone(), ["bestResults"] = JsonNode.Parse("{\"bestLap\":{\"participantNumber\":\"9\"}}") }),
+        DdpAdded("standings", "standings", new JsonObject { ["session"] = sessionReference.DeepClone(), ["standings"] = JsonNode.Parse("{\"standings\":{\"1\":{\"data\":\"1;9;CLASSIFIED;0;21;2;0;1415549;TRACK;22;\",\"isRunning\":true,\"bestLapTime\":67696,\"currentLoopSectors\":\"0;0;\",\"previousLoopSectors\":\"0;0;\"}}}") })
+    };
+    var client = new FakeAlkamelDdpClient(messages);
+    var clock = new FakeClock(DateTimeOffset.FromUnixTimeSeconds(1100));
+    var alerts = new AlertArbiter(clock);
+    var source = new FormulaELiveTimingSource(() => client, clock, new BlockingDelay(), alerts,
+        new AlkamelTimingOptions(TimeSpan.FromHours(1), [TimeSpan.FromHours(1)]));
+    TimingSnapshot? snapshot = null;
+    List<FeedFailure> failures = [];
+    source.Failed += failures.Add;
+    using var ready = new ManualResetEventSlim();
+    source.SnapshotReceived += value =>
+    {
+        if (value.Lifecycle != SessionLifecycle.Live) return;
+        snapshot = value;
+        ready.Set();
+    };
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(ready.Wait(TimeSpan.FromSeconds(2)));
+    Task.WhenAll(source.DisposeAsync().AsTask(), source.DisposeAsync().AsTask()).GetAwaiter().GetResult();
+    Equal(Championship.FormulaE, snapshot?.Championship);
+    Equal("AAA", snapshot?.Competitors.Single().Code);
+    Equal(AlertKind.SessionStart, alerts.Current?.Kind);
+    Equal(0, failures.Count);
+    var feedSubscription = client.Sent.First(message => JsonSupport.String(message["name"]) == "livetimingFeed");
+    Equal("fiaformulae", JsonSupport.String(feedSubscription["params"]?[0]));
+    True(client.Sent.Any(message => JsonSupport.String(message["name"]) == "standings"));
 }
 
 static JsonObject ImsaSessionReference(string value) => new() { ["$type"] = "oid", ["$value"] = value };
@@ -1808,7 +1950,7 @@ sealed class GtwcHttpHandler(Dictionary<string, string> routes) : HttpMessageHan
     }
 }
 
-sealed class FakeImsaDdpClient(IEnumerable<JsonObject> messages) : IImsaDdpClient
+sealed class FakeAlkamelDdpClient(IEnumerable<JsonObject> messages) : IAlkamelDdpClient
 {
     private readonly Lock _gate = new();
     private readonly Queue<JsonObject> _messages = new(messages.Select(message => (JsonObject)message.DeepClone()));

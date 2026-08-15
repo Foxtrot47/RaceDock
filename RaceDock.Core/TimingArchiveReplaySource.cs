@@ -743,7 +743,7 @@ internal static class TimingArchiveLoader
     {
         if (string.IsNullOrWhiteSpace(vehicle)) return null;
         var upper = vehicle.ToUpperInvariant();
-        foreach (var brand in new[] { "ACURA", "ASTON MARTIN", "AUDI", "BMW", "CADILLAC", "CHEVROLET", "FERRARI", "FORD", "LAMBORGHINI", "LEXUS", "MCLAREN", "MERCEDES", "PORSCHE" })
+        foreach (var brand in new[] { "ACURA", "ASTON MARTIN", "AUDI", "BMW", "CADILLAC", "CHEVROLET", "CITROEN", "CITROËN", "DS", "FERRARI", "FORD", "JAGUAR", "LAMBORGHINI", "LEXUS", "LOLA", "MAHINDRA", "MCLAREN", "MERCEDES", "NISSAN", "PORSCHE" })
             if (upper.Contains(brand, StringComparison.Ordinal)) return brand;
         foreach (var (brand, displayName) in new[]
         {
@@ -761,6 +761,7 @@ internal static class TimingArchiveLoader
         if (value.Contains("MOTO2") || value.Contains("MOTO 2")) return Championship.Moto2;
         if (value.Contains("MOTO3") || value.Contains("MOTO 3")) return Championship.Moto3;
         if (value.Contains("IMSA")) return Championship.Imsa;
+        if (value.Contains("FORMULA E")) return Championship.FormulaE;
         if (value.Contains("FORMULA 1") || value.Contains("FORMULA ONE")) return Championship.Formula1;
         if (value.Contains("FORMULA 2")) return Championship.Formula2;
         if (value.Contains("FORMULA 3")) return Championship.Formula3;

@@ -6,8 +6,25 @@ using System.Text.Json.Nodes;
 
 namespace RaceDock.Core;
 
-/// <summary>Streams the IMSA Al Kamel classification over SockJS and Meteor DDP.</summary>
-public sealed class ImsaLiveTimingSource : ILiveTimingSource
+internal sealed record AlkamelFeedDefinition(
+    string FeedName,
+    string SourceName,
+    string AlertKey,
+    string DeltaTopic,
+    Championship Championship,
+    Uri SocketBase)
+{
+    public static AlkamelFeedDefinition Imsa { get; } = new(
+        "imsa", "IMSA", "imsa", "ImsaStandings", Championship.Imsa,
+        new Uri("wss://livetiming.alkamelsystems.com/sockjs/"));
+
+    public static AlkamelFeedDefinition FormulaE { get; } = new(
+        "fiaformulae", "Formula E", "formulae", "FormulaEStandings", Championship.FormulaE,
+        new Uri("wss://livetiming-formula-e.alkamelsystems.com/sockjs/"));
+}
+
+/// <summary>Streams an Al Kamel classification over SockJS and Meteor DDP.</summary>
+internal sealed class AlkamelLiveTimingSource : ILiveTimingSource
 {
     private static readonly string[] DetailSubscriptions =
     [
@@ -18,11 +35,12 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
         "session_entry", "track_info", "standings", "session_status", "best_results"
     ];
 
-    private readonly Func<IImsaDdpClient> _clientFactory;
+    private readonly AlkamelFeedDefinition _definition;
+    private readonly Func<IAlkamelDdpClient> _clientFactory;
     private readonly IClock _clock;
     private readonly IAsyncDelay _delay;
     private readonly IAlertArbiter _alerts;
-    private readonly ImsaTimingOptions _options;
+    private readonly AlkamelTimingOptions _options;
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly Dictionary<string, Dictionary<string, JsonObject>> _collections = [];
     private readonly JsonObject _feedState = [];
@@ -32,7 +50,7 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
     private readonly HashSet<string> _pendingUnsubscribes = [];
     private CancellationTokenSource? _runCts;
     private Task? _worker;
-    private IImsaDdpClient? _client;
+    private IAlkamelDdpClient? _client;
     private ConnectionState _connection = ConnectionState.Disconnected;
     private string? _sessionIdsFingerprint;
     private string? _selectedSessionId;
@@ -45,16 +63,15 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
     private bool _sessionRunning;
     private bool _disposed;
 
-    public ImsaLiveTimingSource(IClock clock, IAlertArbiter alerts)
-        : this(() => new ImsaDdpClient(), clock, new SystemAsyncDelay(), alerts, ImsaTimingOptions.Default) { }
-
-    internal ImsaLiveTimingSource(
-        Func<IImsaDdpClient> clientFactory,
+    internal AlkamelLiveTimingSource(
+        AlkamelFeedDefinition definition,
+        Func<IAlkamelDdpClient> clientFactory,
         IClock clock,
         IAsyncDelay delay,
         IAlertArbiter alerts,
-        ImsaTimingOptions options)
+        AlkamelTimingOptions options)
     {
+        _definition = definition;
         _clientFactory = clientFactory;
         _clock = clock;
         _delay = delay;
@@ -105,16 +122,16 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
                     var timeout = _hasLiveSnapshot && _sessionRunning
                         ? _options.StaleTimeout - Stopwatch.GetElapsedTime(lastData)
                         : _options.StaleTimeout;
-                    if (timeout <= TimeSpan.Zero) throw new TimeoutException("IMSA live timing stopped sending data.");
+                    if (timeout <= TimeSpan.Zero) throw new TimeoutException($"{_definition.SourceName} live timing stopped sending data.");
                     using var receiveCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     receiveCts.CancelAfter(timeout);
                     JsonObject? message;
                     try { message = await _client.ReceiveAsync(receiveCts.Token); }
                     catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                     {
-                        throw new TimeoutException("IMSA live timing stopped sending data.");
+                        throw new TimeoutException($"{_definition.SourceName} live timing stopped sending data.");
                     }
-                    if (message is null) throw new WebSocketException("IMSA live-timing connection closed.");
+                    if (message is null) throw new WebSocketException($"{_definition.SourceName} live-timing connection closed.");
                     var type = JsonSupport.String(message["msg"]);
                     if (type is "added" or "changed" or "removed") lastData = Stopwatch.GetTimestamp();
                     await ProcessMessageAsync(message, cancellationToken);
@@ -134,7 +151,7 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
             {
                 PublishHidden(ConnectionState.Faulted);
                 SetConnection(ConnectionState.Faulted);
-                Failed?.Invoke(new($"IMSA feed failed: {ex.Message}", ex, _clock.UtcNow));
+                Failed?.Invoke(new($"{_definition.SourceName} feed failed: {ex.Message}", ex, _clock.UtcNow));
                 await CloseClientAsync();
                 await DelayForRetryAsync(attempt++, cancellationToken);
             }
@@ -149,7 +166,7 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
         if (type == "connected")
         {
             SetConnection(ConnectionState.Connected);
-            await SubscribeAsync("livetimingFeed", new JsonArray("imsa"), cancellationToken);
+            await SubscribeAsync("livetimingFeed", new JsonArray(_definition.FeedName), cancellationToken);
             return;
         }
         if (type == "ping")
@@ -165,9 +182,9 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
             var expected = id is not null && _pendingUnsubscribes.Remove(id);
             if (id is not null) _activeSubscriptions.Remove(id);
             if (expected && message["error"] is null) return;
-            throw new InvalidOperationException("IMSA live-timing subscription failed.");
+            throw new InvalidOperationException($"{_definition.SourceName} live-timing subscription failed.");
         }
-        if (type is "error" or "failed") throw new InvalidOperationException("IMSA live-timing protocol failed.");
+        if (type is "error" or "failed") throw new InvalidOperationException($"{_definition.SourceName} live-timing protocol failed.");
         if (type is not ("added" or "changed" or "removed")) return;
 
         var collection = JsonSupport.String(message["collection"]);
@@ -302,8 +319,11 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
             standingsDocument?["standings"] is not JsonObject standings ||
             statusDocument?["status"] is not JsonObject status) return;
         var bestResults = FindSessionDocument("best_results")?["bestResults"] as JsonObject;
-        var snapshot = ImsaTiming.BuildSnapshot(session, info, entries, track, standings, status,
-            bestResults, _clock.UtcNow, _connection);
+        var snapshot = _definition.Championship == Championship.FormulaE
+            ? FormulaETiming.BuildSnapshot(session, info, entries, track, standings, status,
+                bestResults, _clock.UtcNow, _connection)
+            : ImsaTiming.BuildSnapshot(session, info, entries, track, standings, status,
+                bestResults, _clock.UtcNow, _connection);
         _hasLiveSnapshot = snapshot.Lifecycle == SessionLifecycle.Live;
         _sessionRunning = JsonSupport.Bool(status["isSessionRunning"]);
         ProcessAlerts(snapshot, status);
@@ -311,7 +331,7 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
         if (fingerprint != _lastStandingsFingerprint)
         {
             _lastStandingsFingerprint = fingerprint;
-            DeltaReceived?.Invoke(new("ImsaStandings", standings.DeepClone(), _clock.UtcNow));
+            DeltaReceived?.Invoke(new(_definition.DeltaTopic, standings.DeepClone(), _clock.UtcNow));
         }
         SnapshotReceived?.Invoke(snapshot);
     }
@@ -321,10 +341,10 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
         if (!_sessionStarted && snapshot.Lifecycle == SessionLifecycle.Live)
         {
             _sessionStarted = true;
-            _alerts.Accept(new(AlertKind.SessionStart, 10, false, "IMSA SESSION STARTED", snapshot.Session,
-                snapshot.CurrentLap, _clock.UtcNow, $"imsa:{_selectedSessionId}:start", TimeSpan.FromSeconds(4)));
+            _alerts.Accept(new(AlertKind.SessionStart, 10, false, $"{_definition.SourceName.ToUpperInvariant()} SESSION STARTED", snapshot.Session,
+                snapshot.CurrentLap, _clock.UtcNow, $"{_definition.AlertKey}:{_selectedSessionId}:start", TimeSpan.FromSeconds(4)));
         }
-        var track = ImsaTiming.TrackState(status);
+        var track = AlkamelTiming.TrackState(status);
         if (track.Condition != _trackCondition)
         {
             _trackCondition = track.Condition;
@@ -334,7 +354,7 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
         var ended = snapshot.Lifecycle == SessionLifecycle.Ended;
         if (_observedEnded == false && ended)
             _alerts.Accept(new(AlertKind.Chequered, 90, false, "CHEQUERED FLAG", snapshot.Session,
-                snapshot.CurrentLap, _clock.UtcNow, $"imsa:{_selectedSessionId}:chequered", TimeSpan.FromSeconds(6)));
+                snapshot.CurrentLap, _clock.UtcNow, $"{_definition.AlertKey}:{_selectedSessionId}:chequered", TimeSpan.FromSeconds(6)));
         _observedEnded = ended;
     }
 
@@ -449,7 +469,7 @@ public sealed class ImsaLiveTimingSource : ILiveTimingSource
         _hasLiveSnapshot = false;
         SnapshotReceived?.Invoke(new(
             "", "", "", 0, null, TrackCondition.Unknown, [], _clock.UtcNow,
-            SessionLifecycle.OffSession, connection, Championship: Championship.Imsa));
+            SessionLifecycle.OffSession, connection, Championship: _definition.Championship));
     }
 
     private void SetConnection(ConnectionState value)

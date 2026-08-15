@@ -108,8 +108,13 @@ public sealed class TaskbarWindow : Window
         _raceText.ToolTip = ChampionshipDisplay.FullEvent(snapshot);
         _lapText.Text = FormatSessionProgress(snapshot);
         _strip.Children.Clear();
-        foreach (var standing in snapshot.Competitors.Take(_settings.DriverCount)) _strip.Children.Add(CreateCell(standing));
-        while (_strip.Children.Count < _settings.DriverCount) _strip.Children.Add(CreateEmptyCell(_strip.Children.Count + 1));
+        var duel = snapshot.Championship == Championship.FormulaE &&
+            snapshot.Session.Contains("Duel", StringComparison.OrdinalIgnoreCase);
+        foreach (var standing in snapshot.Competitors.Take(duel ? 2 : _settings.DriverCount))
+            _strip.Children.Add(CreateCell(standing));
+        if (!duel)
+            while (_strip.Children.Count < _settings.DriverCount)
+                _strip.Children.Add(CreateEmptyCell(_strip.Children.Count + 1));
         _flyout.UpdateSnapshot(snapshot);
         RefreshFlag();
     }
@@ -175,6 +180,15 @@ public sealed class TaskbarWindow : Window
         "Qualifying" or "Qualifying 1" => "Q1",
         "Qualifying 1 Group A" => "Q1A",
         "Qualifying 1 Group B" => "Q1B",
+        "Qualifying Group A" => "QGA",
+        "Qualifying Group B" => "QGB",
+        "Qualifying Duel Quarter-Final 1" => "QF1",
+        "Qualifying Duel Quarter-Final 2" => "QF2",
+        "Qualifying Duel Quarter-Final 3" => "QF3",
+        "Qualifying Duel Quarter-Final 4" => "QF4",
+        "Qualifying Duel Semi-Final 1" => "SF1",
+        "Qualifying Duel Semi-Final 2" => "SF2",
+        "Qualifying Duel Final" => "FIN",
         "Combined Qualifying 1" => "CQ1",
         "Qualifying 2" => "Q2",
         "Qualifying 2 Group A" => "Q2A",

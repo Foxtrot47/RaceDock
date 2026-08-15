@@ -8,35 +8,34 @@ using System.Text.Json.Nodes;
 
 namespace RaceDock.Core;
 
-internal interface IImsaDdpClient : IAsyncDisposable
+internal interface IAlkamelDdpClient : IAsyncDisposable
 {
     Task ConnectAsync(CancellationToken cancellationToken);
     Task<JsonObject?> ReceiveAsync(CancellationToken cancellationToken);
     Task SendAsync(JsonObject message, CancellationToken cancellationToken);
 }
 
-/// <summary>Minimal SockJS and Meteor DDP transport for the IMSA Al Kamel stream.</summary>
-internal sealed class ImsaDdpClient : IImsaDdpClient
+/// <summary>Minimal SockJS and Meteor DDP transport for Al Kamel timing streams.</summary>
+internal sealed class AlkamelDdpClient(Uri socketBase) : IAlkamelDdpClient
 {
     private const int MaximumMessageBytes = 2 * 1024 * 1024;
-    private static readonly Uri SocketBase = new("wss://livetiming.alkamelsystems.com/sockjs/");
     private readonly Queue<JsonObject> _pending = [];
     private ClientWebSocket? _socket;
 
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {
-        if (_socket is not null) throw new InvalidOperationException("The IMSA connection is already open.");
+        if (_socket is not null) throw new InvalidOperationException("The Al Kamel connection is already open.");
         _socket = new ClientWebSocket();
         _socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
         _socket.Options.SetRequestHeader("User-Agent", "RaceDock/1.0");
         using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         connectCts.CancelAfter(TimeSpan.FromSeconds(10));
-        await _socket.ConnectAsync(CreateEndpoint(), connectCts.Token);
+        await _socket.ConnectAsync(CreateEndpoint(socketBase), connectCts.Token);
 
         while (!connectCts.IsCancellationRequested)
         {
             var frame = await ReceiveTextAsync(connectCts.Token)
-                ?? throw new WebSocketException("IMSA SockJS connection closed during startup.");
+                ?? throw new WebSocketException("Al Kamel SockJS connection closed during startup.");
             var messages = DecodeFrame(frame, out var opened, out _);
             foreach (var message in messages) _pending.Enqueue(message);
             if (opened) return;
@@ -60,19 +59,19 @@ internal sealed class ImsaDdpClient : IImsaDdpClient
 
     public async Task SendAsync(JsonObject message, CancellationToken cancellationToken)
     {
-        if (_socket?.State != WebSocketState.Open) throw new WebSocketException("IMSA SockJS connection is not open.");
+        if (_socket?.State != WebSocketState.Open) throw new WebSocketException("Al Kamel SockJS connection is not open.");
         var bytes = Encoding.UTF8.GetBytes(EncodeMessage(message));
         await _socket.SendAsync(bytes, WebSocketMessageType.Text, true, cancellationToken);
     }
 
-    internal static Uri CreateEndpoint()
+    internal static Uri CreateEndpoint(Uri socketBase)
     {
         Span<char> server = stackalloc char[3];
         for (var index = 0; index < server.Length; index++) server[index] = (char)('0' + RandomNumberGenerator.GetInt32(10));
         const string alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
         Span<char> session = stackalloc char[8];
         for (var index = 0; index < session.Length; index++) session[index] = alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)];
-        return new Uri(SocketBase, $"{server}/{session}/websocket");
+        return new Uri(socketBase, $"{server}/{session}/websocket");
     }
 
     internal static string EncodeMessage(JsonObject message) =>
@@ -83,16 +82,16 @@ internal sealed class ImsaDdpClient : IImsaDdpClient
         opened = frame == "o";
         heartbeat = frame == "h";
         if (opened || heartbeat || string.IsNullOrWhiteSpace(frame)) return [];
-        if (!frame.StartsWith('a')) throw new InvalidDataException("IMSA SockJS returned an unexpected frame.");
+        if (!frame.StartsWith('a')) throw new InvalidDataException("Al Kamel SockJS returned an unexpected frame.");
         var values = JsonNode.Parse(frame[1..]) as JsonArray
-            ?? throw new InvalidDataException("IMSA SockJS returned an invalid message array.");
+            ?? throw new InvalidDataException("Al Kamel SockJS returned an invalid message array.");
         List<JsonObject> result = [];
         foreach (var value in values)
         {
             var text = value?.GetValue<string>();
             if (string.IsNullOrWhiteSpace(text)) continue;
             if (JsonNode.Parse(text) is not JsonObject message)
-                throw new InvalidDataException("IMSA SockJS returned a non-object DDP message.");
+                throw new InvalidDataException("Al Kamel SockJS returned a non-object DDP message.");
             result.Add(message);
         }
         return result;
@@ -100,7 +99,7 @@ internal sealed class ImsaDdpClient : IImsaDdpClient
 
     private async Task<string?> ReceiveTextAsync(CancellationToken cancellationToken)
     {
-        if (_socket is null) throw new InvalidOperationException("The IMSA connection has not been opened.");
+        if (_socket is null) throw new InvalidOperationException("The Al Kamel connection has not been opened.");
         var buffer = new byte[65536];
         using var message = new MemoryStream();
         WebSocketReceiveResult result;
@@ -109,10 +108,10 @@ internal sealed class ImsaDdpClient : IImsaDdpClient
             result = await _socket.ReceiveAsync(buffer, cancellationToken);
             if (result.MessageType == WebSocketMessageType.Close) return null;
             if (result.MessageType != WebSocketMessageType.Text)
-                throw new InvalidDataException("IMSA SockJS returned a non-text frame.");
+                throw new InvalidDataException("Al Kamel SockJS returned a non-text frame.");
             message.Write(buffer, 0, result.Count);
             if (message.Length > MaximumMessageBytes)
-                throw new InvalidDataException("IMSA SockJS message exceeded the supported size.");
+                throw new InvalidDataException("Al Kamel SockJS message exceeded the supported size.");
         } while (!result.EndOfMessage);
         return Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length);
     }

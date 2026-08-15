@@ -107,6 +107,7 @@ public sealed class AppController : IAsyncDisposable
         if (_settings.EnableGtWorldChallengeEurope) factories.Add(() => new GtwcLiveTimingSource(_clock, _alerts));
         if (_settings.EnableWrc) factories.Add(() => new WrcLiveTimingSource(_clock, _alerts));
         if (_settings.EnableImsa) factories.Add(() => new ImsaLiveTimingSource(_clock, _alerts));
+        if (_settings.EnableFormulaE) factories.Add(() => new FormulaELiveTimingSource(_clock, _alerts));
         return new CompositeLiveTimingSource(factories, _clock, TimeSpan.FromSeconds(_settings.RotationSeconds));
     }
 
@@ -158,7 +159,8 @@ public sealed class AppController : IAsyncDisposable
             _settings.EnableMoto3 ? "Moto3" : null,
             _settings.EnableGtWorldChallengeEurope ? "GTWC" : null,
             _settings.EnableWrc ? "WRC" : null,
-            _settings.EnableImsa ? "IMSA" : null
+            _settings.EnableImsa ? "IMSA" : null,
+            _settings.EnableFormulaE ? "Formula E" : null
         }.Where(value => value is not null));
         Log(source switch
         {
@@ -236,6 +238,7 @@ public sealed class AppController : IAsyncDisposable
             settings.EnableGtWorldChallengeEurope != _settings.EnableGtWorldChallengeEurope ||
             settings.EnableWrc != _settings.EnableWrc ||
             settings.EnableImsa != _settings.EnableImsa ||
+            settings.EnableFormulaE != _settings.EnableFormulaE ||
             settings.RotationSeconds != _settings.RotationSeconds;
         _settingsStore.Save(settings);
         _settings = settings.Normalize();
