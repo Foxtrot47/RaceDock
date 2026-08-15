@@ -29,6 +29,7 @@ public static class ChampionshipDisplay
         Championship.GtWorldChallengeEurope => "GTWC",
         Championship.Imsa => "IMSA",
         Championship.FormulaE => "FE",
+        Championship.Dtm => "DTM",
         _ => ""
     };
 
@@ -44,6 +45,7 @@ public static class ChampionshipDisplay
         Championship.GtWorldChallengeEurope => "GT World Challenge Europe",
         Championship.Imsa => "IMSA WeatherTech SportsCar Championship",
         Championship.FormulaE => "Formula E",
+        Championship.Dtm => "DTM",
         _ => ""
     };
 

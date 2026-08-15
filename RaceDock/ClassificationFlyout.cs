@@ -130,7 +130,7 @@ public sealed class ClassificationFlyout : Window
         _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : ChampionshipDisplay.FullEvent(snapshot);
         var rally = IsRallySnapshot(snapshot);
         var endurance = IsEnduranceSnapshot(snapshot);
-        var formulaE = snapshot.Championship == Championship.FormulaE;
+        var formulaE = snapshot.Championship is Championship.FormulaE or Championship.Dtm;
         if (rally)
         {
             _tyreHeader.Text = "TIME";

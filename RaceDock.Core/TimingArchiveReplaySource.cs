@@ -762,6 +762,7 @@ internal static class TimingArchiveLoader
         if (value.Contains("MOTO3") || value.Contains("MOTO 3")) return Championship.Moto3;
         if (value.Contains("IMSA")) return Championship.Imsa;
         if (value.Contains("FORMULA E")) return Championship.FormulaE;
+        if (value.Contains("DTM")) return Championship.Dtm;
         if (value.Contains("FORMULA 1") || value.Contains("FORMULA ONE")) return Championship.Formula1;
         if (value.Contains("FORMULA 2")) return Championship.Formula2;
         if (value.Contains("FORMULA 3")) return Championship.Formula3;

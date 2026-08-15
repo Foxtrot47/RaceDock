@@ -188,6 +188,7 @@ internal static class AlkamelTiming
         if (value.Contains("PORSCHE", StringComparison.Ordinal)) return "Porsche";
         if (value.Contains("CADILLAC", StringComparison.Ordinal)) return "Cadillac";
         if (value.Contains("FERRARI", StringComparison.Ordinal)) return "Ferrari";
+        if (value.Contains("MCLAREN", StringComparison.Ordinal)) return "McLaren";
         if (value.Contains("LEXUS", StringComparison.Ordinal)) return "Lexus";
         if (value.Contains("ACURA", StringComparison.Ordinal)) return "Acura";
         if (value.Contains("FORD", StringComparison.Ordinal)) return "Ford";

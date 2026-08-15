@@ -48,6 +48,8 @@ var tests = new (string Name, Action Run)[]
     ("Formula E duels publish only the active pairing", FormulaEDuelPairing),
     ("Formula E future races remain pre-session", FormulaEFutureRace),
     ("Formula E source subscribes and publishes an active classification", FormulaESourceLifecycle),
+    ("DTM bootstrap maps live race timing", DtmBootstrapTiming),
+    ("DTM discovery selects only the running session", DtmSessionSelection),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
     ("MotoGP lite payload maps Moto3 timing", MotoGpLitePayload),
     ("MotoGP source filters categories and publishes lifecycle", MotoGpSourceLifecycle),
@@ -929,6 +931,7 @@ static void ChampionshipLabels()
     Equal(4, (int)Championship.WorldRallyChampionship);
     Equal(5, (int)Championship.GtWorldChallengeEurope);
     Equal(6, (int)Championship.Imsa);
+    Equal(11, (int)Championship.Dtm);
     var now = DateTimeOffset.UtcNow;
     var f1 = new TimingSnapshot("Belgian Grand Prix", "Race", "Spa-Francorchamps", 1, 44,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Formula1);
@@ -940,6 +943,8 @@ static void ChampionshipLabels()
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Imsa);
     var moto3 = new TimingSnapshot("Qatar Airways Grand Prix of Great Britain", "Moto3 Practice", "Silverstone Circuit", 3, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Moto3);
+    var dtm = new TimingSnapshot("Nürburgring", "Race 1", "Nürburgring", 9, null,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Dtm);
     Equal("F1 Spa", ChampionshipDisplay.CompactEvent(f1));
     Equal("Formula 1 · Belgian Grand Prix", ChampionshipDisplay.FullEvent(f1));
     Equal("WRC Secto Rally Finland", ChampionshipDisplay.CompactEvent(wrc));
@@ -950,6 +955,8 @@ static void ChampionshipLabels()
     Equal("IMSA WeatherTech SportsCar Championship · Motul SportsCar Endurance Grand Prix", ChampionshipDisplay.FullEvent(imsa));
     Equal("Moto3 Silverstone", ChampionshipDisplay.CompactEvent(moto3));
     Equal("Moto3 · Qatar Airways Grand Prix of Great Britain", ChampionshipDisplay.FullEvent(moto3));
+    Equal("DTM Nürburgring", ChampionshipDisplay.CompactEvent(dtm));
+    Equal("DTM · Nürburgring", ChampionshipDisplay.FullEvent(dtm));
     Equal("MotoGP Silverstone", ChampionshipDisplay.CompactEvent(moto3 with
     {
         Championship = Championship.MotoGp,
@@ -1029,6 +1036,22 @@ static void UserSettingsPersistence()
         var persistedMoto3 = store.Load();
         False(persistedMoto3.EnableFormula1);
         True(persistedMoto3.EnableMoto3);
+        var dtmOnly = new UserSettings
+        {
+            EnableFormula1 = false,
+            EnableFormula2 = false,
+            EnableFormula3 = false,
+            EnableGtWorldChallengeEurope = false,
+            EnableWrc = false,
+            EnableImsa = false,
+            EnableDtm = true
+        }.Normalize();
+        False(dtmOnly.EnableFormula1);
+        True(dtmOnly.EnableDtm);
+        store.Save(dtmOnly);
+        var persistedDtm = store.Load();
+        False(persistedDtm.EnableFormula1);
+        True(persistedDtm.EnableDtm);
     }
     finally
     {
@@ -1476,6 +1499,61 @@ static void FormulaESourceLifecycle()
     var feedSubscription = client.Sent.First(message => JsonSupport.String(message["name"]) == "livetimingFeed");
     Equal("fiaformulae", JsonSupport.String(feedSubscription["params"]?[0]));
     True(client.Sent.Any(message => JsonSupport.String(message["name"]) == "standings"));
+}
+
+static void DtmBootstrapTiming()
+{
+    var session = JsonNode.Parse("""
+        {"id":100,"name":"Race 1","isRunning":true,"hasResult":false,"hasSeenChequered":false,
+         "event":{"name":"06 N�rburgring"},"series":{"name":"DTM"}}
+        """)!.AsObject();
+    var bootstrap = JsonNode.Parse("""
+        {"sessionInfo":{"eventName":"06 N�rburgring","sessionName":"Race 1","trackName":"N�RBURGRING","isStarted":true,"hasSeenChequered":false},
+         "trackDetails":{"trackName":"N�RBURGRING"},
+         "participants":[
+           {"pid":1,"carNumber":"59","threeLettersName":"DÖR","displayName":"Ben Driver","teamName":"Example Motorsport","manufacturer":"McLaren 720S GT3 EVO","classId":""},
+           {"pid":2,"carNumber":"91","threeLettersName":"PRE","displayName":"Pat Racer","teamName":"Example Racing","manufacturer":"Porsche 911 GT3 R EVO","classId":""}],
+         "ranks":[{"pid":1,"overallPosition":1,"isDeleted":false},{"pid":2,"overallPosition":2,"isDeleted":false}],
+         "gaps":[{"pid":1,"gapToFirstLaps":0,"gapToFirstMillis":0,"gapToAheadLaps":0,"gapToAheadMillis":0},
+                 {"pid":2,"gapToFirstLaps":0,"gapToFirstMillis":2399,"gapToAheadLaps":0,"gapToAheadMillis":2399}],
+         "bestLaps":[{"pid":1,"lapNumber":3,"lapTimeMillis":87335,"isValid":true},{"pid":2,"lapNumber":3,"lapTimeMillis":87400,"isValid":true}],
+         "laps":[{"pid":1,"lapNumber":5,"lapTimeMillis":88000},{"pid":2,"lapNumber":4,"lapTimeMillis":89000}],
+         "runningStatuses":[{"pid":1,"status":"Running"},{"pid":2,"status":"Retired"}],
+         "carLocations":[{"pid":1,"carLocation":"Track"},{"pid":2,"carLocation":"Pit"}],
+         "raceFlags":[{"flag":"Green"}],"chequeredFlags":[],
+         "sessionLengthLimit":{"sessionLengthType":"TimePlusXLaps","lapsLimit":-1,"timeLimitSeconds":3600},
+         "sessionClock":{"startTime":"2026-08-15T11:30:00Z","tsNow":"2026-08-15T11:40:00Z"}}
+        """)!.AsObject();
+    var snapshot = DtmTiming.BuildSnapshot(session, bootstrap,
+        new DateTimeOffset(2026, 8, 15, 11, 40, 0, TimeSpan.Zero), ConnectionState.Connected);
+
+    Equal(Championship.Dtm, snapshot.Championship);
+    Equal(SessionLifecycle.Live, snapshot.Lifecycle);
+    Equal("Nürburgring", snapshot.Meeting);
+    Equal("Nürburgring", snapshot.Circuit);
+    Equal("Race 1", snapshot.Session);
+    Equal(5, snapshot.CurrentLap);
+    Equal("00:50:00", snapshot.TimeRemaining);
+    Equal(TrackCondition.AllClear, snapshot.TrackCondition);
+    Equal(2, snapshot.Competitors.Count);
+    Equal("DÖR", snapshot.Competitors[0].Code);
+    Equal("McLaren", snapshot.Competitors[0].Manufacturer);
+    Equal("LEAD", snapshot.Competitors[0].GapToLeader);
+    Equal("+2.399", snapshot.Competitors[1].GapToLeader);
+    Equal("Porsche", snapshot.Competitors[1].Manufacturer);
+    True(snapshot.Competitors[1].Retired);
+    True(snapshot.Competitors[1].InPit);
+    True(snapshot.Competitors[0].IsOverallFastest);
+}
+
+static void DtmSessionSelection()
+{
+    var sessions = JsonNode.Parse("""
+        [{"id":1,"name":"Other","isRunning":true,"series":{"name":"Other"}},
+         {"id":2,"name":"Practice","isRunning":false,"series":{"name":"DTM"}},
+         {"id":3,"name":"Race 1","isRunning":true,"startTime":"2026-08-15T11:30:00Z","series":{"name":"DTM"}}]
+        """)!.AsArray();
+    Equal(3, JsonSupport.Int(DtmLiveTimingSource.ActiveSession(sessions)?["id"]));
 }
 
 static JsonObject ImsaSessionReference(string value) => new() { ["$type"] = "oid", ["$value"] = value };

@@ -17,5 +17,6 @@
     <Resource Include="Assets\ManufacturerLogos\**\*.png" />
     <Resource Include="Assets\ManufacturerLogos\**\*.svg" />
     <Resource Include="Assets\ManufacturerLogos\**\*.webp" />
+    <Resource Include="Assets\ChampionshipLogos\dtm.png" />
   </ItemGroup>
 </Project>
