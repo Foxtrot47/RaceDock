@@ -262,7 +262,7 @@ public sealed class TaskbarWindow : Window
         layout.ColumnDefinitions.Add(new() { Width = new GridLength(30) });
         layout.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
         Border marker;
-        if (!_settings.UseManufacturerLogos || !ManufacturerLogo.TryCreateForStanding(standing, 26, out marker))
+        if (!_settings.UseManufacturerLogos || !ManufacturerLogo.TryCreateForStanding(standing, _snapshot?.Championship ?? Championship.Formula1, 26, out marker))
             marker = CreatePositionCard(standing.Position, standing.Position.ToString());
         marker.Margin = new Thickness(1);
         layout.Children.Add(marker);

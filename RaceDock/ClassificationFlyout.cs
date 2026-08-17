@@ -165,7 +165,7 @@ public sealed class ClassificationFlyout : Window
 
         _rows.Children.Clear();
         foreach (var standing in snapshot.Competitors.OrderBy(standing => standing.Position))
-            _rows.Children.Add(CreateStandingRow(standing, rally, endurance, formulaE));
+            _rows.Children.Add(CreateStandingRow(standing, snapshot.Championship, rally, endurance, formulaE));
     }
 
     public void ScheduleClose()
@@ -245,7 +245,7 @@ public sealed class ClassificationFlyout : Window
         return header;
     }
 
-    private UIElement CreateStandingRow(CompetitorStanding standing, bool rally, bool endurance, bool formulaE)
+    private UIElement CreateStandingRow(CompetitorStanding standing, Championship championship, bool rally, bool endurance, bool formulaE)
     {
         var grid = CreateColumns();
         grid.MinHeight = 38;
@@ -325,7 +325,7 @@ public sealed class ClassificationFlyout : Window
         driverCopy.Children.Add(driverLine);
         Grid.SetRow(team, 1);
         driverCopy.Children.Add(team);
-        if (_settings.UseManufacturerLogos && ManufacturerLogo.TryCreateForStanding(standing, 26, out var logo))
+        if (_settings.UseManufacturerLogos && ManufacturerLogo.TryCreateForStanding(standing, championship, 26, out var logo))
         {
             logo.Margin = new Thickness(0, 0, 6, 0);
             logo.VerticalAlignment = VerticalAlignment.Center;

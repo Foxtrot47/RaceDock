@@ -20,8 +20,13 @@ internal static class ManufacturerLogo
     private static readonly Regex SvgNumberPattern = new(@"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?", RegexOptions.Compiled);
     private static readonly Lazy<IReadOnlyDictionary<string, LogoDefinition>> Catalog = new(LoadCatalog);
 
-    public static bool TryCreateForStanding(CompetitorStanding standing, double size, out Border logo)
+    public static bool TryCreateForStanding(CompetitorStanding standing, Championship championship, double size, out Border logo)
     {
+        if (championship is Championship.FormulaE or Championship.IndyCar)
+        {
+            if (TryCreate(standing.Team, size, out logo)) return true;
+            return TryCreate(standing.Manufacturer, size, out logo);
+        }
         if (TryCreate(standing.Manufacturer, size, out logo)) return true;
         return TryCreate(standing.Team, size, out logo);
     }
