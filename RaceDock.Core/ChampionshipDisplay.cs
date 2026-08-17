@@ -30,6 +30,7 @@ public static class ChampionshipDisplay
         Championship.Imsa => "IMSA",
         Championship.FormulaE => "FE",
         Championship.Dtm => "DTM",
+        Championship.IndyCar => "INDYCAR",
         _ => ""
     };
 
@@ -46,6 +47,7 @@ public static class ChampionshipDisplay
         Championship.Imsa => "IMSA WeatherTech SportsCar Championship",
         Championship.FormulaE => "Formula E",
         Championship.Dtm => "DTM",
+        Championship.IndyCar => "NTT INDYCAR SERIES",
         _ => ""
     };
 

@@ -17,6 +17,7 @@ public sealed record UserSettings
     public bool EnableImsa { get; init; }
     public bool EnableFormulaE { get; init; }
     public bool EnableDtm { get; init; }
+    public bool EnableIndyCar { get; init; }
     public int RotationSeconds { get; init; } = 5;
     public int DriverCount { get; init; } = 5;
     public bool ShowEventHeader { get; init; } = true;
@@ -27,7 +28,7 @@ public sealed record UserSettings
     public bool ShowFlagAlerts { get; init; } = true;
     public bool AutoStartOnWindowsBoot { get; init; } = true;
 
-    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 || EnableMoto3 || EnableGtWorldChallengeEurope || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm;
+    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 || EnableMoto3 || EnableGtWorldChallengeEurope || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar;
 
     public UserSettings Normalize()
     {

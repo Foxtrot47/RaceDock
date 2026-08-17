@@ -32,6 +32,7 @@ public sealed class SettingsWindow : Window
     private readonly CheckBox _imsa = Toggle("IMSA WeatherTech SportsCar Championship", "Live IMSA timing for practice, qualifying, and races");
     private readonly CheckBox _formulaE = Toggle("Formula E", "Official Formula E timing for practice, qualifying, and races");
     private readonly CheckBox _dtm = Toggle("DTM", "Live DTM timing for practice, qualifying, and races");
+    private readonly CheckBox _indyCar = Toggle("NTT INDYCAR SERIES", "Official INDYCAR timing for practice, qualifying, warmup, and races");
     private readonly CheckBox _eventHeader = Toggle("Event name", "Show the championship and venue on the taskbar");
     private readonly CheckBox _sessionProgress = Toggle("Session progress", "Show session, clock, lap or stage below the event");
     private readonly CheckBox _gaps = Toggle("Competitor gaps", "Show leader gaps below competitor codes");
@@ -128,6 +129,7 @@ public sealed class SettingsWindow : Window
         _imsa.IsChecked = settings.EnableImsa;
         _formulaE.IsChecked = settings.EnableFormulaE;
         _dtm.IsChecked = settings.EnableDtm;
+        _indyCar.IsChecked = settings.EnableIndyCar;
         _rotation.Value = settings.RotationSeconds;
         _driverCount.Value = settings.DriverCount;
         _eventHeader.IsChecked = settings.ShowEventHeader;
@@ -165,6 +167,7 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(_imsa);
         panel.Children.Add(_formulaE);
         panel.Children.Add(_dtm);
+        panel.Children.Add(_indyCar);
         panel.Children.Add(SectionTitle("Rotation", "When several selected championships are live, rotate between them at this interval."));
         panel.Children.Add(SliderRow("Seconds per championship", _rotation, _rotationValue));
         _rotation.ValueChanged += (_, _) => UpdateSliderLabels();
@@ -525,7 +528,7 @@ public sealed class SettingsWindow : Window
 
     private async Task SaveAsync()
     {
-        if (_formula1.IsChecked != true && _formula2.IsChecked != true && _formula3.IsChecked != true && _motoGp.IsChecked != true && _moto2.IsChecked != true && _moto3.IsChecked != true && _gtwc.IsChecked != true && _wrc.IsChecked != true && _imsa.IsChecked != true && _formulaE.IsChecked != true && _dtm.IsChecked != true)
+        if (_formula1.IsChecked != true && _formula2.IsChecked != true && _formula3.IsChecked != true && _motoGp.IsChecked != true && _moto2.IsChecked != true && _moto3.IsChecked != true && _gtwc.IsChecked != true && _wrc.IsChecked != true && _imsa.IsChecked != true && _formulaE.IsChecked != true && _dtm.IsChecked != true && _indyCar.IsChecked != true)
         {
             _message.Text = "Select at least one live stream.";
             return;
@@ -544,6 +547,7 @@ public sealed class SettingsWindow : Window
             EnableImsa = _imsa.IsChecked == true,
             EnableFormulaE = _formulaE.IsChecked == true,
             EnableDtm = _dtm.IsChecked == true,
+            EnableIndyCar = _indyCar.IsChecked == true,
             RotationSeconds = (int)Math.Round(_rotation.Value),
             DriverCount = (int)Math.Round(_driverCount.Value),
             ShowEventHeader = _eventHeader.IsChecked == true,

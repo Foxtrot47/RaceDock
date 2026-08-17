@@ -21,6 +21,7 @@ var tests = new (string Name, Action Run)[]
     ("scenario timeline integration", ScenarioIntegration),
     ("Timing71 ZIP archives replay full and incremental states", TimingArchiveZipReplay),
     ("Timing71 MotoGP archives map Bike manufacturers", TimingArchiveMotoGp),
+    ("Timing71 archives recognize INDYCAR", TimingArchiveIndyCar),
     ("Timing71 HAR archives load embedded manifest and states", TimingArchiveHarReplay),
     ("Timing71 archive patches enforce complexity limits", TimingArchivePatchLimits),
     ("active feeds rotate at the display interval", FeedRotation),
@@ -50,6 +51,10 @@ var tests = new (string Name, Action Run)[]
     ("Formula E source subscribes and publishes an active classification", FormulaESourceLifecycle),
     ("DTM bootstrap maps live race timing", DtmBootstrapTiming),
     ("DTM discovery selects only the running session", DtmSessionSelection),
+    ("INDYCAR practice maps official timing", IndyCarPracticeTiming),
+    ("INDYCAR source publishes captured practice timing", IndyCarSourceLifecycle),
+    ("INDYCAR source stays hidden while the feed is cold", IndyCarColdFeedLifecycle),
+    ("INDYCAR source rejects stale active data", IndyCarStaleFeedLifecycle),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
     ("MotoGP lite payload maps Moto3 timing", MotoGpLitePayload),
     ("MotoGP source filters categories and publishes lifecycle", MotoGpSourceLifecycle),
@@ -357,6 +362,32 @@ static void TimingArchiveMotoGp()
         Equal("Aprilia", snapshot?.Competitors[0].Manufacturer);
         Equal("Ducati", snapshot?.Competitors[1].Manufacturer);
         Equal("Ducati", snapshot?.Competitors[2].Manufacturer);
+        source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    }
+    finally { Directory.Delete(directory, true); }
+}
+
+static void TimingArchiveIndyCar()
+{
+    var directory = Path.Combine(Path.GetTempPath(), $"RaceDock-indycar-archive-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    var path = Path.Combine(directory, "indycar.zip");
+    try
+    {
+        var manifest = ArchiveManifest();
+        manifest["name"] = "NTT INDYCAR SERIES";
+        manifest["description"] = "Ontario Honda Dealers Indy at Markham - Practice 1";
+        using (var archive = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            WriteZipJson(archive, "manifest.json", manifest);
+            WriteZipJson(archive, "01700000000.json", ArchiveState(10, 1.25));
+        }
+        var source = new TimingArchiveReplaySource(path, new FakeClock());
+        TimingSnapshot? snapshot = null;
+        source.SnapshotReceived += value => snapshot = value;
+        source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        source.Pause();
+        Equal(Championship.IndyCar, snapshot?.Championship);
         source.DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
     finally { Directory.Delete(directory, true); }
@@ -932,6 +963,7 @@ static void ChampionshipLabels()
     Equal(5, (int)Championship.GtWorldChallengeEurope);
     Equal(6, (int)Championship.Imsa);
     Equal(11, (int)Championship.Dtm);
+    Equal(12, (int)Championship.IndyCar);
     var now = DateTimeOffset.UtcNow;
     var f1 = new TimingSnapshot("Belgian Grand Prix", "Race", "Spa-Francorchamps", 1, 44,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Formula1);
@@ -945,6 +977,8 @@ static void ChampionshipLabels()
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Moto3);
     var dtm = new TimingSnapshot("Nürburgring", "Race 1", "Nürburgring", 9, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Dtm);
+    var indyCar = new TimingSnapshot("Ontario Honda Dealers Indy at Markham", "Race", "Streets of Markham", 1, 90,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.IndyCar);
     Equal("F1 Spa", ChampionshipDisplay.CompactEvent(f1));
     Equal("Formula 1 · Belgian Grand Prix", ChampionshipDisplay.FullEvent(f1));
     Equal("WRC Secto Rally Finland", ChampionshipDisplay.CompactEvent(wrc));
@@ -957,6 +991,8 @@ static void ChampionshipLabels()
     Equal("Moto3 · Qatar Airways Grand Prix of Great Britain", ChampionshipDisplay.FullEvent(moto3));
     Equal("DTM Nürburgring", ChampionshipDisplay.CompactEvent(dtm));
     Equal("DTM · Nürburgring", ChampionshipDisplay.FullEvent(dtm));
+    Equal("INDYCAR Streets of Markham", ChampionshipDisplay.CompactEvent(indyCar));
+    Equal("NTT INDYCAR SERIES · Ontario Honda Dealers Indy at Markham", ChampionshipDisplay.FullEvent(indyCar));
     Equal("MotoGP Silverstone", ChampionshipDisplay.CompactEvent(moto3 with
     {
         Championship = Championship.MotoGp,
@@ -1020,6 +1056,18 @@ static void UserSettingsPersistence()
         }.Normalize();
         False(imsaOnly.EnableFormula1);
         True(imsaOnly.EnableImsa);
+        var indyCarOnly = new UserSettings
+        {
+            EnableFormula1 = false,
+            EnableFormula2 = false,
+            EnableFormula3 = false,
+            EnableGtWorldChallengeEurope = false,
+            EnableWrc = false,
+            EnableImsa = false,
+            EnableIndyCar = true
+        }.Normalize();
+        False(indyCarOnly.EnableFormula1);
+        True(indyCarOnly.EnableIndyCar);
         var moto3Only = new UserSettings
         {
             EnableFormula1 = false,
@@ -1556,6 +1604,130 @@ static void DtmSessionSelection()
     Equal(3, JsonSupport.Int(DtmLiveTimingSource.ActiveSession(sessions)?["id"]));
 }
 
+static void IndyCarPracticeTiming()
+{
+    var snapshot = IndyCarTiming.BuildSnapshot(IndyCarPracticePayload(),
+        new DateTimeOffset(2026, 8, 15, 14, 25, 0, TimeSpan.Zero), ConnectionState.Connected);
+
+    Equal(Championship.IndyCar, snapshot.Championship);
+    Equal(SessionLifecycle.Live, snapshot.Lifecycle);
+    Equal("Ontario Honda Dealers Indy at Markham", snapshot.Meeting);
+    Equal("Practice 1 - All Cars", snapshot.Session);
+    Equal("Streets of Markham", snapshot.Circuit);
+    Equal(10, snapshot.CurrentLap);
+    Equal("00:21:52", snapshot.TimeRemaining);
+    Equal(TrackCondition.AllClear, snapshot.TrackCondition);
+    Equal(3, snapshot.Competitors.Count);
+    Equal("KIR", snapshot.Competitors[0].Code);
+    Equal("Andretti Global", snapshot.Competitors[0].Team);
+    Equal("Honda", snapshot.Competitors[0].Manufacturer);
+    Equal("LEAD", snapshot.Competitors[0].GapToLeader);
+    True(snapshot.Competitors[0].InPit);
+    True(snapshot.Competitors[0].IsOverallFastest);
+    Equal("+0.3455", snapshot.Competitors[1].GapToLeader);
+    Equal("+0.3455", snapshot.Competitors[1].IntervalToPositionAhead);
+    Equal("Chevrolet", snapshot.Competitors[2].Manufacturer);
+    Equal("P", snapshot.Competitors[2].Tyre);
+
+    var otherSeries = IndyCarPracticePayload();
+    otherSeries["timing_results"]!["heartbeat"]!["Series"] = "N";
+    Equal(SessionLifecycle.OffSession, IndyCarTiming.BuildSnapshot(otherSeries,
+        new DateTimeOffset(2026, 8, 15, 14, 25, 0, TimeSpan.Zero), ConnectionState.Connected).Lifecycle);
+}
+
+static void IndyCarSourceLifecycle()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 8, 15, 14, 25, 0, TimeSpan.Zero));
+    var api = new FakeIndyCarApiClient(new(IndyCarPracticePayload(), clock.UtcNow));
+    var delay = new BlockingDelay();
+    var alerts = new AlertArbiter(clock);
+    var source = new IndyCarLiveTimingSource(api, clock, delay, alerts,
+        new IndyCarPollingOptions(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2)));
+    List<TimingSnapshot> snapshots = [];
+    List<FeedFailure> failures = [];
+    var deltas = 0;
+    source.SnapshotReceived += snapshots.Add;
+    source.DeltaReceived += _ => deltas++;
+    source.Failed += failures.Add;
+
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    Equal(SessionLifecycle.Live, snapshots.Last().Lifecycle);
+    Equal(Championship.IndyCar, snapshots.Last().Championship);
+    Equal(TimeSpan.FromSeconds(2), delay.Duration);
+    Equal(1, deltas);
+    Equal(AlertKind.SessionStart, alerts.Current?.Kind);
+    Equal(0, failures.Count);
+}
+
+static void IndyCarColdFeedLifecycle()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 8, 16, 16, 0, 0, TimeSpan.Zero));
+    var payload = IndyCarPracticePayload();
+    payload["timing_results"]!["heartbeat"]!["SessionName"] = "Warmup";
+    payload["timing_results"]!["heartbeat"]!["SessionStatus"] = "COLD";
+    payload["timing_results"]!["heartbeat"]!["currentFlag"] = "COLD";
+    var api = new FakeIndyCarApiClient(new(payload, clock.UtcNow));
+    var delay = new BlockingDelay();
+    var source = new IndyCarLiveTimingSource(api, clock, delay, new AlertArbiter(clock),
+        new IndyCarPollingOptions(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2)));
+    List<TimingSnapshot> snapshots = [];
+    List<ConnectionState> connections = [];
+    List<FeedFailure> failures = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.ConnectionChanged += connections.Add;
+    source.Failed += failures.Add;
+
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    Equal(SessionLifecycle.OffSession, snapshots.Last().Lifecycle);
+    Equal(Championship.IndyCar, snapshots.Last().Championship);
+    True(connections.Contains(ConnectionState.Connected));
+    Equal(TimeSpan.FromMinutes(1), delay.Duration);
+    Equal(0, failures.Count);
+}
+
+static void IndyCarStaleFeedLifecycle()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 8, 15, 14, 30, 0, TimeSpan.Zero));
+    var api = new FakeIndyCarApiClient(new(IndyCarPracticePayload(), clock.UtcNow.AddMinutes(-3)));
+    var delay = new BlockingDelay();
+    var source = new IndyCarLiveTimingSource(api, clock, delay, new AlertArbiter(clock),
+        new IndyCarPollingOptions(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2)));
+    List<TimingSnapshot> snapshots = [];
+    List<ConnectionState> connections = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.ConnectionChanged += connections.Add;
+
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    Equal(SessionLifecycle.OffSession, snapshots.Last().Lifecycle);
+    Equal(ConnectionState.Stale, snapshots.Last().ConnectionState);
+    True(connections.Contains(ConnectionState.Stale));
+    Equal(TimeSpan.FromMinutes(1), delay.Duration);
+}
+
+static JsonObject IndyCarPracticePayload() => JsonNode.Parse("""
+    {"timing_results":{"heartbeat":{
+      "eventName":"Ontario Honda Dealers Indy at Markham","trackName":"Streets of Markham","currentFlag":"GREEN",
+      "overallTimeToGo":"21:52","Series":"I","SessionName":"Practice 1 - All Cars","SessionType":"P",
+      "SessionStatus":"GREEN","EventID":"5520","EventSessionID":"6911","EventSessionLabel":"Practice 1"},
+     "Item":[
+      {"DriverID":954,"rank":1,"diff":"0.0000","gap":"0.0000","bestLapTime":"1:15.6757","laps":"10","status":"Active","marker":"InPit","no":"27","firstName":"Kyle","lastName":"Kirkwood","equipment":"D/H/F","team":"Andretti Global","Tire":"P"},
+      {"DriverID":271,"rank":2,"diff":"0.3455","gap":"0.3455","bestLapTime":"1:16.0212","laps":"10","status":"Active","marker":"None","no":"28","firstName":"Marcus","lastName":"Ericsson","equipment":"D/H/F","team":"Andretti Global","Tire":"P"},
+      {"DriverID":999,"rank":3,"diff":"0.5461","gap":"0.2006","bestLapTime":"1:16.2218","laps":"8","status":"Active","marker":"None","no":"19","firstName":"Dennis","lastName":"Hauger","equipment":"D/C/F","team":"Dale Coyne Racing","Tire":"P"}
+     ]}}
+    """)!.AsObject();
+
 static JsonObject ImsaSessionReference(string value) => new() { ["$type"] = "oid", ["$value"] = value };
 
 static JsonObject DdpAdded(string collection, string id, JsonObject fields) => new()
@@ -2026,6 +2198,13 @@ sealed class GtwcHttpHandler(Dictionary<string, string> routes) : HttpMessageHan
         var body = routes.GetValueOrDefault(file) ?? "{\"content\":{\"full\":{}}}";
         return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) });
     }
+}
+
+sealed class FakeIndyCarApiClient(IndyCarTimingPayload payload) : IIndyCarApiClient
+{
+    public Task<IndyCarTimingPayload> GetTimingAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new IndyCarTimingPayload((JsonObject)payload.Data.DeepClone(), payload.LastModified));
+    public void Dispose() { }
 }
 
 sealed class FakeAlkamelDdpClient(IEnumerable<JsonObject> messages) : IAlkamelDdpClient
