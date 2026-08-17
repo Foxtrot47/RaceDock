@@ -39,7 +39,7 @@ internal static class ManufacturerLogo
                 : LoadBitmap(definition);
             if (artwork is null) return false;
 
-            logo = new Border
+            logo = HighQualityRendering(new Border
             {
                 Width = size,
                 Height = size,
@@ -47,7 +47,7 @@ internal static class ManufacturerLogo
                 ToolTip = manufacturer,
                 Child = artwork,
                 SnapsToDevicePixels = true
-            };
+            });
             return true;
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or JsonException or System.Xml.XmlException or NotSupportedException)
@@ -304,15 +304,16 @@ internal static class ManufacturerLogo
             AlignmentX = AlignmentX.Center,
             AlignmentY = AlignmentY.Center
         };
+        RenderOptions.SetBitmapScalingMode(mask, BitmapScalingMode.HighQuality);
         mask.Freeze();
-        return new Border
+        return HighQualityRendering(new Border
         {
             Background = BrandBrush(definition),
             OpacityMask = mask,
             Margin = new Thickness(2),
             UseLayoutRounding = true,
             SnapsToDevicePixels = true
-        };
+        });
     }
 
     private static SolidColorBrush BrandBrush(LogoDefinition definition)
@@ -322,14 +323,21 @@ internal static class ManufacturerLogo
         return brush;
     }
 
-    private static Image Artwork(ImageSource source) => new()
+    private static Image Artwork(ImageSource source) => HighQualityRendering(new Image
     {
         Source = source,
         Stretch = Stretch.Uniform,
         Margin = new Thickness(2),
         UseLayoutRounding = true,
         SnapsToDevicePixels = true
-    };
+    });
+
+    private static T HighQualityRendering<T>(T element) where T : DependencyObject
+    {
+        RenderOptions.SetBitmapScalingMode(element, BitmapScalingMode.HighQuality);
+        RenderOptions.SetEdgeMode(element, EdgeMode.Unspecified);
+        return element;
+    }
 
     private static Stream? OpenResource(string asset) => System.Windows.Application.GetResourceStream(
         new Uri($"pack://application:,,,/RaceDock;component/{ResourceRoot}{asset}", UriKind.Absolute))?.Stream;

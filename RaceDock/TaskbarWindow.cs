@@ -63,6 +63,8 @@ public sealed class TaskbarWindow : Window
         _flyout = new ClassificationFlyout(_settings);
         Width = 520; Height = 40; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; ShowInTaskbar = false; AllowsTransparency = true; Background = Brushes.Transparent; Topmost = true;
         UseLayoutRounding = true; SnapsToDevicePixels = true; TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
+        RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
+        RenderOptions.SetEdgeMode(this, EdgeMode.Unspecified);
         SetResourceReference(FontFamilyProperty, "MotorsportFontFamily");
         _root.Background = Brushes.Transparent;
         _flagCanvas.Children.Add(_flagPole); Canvas.SetLeft(_flagPole, 1); Canvas.SetTop(_flagPole, 1);

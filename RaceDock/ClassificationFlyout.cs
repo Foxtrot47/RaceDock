@@ -52,6 +52,8 @@ public sealed class ClassificationFlyout : Window
         SnapsToDevicePixels = true;
         SetResourceReference(FontFamilyProperty, "MotorsportFontFamily");
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
+        RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
+        RenderOptions.SetEdgeMode(this, EdgeMode.Unspecified);
 
         var root = new Border
         {
