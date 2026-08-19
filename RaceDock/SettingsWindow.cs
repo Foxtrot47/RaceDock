@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using RaceDock.App.Settings;
 using RaceDock.Core;
 using FluentWindow = Wpf.Ui.Controls.FluentWindow;
@@ -11,17 +12,31 @@ namespace RaceDock.App;
 
 public sealed partial class SettingsWindow : FluentWindow
 {
+    /// <summary>Properties that describe what is on screen rather than what is stored.</summary>
+    private static readonly HashSet<string> TransientProperties =
+    [
+        nameof(SettingsDraft.SelectedChampionship),
+        nameof(SettingsDraft.SelectedChampionshipPresentation),
+        nameof(SettingsDraft.SelectedChampionshipPageLogo),
+        nameof(SettingsDraft.SelectedChampionshipStatus),
+        nameof(SettingsDraft.SelectedChampionshipResetLabel),
+        nameof(SettingsDraft.SelectedChampionshipEnabled),
+        nameof(SettingsDraft.HasEnabledStream)
+    ];
+
     private readonly Func<UserSettings, Task> _apply;
     private readonly SettingsDraft _draft = new();
     private readonly TestingPage _testingPage;
     private readonly Dictionary<string, UIElement> _pages = [];
+    private readonly DispatcherTimer _autoSave = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    private bool _loading;
     private bool _allowClose;
 
     public SettingsWindow(AppController controller, UserSettings current, Func<UserSettings, Task> apply)
     {
         _apply = apply;
         InitializeComponent();
-        MessageText.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
+        ErrorBar.IsOpen = false;
 
         var dashboard = new DashboardPage();
         dashboard.NavigateRequested += NavigateTo;
@@ -38,7 +53,9 @@ public sealed partial class SettingsWindow : FluentWindow
             if (args.PropertyName is nameof(SettingsDraft.SelectedChampionshipEnabled) or nameof(SettingsDraft.HasEnabledStream)
                 or nameof(SettingsDraft.ChampionshipStatuses))
                 UpdateChampionshipNavigation();
+            if (!_loading && args.PropertyName is not null && !TransientProperties.Contains(args.PropertyName)) ScheduleSave();
         };
+        _autoSave.Tick += async (_, _) => await SaveAsync();
         Loaded += (_, _) => ShowPage(DashboardNavigationItem);
         Closing += (_, e) =>
         {
@@ -46,6 +63,8 @@ public sealed partial class SettingsWindow : FluentWindow
             e.Cancel = true;
             Hide();
         };
+        // Closing the window only hides it, so pending edits are applied on the way out.
+        IsVisibleChanged += async (_, args) => { if (!(bool)args.NewValue) await FlushAsync(); };
         LoadSettings(current);
     }
 
@@ -57,11 +76,16 @@ public sealed partial class SettingsWindow : FluentWindow
 
     public void LoadSettings(UserSettings settings)
     {
-        _draft.Load(settings);
-        _testingPage.SyncMode();
-        UpdateChampionshipNavigation();
-        MessageText.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
-        MessageText.Text = "";
+        _loading = true;
+        try
+        {
+            _draft.Load(settings);
+            _testingPage.SyncMode();
+            UpdateChampionshipNavigation();
+        }
+        finally { _loading = false; }
+        _autoSave.Stop();
+        ErrorBar.IsOpen = false;
     }
 
     public void UpdateSnapshot(TimingSnapshot snapshot)
@@ -136,38 +160,30 @@ public sealed partial class SettingsWindow : FluentWindow
             Enum.TryParse(key["Championship:".Length..], out championship);
     }
 
-    private void ResetButton_Click(object sender, RoutedEventArgs e) => LoadSettings(new UserSettings());
+    /// <summary>Coalesces edits so a slider drag applies once instead of on every step.</summary>
+    private void ScheduleSave()
+    {
+        _autoSave.Stop();
+        _autoSave.Start();
+    }
 
-    private async void SaveButton_Click(object sender, RoutedEventArgs e) => await SaveAsync();
+    private async Task FlushAsync()
+    {
+        if (_autoSave.IsEnabled) await SaveAsync();
+    }
 
     private async Task SaveAsync()
     {
-        if (!_draft.HasEnabledStream)
-        {
-            MessageText.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
-            MessageText.Text = "Select at least one live stream.";
-            return;
-        }
-
-        var next = _draft.BuildSettings();
-        SaveButton.IsEnabled = false;
-        MessageText.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        MessageText.Text = "Applying…";
+        _autoSave.Stop();
         try
         {
-            await _apply(next);
-            MessageText.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorSuccessBrush");
-            MessageText.Text = "Saved";
-            Hide();
+            await _apply(_draft.BuildSettings());
+            ErrorBar.IsOpen = false;
         }
         catch (Exception ex)
         {
-            MessageText.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
-            MessageText.Text = $"Could not apply settings: {ex.Message}";
-        }
-        finally
-        {
-            SaveButton.IsEnabled = true;
+            ErrorBar.Message = ex.Message;
+            ErrorBar.IsOpen = true;
         }
     }
 }

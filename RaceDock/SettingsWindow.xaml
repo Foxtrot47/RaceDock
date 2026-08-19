@@ -35,8 +35,8 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <ui:TitleBar Grid.Row="0"
@@ -45,8 +45,15 @@
                  ShowMinimize="True"
                  Panel.ZIndex="1" />
 
+        <ui:InfoBar x:Name="ErrorBar"
+                Grid.Row="1"
+                Margin="16,4,16,0"
+                Severity="Error"
+                IsClosable="True"
+                Title="Could not apply settings" />
+
         <ui:NavigationView x:Name="RootNavigation"
-                       Grid.Row="1"
+                       Grid.Row="2"
                        PaneDisplayMode="Left"
                        IsPaneOpen="True"
                        IsPaneToggleVisible="True"
@@ -155,34 +162,5 @@
             </ui:NavigationView.MenuItems>
         </ui:NavigationView>
 
-        <Border Grid.Row="2"
-            Padding="24,10,24,14"
-            Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
-            BorderBrush="{DynamicResource SurfaceStrokeColorDefaultBrush}"
-            BorderThickness="0,1,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock x:Name="MessageText"
-                   Margin="0,0,12,0"
-                   VerticalAlignment="Center" />
-                <ui:Button Grid.Column="1"
-                   Content="Reset defaults"
-                   MinWidth="112"
-                   Margin="0,0,8,0"
-                   Padding="14,7"
-                   Click="ResetButton_Click" />
-                <ui:Button x:Name="SaveButton"
-                   Grid.Column="2"
-                   Content="Save settings"
-                   Appearance="Primary"
-                   MinWidth="112"
-                   Padding="14,7"
-                   Click="SaveButton_Click" />
-            </Grid>
-        </Border>
     </Grid>
 </ui:FluentWindow>
