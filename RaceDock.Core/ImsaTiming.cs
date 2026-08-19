@@ -6,6 +6,9 @@ namespace RaceDock.Core;
 
 internal static class ImsaTiming
 {
+    public static bool IsWeatherTechSession(JsonObject info) =>
+        JsonSupport.String(info["champName"])?.Contains("WeatherTech", StringComparison.OrdinalIgnoreCase) == true;
+
     public static TimingSnapshot BuildSnapshot(
         JsonObject session,
         JsonObject info,

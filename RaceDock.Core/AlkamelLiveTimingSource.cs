@@ -274,7 +274,8 @@ internal sealed class AlkamelLiveTimingSource : ILiveTimingSource
     private async Task UpdateSelectedSessionAsync(CancellationToken cancellationToken)
     {
         var candidates = Collection("session_info").Values
-            .Where(document => document["info"] is JsonObject &&
+            .Where(document => document["info"] is JsonObject info &&
+                (_definition.Championship != Championship.Imsa || ImsaTiming.IsWeatherTechSession(info)) &&
                 SessionReferenceValue(document["session"]) is { } id && Collection("sessions").ContainsKey(id))
             .ToList();
         var open = candidates.Where(document => !JsonSupport.Bool(document["info"]?["closed"])).ToList();

@@ -1370,7 +1370,7 @@ static void ImsaSourceLifecycle()
         new() { ["msg"] = "connected", ["session"] = "test" },
         DdpAdded("feeds", "feed", new JsonObject { ["running"] = true, ["sessions"] = new JsonArray { sessionReference.DeepClone() } }),
         DdpAdded("sessions", "session-1", new JsonObject { ["name"] = "Race", ["date"] = 1000000 }),
-        DdpAdded("session_info", "info", new JsonObject { ["session"] = sessionReference.DeepClone(), ["info"] = JsonNode.Parse("{\"eventName\":\"Road America\",\"name\":\"RACE\",\"type\":\"RACE\",\"closed\":false}") }),
+        DdpAdded("session_info", "info", new JsonObject { ["session"] = sessionReference.DeepClone(), ["info"] = JsonNode.Parse("{\"eventName\":\"Road America\",\"champName\":\"IMSA WeatherTech SportsCar Championship\",\"name\":\"RACE\",\"type\":\"RACE\",\"closed\":false}") }),
         DdpAdded("session_entry", "entry", new JsonObject { ["session"] = sessionReference.DeepClone(), ["entry"] = JsonNode.Parse("{\"01\":{\"driver\":\"Wit\",\"name\":\"M. WITTMANN\",\"team\":\"BMW M Team WRT\",\"vehicle\":\"BMW M HYBRID V8\",\"class\":\"GTP\"}}") }),
         DdpAdded("track_info", "track", new JsonObject { ["session"] = sessionReference.DeepClone(), ["track"] = JsonNode.Parse("{\"name\":\"Road America\",\"sectors\":{\"1\":{},\"2\":{},\"3\":{}}}") }),
         DdpAdded("session_status", "status", new JsonObject { ["session"] = sessionReference.DeepClone(), ["status"] = JsonNode.Parse("{\"currentFlag\":\"GF\",\"currentLap\":11,\"finalType\":\"BY_TIME\",\"finalTime\":600,\"startTime\":1000,\"isSessionRunning\":true,\"isFinished\":false}") }),
