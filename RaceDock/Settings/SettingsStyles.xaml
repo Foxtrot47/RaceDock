@@ -286,6 +286,21 @@
     <Setter Property="Margin" Value="0,0,0,3" />
   </Style>
 
+  <!--  Settings apply as they change, so each page ends with its own way back to the defaults.  -->
+  <Style x:Key="SettingsResetCardStyle"
+         TargetType="ui:CardControl"
+         BasedOn="{StaticResource {x:Type ui:CardControl}}">
+    <Setter Property="Margin" Value="0,24,0,0" />
+  </Style>
+
+  <Style x:Key="SettingsResetButtonStyle"
+         TargetType="ui:Button"
+         BasedOn="{StaticResource {x:Type ui:Button}}">
+    <Setter Property="Content" Value="Reset" />
+    <Setter Property="MinWidth" Value="96" />
+    <Setter Property="Icon" Value="{ui:SymbolIcon ArrowReset24}" />
+  </Style>
+
   <Style x:Key="SettingsChampionshipHeaderCardStyle" TargetType="Border">
     <Setter Property="MinHeight" Value="84" />
     <Setter Property="Margin" Value="0,0,0,18" />

@@ -305,6 +305,13 @@
                 </ui:CardControl>
             </StackPanel>
             </StackPanel>
+
+            <ui:CardControl Style="{StaticResource SettingsResetCardStyle}" Icon="{ui:SymbolIcon ArrowReset24}">
+                <ui:CardControl.Header>
+                    <TextBlock Text="{Binding SelectedChampionshipResetLabel}" Style="{StaticResource SettingsCardTitleStyle}" />
+                </ui:CardControl.Header>
+                <ui:Button Style="{StaticResource SettingsResetButtonStyle}" Click="ResetButton_Click" />
+            </ui:CardControl>
         </StackPanel>
     </ScrollViewer>
 </Page>

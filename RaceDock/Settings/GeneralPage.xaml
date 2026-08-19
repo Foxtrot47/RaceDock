@@ -34,6 +34,11 @@
         <ui:CardControl.Header><StackPanel HorizontalAlignment="Left"><TextBlock Text="Keep final classification visible" Style="{StaticResource SettingsCardTitleStyle}" /><TextBlock Text="Keep the latest classification on the taskbar between sessions. A new live session replaces it immediately." Style="{StaticResource SettingsCardDescriptionStyle}" /></StackPanel></ui:CardControl.Header>
         <StackPanel Orientation="Horizontal"><Slider Minimum="5" Maximum="30" Value="{Binding CompletedSessionRetentionMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SettingsSliderStyle}" /><TextBlock Text="{Binding CompletedSessionRetentionMinutes, StringFormat={}{0} min}" Style="{StaticResource SettingsValueStyle}" /></StackPanel>
       </ui:CardControl>
+
+      <ui:CardControl Style="{StaticResource SettingsResetCardStyle}" Icon="{ui:SymbolIcon ArrowReset24}">
+        <ui:CardControl.Header><TextBlock Text="Reset to defaults" Style="{StaticResource SettingsCardTitleStyle}" /></ui:CardControl.Header>
+        <ui:Button Style="{StaticResource SettingsResetButtonStyle}" Click="ResetButton_Click" />
+      </ui:CardControl>
     </StackPanel>
   </ScrollViewer>
 </Page>

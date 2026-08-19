@@ -8,13 +8,8 @@
     <StackPanel Style="{StaticResource SettingsPagePanelStyle}">
       <TextBlock Text="Championships"
                  FontSize="24"
-                 FontWeight="SemiBold" />
-      <TextBlock Text="Enable hidden championships."
-                 Margin="0,6,0,20"
-                 MaxWidth="620"
-                 HorizontalAlignment="Left"
-                 TextWrapping="Wrap"
-                 Opacity="0.7" />
+                 FontWeight="SemiBold"
+                 Margin="0,6,0,20" />
 
       <ItemsControl x:Name="ChampionshipVisibilityList"
                     ItemsSource="{Binding ChampionshipStatuses}">
@@ -44,6 +39,16 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
+
+      <ui:CardControl Style="{StaticResource SettingsResetCardStyle}"
+                      Icon="{ui:SymbolIcon ArrowReset24}">
+        <ui:CardControl.Header>
+          <TextBlock Text="Reset to defaults"
+                     Style="{StaticResource SettingsCardTitleStyle}" />
+        </ui:CardControl.Header>
+        <ui:Button Style="{StaticResource SettingsResetButtonStyle}"
+                   Click="ResetButton_Click" />
+      </ui:CardControl>
     </StackPanel>
   </ScrollViewer>
 </Page>

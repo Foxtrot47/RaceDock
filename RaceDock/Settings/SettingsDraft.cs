@@ -264,6 +264,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             OnPropertyChanged(nameof(SelectedChampionshipPresentation));
             OnPropertyChanged(nameof(SelectedChampionshipPageLogo));
             OnPropertyChanged(nameof(SelectedChampionshipStatus));
+            OnPropertyChanged(nameof(SelectedChampionshipResetLabel));
             OnPropertyChanged(nameof(SelectedChampionshipEnabled));
             if (_syncingProfile) return;
             _syncingProfile = true;
@@ -277,6 +278,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
 
     public ChampionshipStatusItem SelectedChampionshipStatus =>
         _statusByChampionship.TryGetValue(SelectedChampionship, out var status) ? status : _statusByChampionship[Championship.Formula1];
+
+    public string SelectedChampionshipResetLabel => $"Reset {SelectedChampionshipStatus.DisplayName} settings";
 
     public string SelectedChampionshipPageLogo => SelectedChampionship switch
     {
@@ -391,6 +394,33 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         RefreshDashboardChampionshipStatuses();
         OnPropertyChanged(nameof(HasEnabledStream));
         OnPropertyChanged(nameof(ChampionshipStatuses));
+    }
+
+    public void ResetGeneral()
+    {
+        var defaults = new UserSettings();
+        AutoStartOnWindowsBoot = defaults.AutoStartOnWindowsBoot;
+        RotationSeconds = defaults.RotationSeconds;
+        CompletedSessionRetentionMinutes = defaults.CompletedSessionRetentionMinutes;
+        WidgetPosition = defaults.WidgetPosition;
+    }
+
+    /// <summary>Restores the taskbar and flyout profile of the championship currently on screen, plus its power switch.</summary>
+    public void ResetSelectedChampionship()
+    {
+        var championship = SelectedChampionship;
+        SetChampionshipEnabled(championship, new UserSettings().IsChampionshipEnabled(championship));
+        _profiles = _profiles.With(championship, new ChampionshipDisplaySettings());
+        _syncingProfile = true;
+        LoadProfile(_profiles.For(championship));
+        _syncingProfile = false;
+    }
+
+    public void ResetChampionshipVisibility()
+    {
+        var defaults = new UserSettings();
+        foreach (var status in ChampionshipStatuses)
+            SetChampionshipVisible(status, defaults.IsChampionshipVisible(status.Championship));
     }
 
     public UserSettings BuildSettings()
