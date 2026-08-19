@@ -24,6 +24,8 @@ public sealed partial class SettingsWindow : FluentWindow
         nameof(SettingsDraft.HasEnabledStream)
     ];
 
+    private const string NavigationItemBackgroundKey = "NavigationViewItemBackground";
+
     private readonly Func<UserSettings, Task> _apply;
     private readonly SettingsDraft _draft = new();
     private readonly TestingPage _testingPage;
@@ -55,6 +57,13 @@ public sealed partial class SettingsWindow : FluentWindow
                 UpdateChampionshipNavigation();
             if (!_loading && args.PropertyName is not null && !TransientProperties.Contains(args.PropertyName)) ScheduleSave();
         };
+        foreach (var status in _draft.ChampionshipStatuses)
+            status.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName is nameof(ChampionshipStatusItem.StatusKind)) UpdateChampionshipNavigation();
+            };
+        RootNavigation.PaneOpened += (_, _) => UpdateChampionshipNavigation();
+        RootNavigation.PaneClosed += (_, _) => UpdateChampionshipNavigation();
         _autoSave.Tick += async (_, _) => await SaveAsync();
         Loaded += (_, _) => ShowPage(DashboardNavigationItem);
         Closing += (_, e) =>
@@ -150,8 +159,31 @@ public sealed partial class SettingsWindow : FluentWindow
             item.Visibility = status.IsVisible ? Visibility.Visible : Visibility.Collapsed;
             item.Opacity = status.IsChampionshipEnabled ? 1 : 0.62;
             item.ToolTip = status.IsChampionshipEnabled ? null : "Disabled — open to configure";
+            ApplyCollapsedTint(item, status);
         }
     }
+
+    /// <summary>Carries session state on a collapsed pane, where the label badge would cover the championship artwork.</summary>
+    /// <remarks>
+    /// The navigation item template fills its row from the NavigationViewItemBackground resource rather than from the
+    /// item's Background, so the tint has to enter the lookup through the item's own resource scope. Hover and selection
+    /// set that background on the template border directly and still win over the tint.
+    /// </remarks>
+    private void ApplyCollapsedTint(NavigationViewItem item, ChampionshipStatusItem status)
+    {
+        var tint = RootNavigation.IsPaneOpen ? null : TintResourceKey(status.StatusKind);
+        if (tint is null) item.Resources.Remove(NavigationItemBackgroundKey);
+        else item.Resources[NavigationItemBackgroundKey] = FindResource(tint);
+    }
+
+    private static string? TintResourceKey(ChampionshipStatusKind kind) => kind switch
+    {
+        ChampionshipStatusKind.Live => "SystemFillColorSuccessBackgroundBrush",
+        ChampionshipStatusKind.PreSession => "SystemFillColorCautionBackgroundBrush",
+        ChampionshipStatusKind.RedFlag => "SystemFillColorCriticalBackgroundBrush",
+        ChampionshipStatusKind.Ended => "SystemFillColorNeutralBackgroundBrush",
+        _ => null
+    };
 
     private static bool TryChampionship(string? key, out Championship championship)
     {
