@@ -15,6 +15,8 @@
                  Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                  FontFamily="{DynamicResource MotorsportFontFamily}">
     <ui:FluentWindow.Resources>
+        <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+        <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
         <Style TargetType="ui:NavigationViewItem"
            BasedOn="{StaticResource {x:Type ui:NavigationViewItem}}">
             <!--  Row height comes from the icon: WPF-UI sizes the hover border to content plus a 1px border,  -->
