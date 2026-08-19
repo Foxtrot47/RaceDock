@@ -1079,11 +1079,20 @@ static void ChampionshipVisibility()
     var formula1Hidden = new UserSettings
     {
         EnableFormula1 = false,
+        EnableGtWorldChallengeEurope = false,
+        EnableWrc = false,
         HiddenChampionships = [Championship.Formula1]
     }.Normalize();
     True(formula1Hidden.HasEnabledStream);
     False(formula1Hidden.IsChampionshipVisible(Championship.Formula1));
     False(formula1Hidden.EnableFormula1);
+    True(formula1Hidden.EnableFormula2);
+    True(formula1Hidden.IsChampionshipVisible(Championship.Formula2));
+
+    // Normalizing again keeps the repaired settings stable.
+    var renormalized = formula1Hidden.Normalize();
+    True(renormalized.EnableFormula2);
+    False(renormalized.IsChampionshipVisible(Championship.Formula1));
 
     // Hiding everything leaves nothing to fall back to, so Formula 1 comes back.
     var allHidden = new UserSettings { HiddenChampionships = [.. UserSettings.AllChampionships] }.Normalize();

@@ -119,7 +119,8 @@ public sealed partial class SettingsWindow : FluentWindow
         foreach (var item in RootNavigation.MenuItems.OfType<NavigationViewItem>())
         {
             if (!TryChampionship(item.Tag as string, out var championship)) continue;
-            var status = _draft.ChampionshipStatuses.First(candidate => candidate.Championship == championship);
+            var status = _draft.ChampionshipStatuses.FirstOrDefault(candidate => candidate.Championship == championship);
+            if (status is null) continue;
             item.DataContext = status;
             item.InfoBadge ??= new InfoBadge { Style = badgeStyle, Margin = new Thickness(0, 0, 12, 0) };
             item.Visibility = status.IsVisible ? Visibility.Visible : Visibility.Collapsed;

@@ -53,6 +53,8 @@ internal sealed class ChampionshipStatusItem : INotifyPropertyChanged
         {
             if (_isVisible == value) return;
             VisibilityChangeRequested?.Invoke(this, value);
+            // Nothing applied the request, so push the stored value back to the bound toggle.
+            if (_isVisible != value) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsVisible)));
         }
     }
 
@@ -273,7 +275,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     public ChampionshipSettingsPresentation SelectedChampionshipPresentation =>
         ChampionshipSettingsPresentation.For(SelectedChampionship);
 
-    public ChampionshipStatusItem SelectedChampionshipStatus => _statusByChampionship[SelectedChampionship];
+    public ChampionshipStatusItem SelectedChampionshipStatus =>
+        _statusByChampionship.TryGetValue(SelectedChampionship, out var status) ? status : _statusByChampionship[Championship.Formula1];
 
     public string SelectedChampionshipPageLogo => SelectedChampionship switch
     {

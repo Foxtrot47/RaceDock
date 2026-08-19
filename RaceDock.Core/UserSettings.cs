@@ -328,12 +328,12 @@ public sealed class UserSettingsStore(string? path = null)
     {
         try
         {
-            if (!File.Exists(Path)) return new UserSettings();
+            if (!File.Exists(Path)) return new UserSettings().Normalize();
             return (JsonSerializer.Deserialize<UserSettings>(File.ReadAllText(Path), JsonOptions) ?? new UserSettings()).Normalize();
         }
-        catch (JsonException) { return new UserSettings(); }
-        catch (IOException) { return new UserSettings(); }
-        catch (UnauthorizedAccessException) { return new UserSettings(); }
+        catch (JsonException) { return new UserSettings().Normalize(); }
+        catch (IOException) { return new UserSettings().Normalize(); }
+        catch (UnauthorizedAccessException) { return new UserSettings().Normalize(); }
     }
 
     public void Save(UserSettings settings)
