@@ -215,6 +215,8 @@ public sealed class AppController : IAsyncDisposable
     private void RenderPending()
     {
         var snapshot = Interlocked.Exchange(ref _pending, null); if (snapshot is null) return;
+        // Live feeds never start for a hidden championship, but archive playback can still produce one.
+        if (snapshot.Championship != Championship.Unknown && !_settings.IsChampionshipVisible(snapshot.Championship)) return;
         if (snapshot.Championship == Championship.Unknown && snapshot.Lifecycle == SessionLifecycle.OffSession)
         {
             _latestSnapshots.Clear();
