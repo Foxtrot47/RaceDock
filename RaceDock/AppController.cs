@@ -19,6 +19,7 @@ public sealed class AppController : IAsyncDisposable
     private readonly SemaphoreSlim _sourceSwitch = new(1, 1);
     private ILiveTimingSource? _source;
     private TimingSnapshot? _pending;
+    private readonly Dictionary<Championship, TimingSnapshot> _latestSnapshots = [];
     private TaskbarWindow? _taskbar;
     private SettingsWindow? _settingsWindow;
     private readonly CancellationTokenSource _lifetime = new();
@@ -110,7 +111,9 @@ public sealed class AppController : IAsyncDisposable
         if (_settings.EnableFormulaE) factories.Add(() => new FormulaELiveTimingSource(_clock, _alerts));
         if (_settings.EnableDtm) factories.Add(() => new DtmLiveTimingSource(_clock, _alerts));
         if (_settings.EnableIndyCar) factories.Add(() => new IndyCarLiveTimingSource(_clock, _alerts));
-        return new CompositeLiveTimingSource(factories, _clock, TimeSpan.FromSeconds(_settings.RotationSeconds));
+        return new CompositeLiveTimingSource(factories, _clock,
+            TimeSpan.FromSeconds(_settings.RotationSeconds),
+            TimeSpan.FromMinutes(_settings.CompletedSessionRetentionMinutes));
     }
 
     private async Task SwitchSourceCoreAsync(TimingSourceMode mode, ILiveTimingSource candidate)
@@ -121,6 +124,8 @@ public sealed class AppController : IAsyncDisposable
             await _source.DisposeAsync();
             _source = null;
         }
+        _latestSnapshots.Clear();
+        _settingsWindow?.ClearTimingStatuses();
         _pending = null;
         _taskbar?.Hide();
         _alerts.Clear();
@@ -170,7 +175,7 @@ public sealed class AppController : IAsyncDisposable
         {
             ITimingArchiveSource archive => $"Source started: archive replay {archive.ArchiveName}; {archive.FrameCount} frames",
             ITimingScenarioSource => "Source started: deterministic test scenario (paused)",
-            _ => $"Source started: {enabled}; rotation {_settings.RotationSeconds}s"
+            _ => $"Source started: {enabled}; rotation {_settings.RotationSeconds}s; completed sessions {_settings.CompletedSessionRetentionMinutes}m"
         });
     }
 
@@ -210,9 +215,19 @@ public sealed class AppController : IAsyncDisposable
     private void RenderPending()
     {
         var snapshot = Interlocked.Exchange(ref _pending, null); if (snapshot is null) return;
+        if (snapshot.Championship == Championship.Unknown && snapshot.Lifecycle == SessionLifecycle.OffSession)
+        {
+            _latestSnapshots.Clear();
+            _settingsWindow?.ClearTimingStatuses();
+        }
+        else if (snapshot.Championship != Championship.Unknown)
+        {
+            if (snapshot.Lifecycle == SessionLifecycle.OffSession) _latestSnapshots.Remove(snapshot.Championship);
+            else _latestSnapshots[snapshot.Championship] = snapshot;
+            _settingsWindow?.UpdateSnapshot(snapshot);
+        }
         if (snapshot.Lifecycle == SessionLifecycle.OffSession || (snapshot.Lifecycle == SessionLifecycle.Ended && Archive is null)) { _taskbar?.Hide(); return; }
         _taskbar ??= new TaskbarWindow(_settings); _taskbar.UpdateSnapshot(snapshot); _taskbar.SetAlert(_alerts.Current); if (!_taskbar.IsVisible) _taskbar.Show();
-        _settingsWindow?.UpdateSnapshot(snapshot);
     }
 
     public void ShowSettings() => _ = ShowSettingsAsync();
@@ -227,6 +242,7 @@ public sealed class AppController : IAsyncDisposable
 
         _settingsWindow ??= new SettingsWindow(this, _settings, ApplySettingsAsync);
         _settingsWindow.LoadSettings(_settings);
+        foreach (var snapshot in _latestSnapshots.Values) _settingsWindow.UpdateSnapshot(snapshot);
         _settingsWindow.Show();
         _settingsWindow.Activate();
     }
@@ -245,7 +261,8 @@ public sealed class AppController : IAsyncDisposable
             settings.EnableFormulaE != _settings.EnableFormulaE ||
             settings.EnableDtm != _settings.EnableDtm ||
             settings.EnableIndyCar != _settings.EnableIndyCar ||
-            settings.RotationSeconds != _settings.RotationSeconds;
+            settings.RotationSeconds != _settings.RotationSeconds ||
+            settings.CompletedSessionRetentionMinutes != _settings.CompletedSessionRetentionMinutes;
         _settingsStore.Save(settings);
         _settings = settings.Normalize();
         WindowsStartupRegistration.Apply(_settings.AutoStartOnWindowsBoot);

@@ -12,6 +12,7 @@
     <AssemblyName>RaceDock</AssemblyName>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="..\RaceDock.Core\RaceDock.Core.csproj" /></ItemGroup>
+  <ItemGroup><PackageReference Include="WPF-UI" Version="4.3.0" /></ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\ManufacturerLogos\**\*.json" />
     <Resource Include="Assets\ManufacturerLogos\**\*.png" />

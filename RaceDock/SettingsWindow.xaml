@@ -1,0 +1,188 @@
+<ui:FluentWindow x:Class="RaceDock.App.SettingsWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:local="clr-namespace:RaceDock.App"
+                 Title="RaceDock Settings"
+                 Width="980"
+                 Height="720"
+                 MinWidth="760"
+                 MinHeight="560"
+                 WindowStartupLocation="CenterScreen"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 Background="{DynamicResource ApplicationBackgroundBrush}"
+                 Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                 FontFamily="{DynamicResource MotorsportFontFamily}">
+    <ui:FluentWindow.Resources>
+        <Style TargetType="ui:NavigationViewItem"
+           BasedOn="{StaticResource {x:Type ui:NavigationViewItem}}">
+            <!--  Row height comes from the icon: WPF-UI sizes the hover border to content plus a 1px border,  -->
+            <!--  so a fixed item height would leave a dead band between adjacent hover surfaces.  -->
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="NavigationGlyphStyle"
+           TargetType="ui:SymbolIcon">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="46" />
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0"
+                 Title="RaceDock"
+                 ShowMaximize="True"
+                 ShowMinimize="True"
+                 Panel.ZIndex="1" />
+
+        <ui:NavigationView x:Name="RootNavigation"
+                       Grid.Row="1"
+                       PaneDisplayMode="Left"
+                       IsPaneOpen="True"
+                       IsPaneToggleVisible="True"
+                       OpenPaneLength="250"
+                       CompactPaneLength="48"
+                       IsTopSeparatorVisible="False"
+                       IsFooterSeparatorVisible="False"
+                       FrameMargin="0"
+                       TransitionDuration="180">
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem x:Name="DashboardNavigationItem"
+                               Content="Dashboard"
+                               Tag="Dashboard"
+                               Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Home24" Style="{StaticResource NavigationGlyphStyle}" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="General"
+                               Tag="General"
+                               Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Settings24" Style="{StaticResource NavigationGlyphStyle}" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Formula 1" Tag="Championship:Formula1" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f1.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Formula 2" Tag="Championship:Formula2" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f2.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Formula 3" Tag="Championship:Formula3" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f3.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Formula E" Tag="Championship:FormulaE" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/formulae.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="DTM" Tag="Championship:Dtm" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/dtm.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="INDYCAR" Tag="Championship:IndyCar" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/indycar.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="MotoGP" Tag="Championship:MotoGp" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/motogp.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Moto2" Tag="Championship:Moto2" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/moto2-sidebar.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Moto3" Tag="Championship:Moto3" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/moto3-sidebar.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="GT World Challenge" Tag="Championship:GtWorldChallengeEurope" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/gtwc.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="World Rally Championship" Tag="Championship:WorldRallyChampionship" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/wrc.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="IMSA WeatherTech" Tag="Championship:Imsa" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/imsa.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Testing" Tag="Testing" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Bug24" Style="{StaticResource NavigationGlyphStyle}" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <!--  Everything lives in the menu list: the footer list is pinned and cannot scroll, so items there become unreachable in a short window.  -->
+                <ui:NavigationViewItem Content="More championships"
+                               Tag="MoreChampionships"
+                               Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Apps24" Style="{StaticResource NavigationGlyphStyle}" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="About"
+                               Tag="About"
+                               Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Info24" Style="{StaticResource NavigationGlyphStyle}" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+            </ui:NavigationView.MenuItems>
+        </ui:NavigationView>
+
+        <Border Grid.Row="2"
+            Padding="24,10,24,14"
+            Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+            BorderBrush="{DynamicResource SurfaceStrokeColorDefaultBrush}"
+            BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="MessageText"
+                   Margin="0,0,12,0"
+                   VerticalAlignment="Center" />
+                <ui:Button Grid.Column="1"
+                   Content="Reset defaults"
+                   MinWidth="112"
+                   Margin="0,0,8,0"
+                   Padding="14,7"
+                   Click="ResetButton_Click" />
+                <ui:Button x:Name="SaveButton"
+                   Grid.Column="2"
+                   Content="Save settings"
+                   Appearance="Primary"
+                   MinWidth="112"
+                   Padding="14,7"
+                   Click="SaveButton_Click" />
+            </Grid>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

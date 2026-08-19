@@ -36,6 +36,7 @@ var tests = new (string Name, Action Run)[]
     ("WRC missing shakedown data is not a feed failure", WrcOptionalShakedown),
     ("championship labels use compact taskbar and full flyout names", ChampionshipLabels),
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
+    ("hidden championships stay disabled and out of sight", ChampionshipVisibility),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
     ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
@@ -988,6 +989,10 @@ static void ChampionshipLabels()
     Equal(4, (int)Championship.WorldRallyChampionship);
     Equal(5, (int)Championship.GtWorldChallengeEurope);
     Equal(6, (int)Championship.Imsa);
+    Equal(7, (int)Championship.MotoGp);
+    Equal(8, (int)Championship.Moto2);
+    Equal(9, (int)Championship.Moto3);
+    Equal(10, (int)Championship.FormulaE);
     Equal(11, (int)Championship.Dtm);
     Equal(12, (int)Championship.IndyCar);
     var now = DateTimeOffset.UtcNow;
@@ -1001,9 +1006,11 @@ static void ChampionshipLabels()
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Imsa);
     var moto3 = new TimingSnapshot("Qatar Airways Grand Prix of Great Britain", "Moto3 Practice", "Silverstone Circuit", 3, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Moto3);
+    var formulaE = new TimingSnapshot("London E-Prix", "Free Practice 2", "London", 22, null,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.FormulaE);
     var dtm = new TimingSnapshot("Nürburgring", "Race 1", "Nürburgring", 9, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Dtm);
-    var indyCar = new TimingSnapshot("Ontario Honda Dealers Indy at Markham", "Race", "Streets of Markham", 1, 90,
+    var indyCar = new TimingSnapshot("Ontario Honda Dealers Indy at Markham", "Practice 1", "Streets of Markham", 10, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.IndyCar);
     Equal("F1 Spa", ChampionshipDisplay.CompactEvent(f1));
     Equal("Formula 1 · Belgian Grand Prix", ChampionshipDisplay.FullEvent(f1));
@@ -1015,6 +1022,8 @@ static void ChampionshipLabels()
     Equal("IMSA WeatherTech SportsCar Championship · Motul SportsCar Endurance Grand Prix", ChampionshipDisplay.FullEvent(imsa));
     Equal("Moto3 Silverstone", ChampionshipDisplay.CompactEvent(moto3));
     Equal("Moto3 · Qatar Airways Grand Prix of Great Britain", ChampionshipDisplay.FullEvent(moto3));
+    Equal("FE London", ChampionshipDisplay.CompactEvent(formulaE));
+    Equal("Formula E · London E-Prix", ChampionshipDisplay.FullEvent(formulaE));
     Equal("DTM Nürburgring", ChampionshipDisplay.CompactEvent(dtm));
     Equal("DTM · Nürburgring", ChampionshipDisplay.FullEvent(dtm));
     Equal("INDYCAR Streets of Markham", ChampionshipDisplay.CompactEvent(indyCar));
@@ -1024,6 +1033,83 @@ static void ChampionshipLabels()
         Championship = Championship.MotoGp,
         Circuit = "MotoGP Silverstone Circuit"
     }));
+}
+
+static void ChampionshipVisibility()
+{
+    var defaults = new UserSettings().Normalize();
+    foreach (var championship in UserSettings.DefaultHiddenChampionships)
+    {
+        False(defaults.IsChampionshipVisible(championship));
+        False(defaults.IsChampionshipEnabled(championship));
+    }
+    True(defaults.IsChampionshipVisible(Championship.Formula1));
+    True(defaults.EnableFormula1);
+
+    // A settings file written before visibility existed keeps whatever the user had already enabled.
+    var legacy = new UserSettings { EnableFormula2 = true, EnableIndyCar = true }.Normalize();
+    True(legacy.IsChampionshipVisible(Championship.Formula2));
+    True(legacy.EnableFormula2);
+    True(legacy.IsChampionshipVisible(Championship.IndyCar));
+    False(legacy.IsChampionshipVisible(Championship.Moto2));
+
+    // Hiding a championship switches it off so nothing is fetched for it.
+    var hidden = new UserSettings
+    {
+        EnableIndyCar = true,
+        EnableDtm = true,
+        HiddenChampionships = [Championship.IndyCar]
+    }.Normalize();
+    False(hidden.IsChampionshipVisible(Championship.IndyCar));
+    False(hidden.EnableIndyCar);
+    True(hidden.IsChampionshipVisible(Championship.Dtm));
+    True(hidden.EnableDtm);
+
+    // Any championship can be hidden, including the ones that are visible by default.
+    var withoutFormula1 = new UserSettings
+    {
+        EnableGtWorldChallengeEurope = true,
+        HiddenChampionships = [Championship.Formula1]
+    }.Normalize();
+    False(withoutFormula1.IsChampionshipVisible(Championship.Formula1));
+    False(withoutFormula1.EnableFormula1);
+    True(withoutFormula1.EnableGtWorldChallengeEurope);
+
+    // Something has to run, so the fallback picks a visible championship instead of forcing a hidden one back on.
+    var formula1Hidden = new UserSettings
+    {
+        EnableFormula1 = false,
+        HiddenChampionships = [Championship.Formula1]
+    }.Normalize();
+    True(formula1Hidden.HasEnabledStream);
+    False(formula1Hidden.IsChampionshipVisible(Championship.Formula1));
+    False(formula1Hidden.EnableFormula1);
+
+    // Hiding everything leaves nothing to fall back to, so Formula 1 comes back.
+    var allHidden = new UserSettings { HiddenChampionships = [.. UserSettings.AllChampionships] }.Normalize();
+    True(allHidden.HasEnabledStream);
+    True(allHidden.IsChampionshipVisible(Championship.Formula1));
+    True(allHidden.EnableFormula1);
+    False(allHidden.IsChampionshipVisible(Championship.Imsa));
+
+    var directory = Path.Combine(Path.GetTempPath(), $"RaceDock.Tests.{Guid.NewGuid():N}");
+    var path = Path.Combine(directory, "settings.json");
+    try
+    {
+        var store = new UserSettingsStore(path);
+        store.Save(new UserSettings { EnableMoto2 = true, HiddenChampionships = [Championship.Dtm] });
+        var reloaded = store.Load();
+        True(reloaded.IsChampionshipVisible(Championship.Moto2));
+        True(reloaded.EnableMoto2);
+        False(reloaded.IsChampionshipVisible(Championship.Dtm));
+        // An explicit list is authoritative: unlisted championships stay visible even while switched off.
+        True(reloaded.IsChampionshipVisible(Championship.IndyCar));
+        False(reloaded.EnableIndyCar);
+    }
+    finally
+    {
+        if (Directory.Exists(directory)) Directory.Delete(directory, true);
+    }
 }
 
 static void UserSettingsPersistence()
@@ -1050,6 +1136,7 @@ static void UserSettingsPersistence()
             EnableImsa = false,
             DriverCount = 99,
             RotationSeconds = 1,
+            CompletedSessionRetentionMinutes = 99,
             UseManufacturerLogos = true,
             AutoStartOnWindowsBoot = false
         });
@@ -1057,7 +1144,16 @@ static void UserSettingsPersistence()
         True(loaded.EnableFormula1);
         Equal(5, loaded.DriverCount);
         Equal(2, loaded.RotationSeconds);
+        Equal(30, loaded.CompletedSessionRetentionMinutes);
         True(loaded.UseManufacturerLogos);
+        True(loaded.DisplayFor(Championship.Formula1).TaskbarUseManufacturerLogos);
+        True(loaded.DisplayFor(Championship.Formula1).FlyoutShowTyreOrResult);
+        False(loaded.DisplayFor(Championship.Formula2).TaskbarUseManufacturerLogos);
+        False(loaded.DisplayFor(Championship.Formula2).FlyoutUseManufacturerLogos);
+        False(loaded.DisplayFor(Championship.Formula2).FlyoutShowTyreOrResult);
+        True(loaded.DisplayFor(Championship.Moto3).FlyoutUseManufacturerLogos);
+        False(loaded.DisplayFor(Championship.Moto3).FlyoutShowTyreOrResult);
+        False(loaded.DisplayFor(Championship.WorldRallyChampionship).FlyoutShowTeamNames);
         False(loaded.AutoStartOnWindowsBoot);
         False(loaded.EnableGtWorldChallengeEurope);
         var gtwcOnly = new UserSettings
@@ -1082,18 +1178,6 @@ static void UserSettingsPersistence()
         }.Normalize();
         False(imsaOnly.EnableFormula1);
         True(imsaOnly.EnableImsa);
-        var indyCarOnly = new UserSettings
-        {
-            EnableFormula1 = false,
-            EnableFormula2 = false,
-            EnableFormula3 = false,
-            EnableGtWorldChallengeEurope = false,
-            EnableWrc = false,
-            EnableImsa = false,
-            EnableIndyCar = true
-        }.Normalize();
-        False(indyCarOnly.EnableFormula1);
-        True(indyCarOnly.EnableIndyCar);
         var moto3Only = new UserSettings
         {
             EnableFormula1 = false,
@@ -1110,6 +1194,18 @@ static void UserSettingsPersistence()
         var persistedMoto3 = store.Load();
         False(persistedMoto3.EnableFormula1);
         True(persistedMoto3.EnableMoto3);
+        var formulaEOnly = new UserSettings
+        {
+            EnableFormula1 = false,
+            EnableFormula2 = false,
+            EnableFormula3 = false,
+            EnableGtWorldChallengeEurope = false,
+            EnableWrc = false,
+            EnableImsa = false,
+            EnableFormulaE = true
+        }.Normalize();
+        False(formulaEOnly.EnableFormula1);
+        True(formulaEOnly.EnableFormulaE);
         var dtmOnly = new UserSettings
         {
             EnableFormula1 = false,
@@ -1122,10 +1218,82 @@ static void UserSettingsPersistence()
         }.Normalize();
         False(dtmOnly.EnableFormula1);
         True(dtmOnly.EnableDtm);
-        store.Save(dtmOnly);
-        var persistedDtm = store.Load();
-        False(persistedDtm.EnableFormula1);
-        True(persistedDtm.EnableDtm);
+        var indyCarOnly = new UserSettings
+        {
+            EnableFormula1 = false,
+            EnableFormula2 = false,
+            EnableFormula3 = false,
+            EnableGtWorldChallengeEurope = false,
+            EnableWrc = false,
+            EnableImsa = false,
+            EnableIndyCar = true
+        }.Normalize();
+        False(indyCarOnly.EnableFormula1);
+        True(indyCarOnly.EnableIndyCar);
+
+        var formula1Display = new ChampionshipDisplaySettings
+        {
+            TaskbarCompetitorCount = 2,
+            TaskbarCompetitorLabel = TaskbarCompetitorLabel.FullName,
+            FlyoutCompetitorCount = 18
+        };
+        var motoGpDisplay = new ChampionshipDisplaySettings
+        {
+            TaskbarCompetitorCount = 4,
+            TaskbarCompetitorLabel = TaskbarCompetitorLabel.DriverNumber,
+            TaskbarShowGaps = false,
+            TaskbarUseManufacturerLogos = true,
+            FlyoutCompetitorCount = 12,
+            FlyoutShowIntervals = false,
+            FlyoutUseManufacturerLogos = true
+        };
+        store.Save(new UserSettings
+        {
+            EnableFormula1 = false,
+            EnableFormula2 = false,
+            EnableFormula3 = false,
+            EnableMotoGp = true,
+            EnableGtWorldChallengeEurope = false,
+            EnableWrc = false,
+            WidgetPosition = TaskbarWidgetPosition.RightOfStart,
+            ChampionshipDisplay = ChampionshipDisplayProfiles.Create(formula1Display)
+                .With(Championship.MotoGp, motoGpDisplay)
+        });
+        var configured = store.Load();
+        Equal(TaskbarWidgetPosition.RightOfStart, configured.WidgetPosition);
+        Equal(2, configured.DisplayFor(Championship.Formula1).TaskbarCompetitorCount);
+        Equal(4, configured.DisplayFor(Championship.MotoGp).TaskbarCompetitorCount);
+        Equal(TaskbarCompetitorLabel.DriverNumber, configured.DisplayFor(Championship.MotoGp).TaskbarCompetitorLabel);
+        False(configured.DisplayFor(Championship.MotoGp).TaskbarShowGaps);
+        False(configured.DisplayFor(Championship.MotoGp).FlyoutShowIntervals);
+        True(configured.DisplayFor(Championship.MotoGp).FlyoutUseManufacturerLogos);
+
+        var championships = new[]
+        {
+            Championship.Formula1, Championship.Formula2, Championship.Formula3,
+            Championship.MotoGp, Championship.Moto2, Championship.Moto3,
+            Championship.GtWorldChallengeEurope, Championship.WorldRallyChampionship, Championship.Imsa,
+            Championship.FormulaE, Championship.Dtm, Championship.IndyCar
+        };
+        var mappedProfiles = new ChampionshipDisplayProfiles();
+        for (var index = 0; index < championships.Length; index++)
+            mappedProfiles = mappedProfiles.With(championships[index], new ChampionshipDisplaySettings { FlyoutCompetitorCount = 5 + index });
+        for (var index = 0; index < championships.Length; index++)
+            Equal(5 + index, mappedProfiles.For(championships[index]).FlyoutCompetitorCount);
+
+        File.WriteAllText(path, """{"EnableFormula1":true,"ChampionshipDisplay":{"Formula1":null,"MotoGp":null}}""");
+        var nullProfiles = store.Load();
+        Equal(5, nullProfiles.DisplayFor(Championship.Formula1).TaskbarCompetitorCount);
+        Equal(20, nullProfiles.DisplayFor(Championship.MotoGp).FlyoutCompetitorCount);
+        var invalid = (new ChampionshipDisplaySettings
+        {
+            TaskbarCompetitorCount = 99,
+            TaskbarCompetitorLabel = (TaskbarCompetitorLabel)99,
+            FlyoutCompetitorCount = 1
+        }).Normalize();
+        Equal(5, invalid.TaskbarCompetitorCount);
+        Equal(TaskbarCompetitorLabel.Code, invalid.TaskbarCompetitorLabel);
+        Equal(5, invalid.FlyoutCompetitorCount);
     }
     finally
     {
@@ -1303,6 +1471,8 @@ static void ImsaStandings()
 {
     var session = JsonNode.Parse("""{"name":"Race"}""")!.AsObject();
     var info = JsonNode.Parse("""{"eventName":"Motul SportsCar Endurance Grand Prix","champName":"IMSA WeatherTech SportsCar Championship","name":"RACE","type":"RACE","closed":false}""")!.AsObject();
+    True(ImsaTiming.IsWeatherTechSession(info));
+    False(ImsaTiming.IsWeatherTechSession(JsonNode.Parse("""{"champName":"IMSA AirBNB Endurance Challenge"}""")!.AsObject()));
     var entries = JsonNode.Parse("""
         {"01":{"driver":"Wit","name":"M. WITTMANN","team":"BMW M Team WRT","vehicle":"BMW M HYBRID V8","class":"GTP"},
          "24":{"driver":"Van","name":"S. VAN DER LINDE","team":"BMW M Team WRT","vehicle":"BMW M HYBRID V8","class":"GTP"},

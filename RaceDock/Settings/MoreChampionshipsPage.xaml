@@ -1,0 +1,49 @@
+<Page x:Class="RaceDock.App.Settings.MoreChampionshipsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+  <ScrollViewer VerticalScrollBarVisibility="Auto"
+                HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Style="{StaticResource SettingsPagePanelStyle}">
+      <TextBlock Text="Championships"
+                 FontSize="24"
+                 FontWeight="SemiBold" />
+      <TextBlock Text="Enable hidden championships."
+                 Margin="0,6,0,20"
+                 MaxWidth="620"
+                 HorizontalAlignment="Left"
+                 TextWrapping="Wrap"
+                 Opacity="0.7" />
+
+      <ItemsControl x:Name="ChampionshipVisibilityList"
+                    ItemsSource="{Binding ChampionshipStatuses}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <ui:CardControl Margin="0,0,0,8"
+                            Padding="14,12">
+              <ui:CardControl.Icon>
+                <ui:ImageIcon Width="32"
+                              Height="32"
+                              Source="{Binding IconSource}" />
+              </ui:CardControl.Icon>
+              <ui:CardControl.Header>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="{Binding DisplayName}"
+                             FontWeight="SemiBold"
+                             TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Description}"
+                             FontSize="12"
+                             Opacity="0.65"
+                             TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+              </ui:CardControl.Header>
+              <ui:ToggleSwitch IsChecked="{Binding IsVisible, Mode=TwoWay}"
+                               VerticalAlignment="Center" />
+            </ui:CardControl>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+</Page>

@@ -1,0 +1,184 @@
+<Page x:Class="RaceDock.App.Settings.TestingPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:core="clr-namespace:RaceDock.Core;assembly=RaceDock.Core"
+      Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+  <ScrollViewer VerticalScrollBarVisibility="Auto"
+                HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Style="{StaticResource SettingsPagePanelStyle}">
+      <TextBlock Text="Testing" Style="{StaticResource SettingsPageTitleStyle}" />
+      <TextBlock Text="Replay timing archives or use a deterministic scenario to verify RaceDock without waiting for a live session."
+                 Style="{StaticResource SettingsPageDescriptionStyle}" />
+
+      <TextBlock Text="Archive replay" Style="{StaticResource SettingsSectionTitleStyle}" />
+      <ui:CardExpander Style="{StaticResource SettingsExpanderStyle}"
+                       Icon="{ui:SymbolIcon FolderOpen20}">
+        <ui:CardExpander.Header>
+          <StackPanel HorizontalAlignment="Left">
+            <TextBlock Text="Timing71 archive" Style="{StaticResource SettingsCardTitleStyle}" />
+            <TextBlock Text="Load a ZIP export or HAR. Long inactive gaps are compressed during playback."
+                       Style="{StaticResource SettingsCardDescriptionStyle}" />
+          </StackPanel>
+        </ui:CardExpander.Header>
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBox x:Name="ArchivePathTextBox"
+                   IsReadOnly="True"
+                   VerticalContentAlignment="Center" />
+          <ui:Button Grid.Column="1"
+                     Content="Choose archive…"
+                     MinWidth="112"
+                     Padding="8,5"
+                     Margin="6,0,2,0"
+                     Click="ChooseArchiveButton_Click" />
+          <ui:Button Grid.Column="2"
+                     Content="Return to live"
+                     MinWidth="102"
+                     Padding="8,5"
+                     Margin="4,0,0,0"
+                     Click="ReturnToLiveButton_Click" />
+        </Grid>
+      </ui:CardExpander>
+
+      <TextBlock Text="Playback" Style="{StaticResource SettingsSectionTitleStyle}" />
+      <ui:CardExpander Style="{StaticResource SettingsExpanderStyle}"
+                       Icon="{ui:SymbolIcon VideoPlayPause24}">
+        <ui:CardExpander.Header>
+          <StackPanel HorizontalAlignment="Left">
+            <TextBlock Text="Playback controls" Style="{StaticResource SettingsCardTitleStyle}" />
+            <TextBlock Text="Pause, step, restart, or change the speed of the active archive or scenario."
+                       Style="{StaticResource SettingsCardDescriptionStyle}" />
+          </StackPanel>
+        </ui:CardExpander.Header>
+        <StackPanel>
+          <TextBlock x:Name="TestStatusText"
+                     Margin="2,4,2,8"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+          <WrapPanel x:Name="TestingControlsPanel" Margin="0,6,0,0">
+            <ToggleButton x:Name="PauseButton"
+                          Content="Pause"
+                          IsChecked="True"
+                          MinWidth="70"
+                          Margin="2"
+                          Padding="8,4"
+                          Click="PauseButton_Click" />
+            <ToggleButton x:Name="ResumeButton"
+                          Content="Resume"
+                          MinWidth="70"
+                          Margin="2"
+                          Padding="8,4"
+                          Click="ResumeButton_Click" />
+            <ui:Button Content="Single step"
+                       MinWidth="70"
+                       Margin="2"
+                       Padding="8,4"
+                       Click="SingleStepButton_Click" />
+            <ui:Button Content="Restart"
+                       MinWidth="70"
+                       Margin="2"
+                       Padding="8,4"
+                       Click="RestartButton_Click" />
+            <TextBlock Text="Speed"
+                       Margin="12,0,8,0"
+                       VerticalAlignment="Center" />
+            <Slider x:Name="SpeedSlider"
+                    Minimum="0.25"
+                    Maximum="20"
+                    Value="4"
+                    Width="240"
+                    TickFrequency="0.25"
+                    VerticalAlignment="Center"
+                    ValueChanged="SpeedSlider_ValueChanged" />
+          </WrapPanel>
+        </StackPanel>
+      </ui:CardExpander>
+
+      <TextBlock Text="Deterministic scenario" Style="{StaticResource SettingsSectionTitleStyle}" />
+      <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Bug24}">
+        <ui:CardControl.Header>
+          <StackPanel HorizontalAlignment="Left">
+            <TextBlock Text="Enable test mode" Style="{StaticResource SettingsCardTitleStyle}" />
+            <TextBlock Text="Temporarily replace live streams with the scripted testing feed."
+                       Style="{StaticResource SettingsCardDescriptionStyle}" />
+          </StackPanel>
+        </ui:CardControl.Header>
+        <ui:ToggleSwitch x:Name="TestModeToggle"
+                         Style="{StaticResource SettingsToggleStyle}"
+                         Checked="TestModeToggle_Checked"
+                         Unchecked="TestModeToggle_Unchecked" />
+      </ui:CardControl>
+
+      <ui:CardExpander Style="{StaticResource SettingsExpanderStyle}"
+                       Icon="{ui:SymbolIcon Wrench24}">
+        <ui:CardExpander.Header>
+          <StackPanel HorizontalAlignment="Left">
+            <TextBlock Text="Scenario controls" Style="{StaticResource SettingsCardTitleStyle}" />
+            <TextBlock Text="Trigger track, feed, fastest-lap, and classification states."
+                       Style="{StaticResource SettingsCardDescriptionStyle}" />
+          </StackPanel>
+        </ui:CardExpander.Header>
+        <StackPanel x:Name="ScenarioControlsPanel">
+          <TextBlock Text="Track and feed controls (select an active state again to clear it)"
+                     Margin="2,4" />
+          <WrapPanel>
+            <WrapPanel.Resources>
+              <Style TargetType="ToggleButton">
+                <Setter Property="Margin" Value="2" />
+                <Setter Property="Padding" Value="8,4" />
+                <Setter Property="MinWidth" Value="78" />
+                <Setter Property="IsThreeState" Value="False" />
+              </Style>
+            </WrapPanel.Resources>
+            <ToggleButton x:Name="YellowButton" Content="Yellow" Tag="{x:Static core:ScenarioCommand.Yellow}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="DoubleYellowButton" Content="DoubleYellow" Tag="{x:Static core:ScenarioCommand.DoubleYellow}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="SafetyCarButton" Content="SafetyCar" Tag="{x:Static core:ScenarioCommand.SafetyCar}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="VirtualSafetyCarButton" Content="VSC" Tag="{x:Static core:ScenarioCommand.VirtualSafetyCar}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="VirtualSafetyCarEndingButton" Content="VSC ending" Tag="{x:Static core:ScenarioCommand.VirtualSafetyCarEnding}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="GreenButton" Content="Green" Tag="{x:Static core:ScenarioCommand.Green}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="FastestLapButton" Content="FastestLap" Tag="{x:Static core:ScenarioCommand.FastestLap}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="RedFlagButton" Content="RedFlag" Tag="{x:Static core:ScenarioCommand.RedFlag}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="ChequeredButton" Content="Chequered" Tag="{x:Static core:ScenarioCommand.Chequered}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="DisconnectButton" Content="Disconnect" Tag="{x:Static core:ScenarioCommand.Disconnect}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="StaleButton" Content="Stale" Tag="{x:Static core:ScenarioCommand.Stale}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="ReconnectButton" Content="Reconnect" Tag="{x:Static core:ScenarioCommand.Reconnect}" Click="ScenarioCommandButton_Click" />
+          </WrapPanel>
+          <TextBlock Text="Top five (CODE:GAP; use — for a missing gap)"
+                     Margin="2,16,2,4" />
+          <WrapPanel>
+            <TextBox x:Name="TopFiveTextBox"
+                     Text="NOR:LEAD,PIA:+0.8,LEC:+1.5,VER:+2.0,RUS:+2.8"
+                     MinWidth="430" />
+            <ui:Button Content="Apply"
+                       MinWidth="70"
+                       Margin="2"
+                       Padding="8,4"
+                       Click="ApplyTopFiveButton_Click" />
+          </WrapPanel>
+        </StackPanel>
+      </ui:CardExpander>
+
+      <TextBlock Text="Diagnostics" Style="{StaticResource SettingsSectionTitleStyle}" />
+      <ui:CardControl Style="{StaticResource SettingsCardStyle}"
+                      Icon="{ui:SymbolIcon DataBarVertical24}"
+                      Margin="0,0,0,14">
+        <ui:CardControl.Header>
+          <StackPanel HorizontalAlignment="Left">
+            <TextBlock Text="Record raw Formula 1 feed" Style="{StaticResource SettingsCardTitleStyle}" />
+            <TextBlock Text="Recording is bounded to 2 MiB and excludes credentials. Restart the live feed after changing it."
+                       Style="{StaticResource SettingsCardDescriptionStyle}" />
+          </StackPanel>
+        </ui:CardControl.Header>
+        <ui:ToggleSwitch x:Name="DiagnosticRecordingToggle"
+                         Style="{StaticResource SettingsToggleStyle}"
+                         Checked="DiagnosticRecordingToggle_Checked"
+                         Unchecked="DiagnosticRecordingToggle_Unchecked" />
+      </ui:CardControl>
+    </StackPanel>
+  </ScrollViewer>
+</Page>

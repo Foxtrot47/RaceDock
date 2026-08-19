@@ -24,10 +24,10 @@ public sealed class TaskbarWindow : Window
     private readonly Grid _root = new();
     private readonly ColumnDefinition _contextColumn = new() { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 150 };
     private readonly UniformGrid _strip = new() { Rows = 1, Columns = 5, Margin = new(2) };
-    private readonly StackPanel _raceContext = new() { Margin = new(6, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
+    private readonly Grid _raceContext = new() { Margin = new(6, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
     private readonly ScrollingTextBlock _raceText = new() { FontSize = 10.5, FontWeight = FontWeights.SemiBold };
-    private readonly ScrollingTextBlock _lapText = new() { FontSize = 10 };
-    private readonly Grid _eventHeader = new();
+    private readonly TextBlock _lapText = new() { FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly Grid _eventHeader = new() { MaxWidth = 150 };
     private readonly Border _alert = new()
     {
         Visibility = Visibility.Collapsed,
@@ -56,12 +56,14 @@ public sealed class TaskbarWindow : Window
     private TimingSnapshot? _snapshot;
     private RaceAlert? _currentAlert;
     private UserSettings _settings;
+    private ChampionshipDisplaySettings _display;
 
     public TaskbarWindow(UserSettings settings)
     {
         _settings = settings.Normalize();
+        _display = _settings.DisplayFor(Championship.Formula1);
         _flyout = new ClassificationFlyout(_settings);
-        Width = 520; Height = 40; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; ShowInTaskbar = false; AllowsTransparency = true; Background = Brushes.Transparent; Topmost = true;
+        Width = 520; Height = 40; MinHeight = 40; MaxHeight = 40; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; ShowInTaskbar = false; AllowsTransparency = true; Background = Brushes.Transparent; Topmost = true;
         UseLayoutRounding = true; SnapsToDevicePixels = true; TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
         RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
         RenderOptions.SetEdgeMode(this, EdgeMode.Unspecified);
@@ -72,10 +74,13 @@ public sealed class TaskbarWindow : Window
         _alert.Child = _flagCanvas;
         _root.ColumnDefinitions.Add(_contextColumn);
         _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _raceContext.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _raceContext.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Grid.SetColumn(_raceText, 0); Grid.SetColumn(_alert, 1);
         _eventHeader.Children.Add(_raceText); _eventHeader.Children.Add(_alert);
+        Grid.SetRow(_eventHeader, 0); Grid.SetRow(_lapText, 1);
         _raceContext.Children.Add(_eventHeader); _raceContext.Children.Add(_lapText);
         Grid.SetColumn(_raceContext, 0); Grid.SetColumn(_strip, 1);
         _root.Children.Add(_raceContext); _root.Children.Add(_strip); Content = _root;
@@ -91,31 +96,39 @@ public sealed class TaskbarWindow : Window
     public void ApplySettings(UserSettings settings)
     {
         _settings = settings.Normalize();
-        _strip.Columns = _settings.DriverCount;
-        _eventHeader.Visibility = _settings.ShowEventHeader ? Visibility.Visible : Visibility.Collapsed;
-        _lapText.Visibility = _settings.ShowSessionProgress ? Visibility.Visible : Visibility.Collapsed;
-        _raceContext.Visibility = _settings.ShowEventHeader || _settings.ShowSessionProgress ? Visibility.Visible : Visibility.Collapsed;
-        _contextColumn.Width = _raceContext.Visibility == Visibility.Visible ? GridLength.Auto : new GridLength(0);
-        _contextColumn.MinWidth = _raceContext.Visibility == Visibility.Visible ? 72 : 0;
-        _contextColumn.MaxWidth = _raceContext.Visibility == Visibility.Visible ? 150 : 0;
+        _host.ApplyPosition(_settings.WidgetPosition);
+        ApplyDisplay(_snapshot?.Championship ?? Championship.Formula1);
         _flyout.ApplySettings(_settings);
         SetAlert(_currentAlert);
         if (_snapshot is not null) UpdateSnapshot(_snapshot);
     }
 
+    private void ApplyDisplay(Championship championship)
+    {
+        _display = _settings.DisplayFor(championship);
+        _strip.Columns = _display.TaskbarCompetitorCount;
+        _eventHeader.Visibility = _display.TaskbarShowEventHeader ? Visibility.Visible : Visibility.Collapsed;
+        _lapText.Visibility = _display.TaskbarShowSessionProgress ? Visibility.Visible : Visibility.Collapsed;
+        _raceContext.Visibility = _display.TaskbarShowEventHeader || _display.TaskbarShowSessionProgress ? Visibility.Visible : Visibility.Collapsed;
+        _contextColumn.Width = _raceContext.Visibility == Visibility.Visible ? GridLength.Auto : new GridLength(0);
+        _contextColumn.MinWidth = _raceContext.Visibility == Visibility.Visible ? 72 : 0;
+        _contextColumn.MaxWidth = _raceContext.Visibility == Visibility.Visible ? 100 : 0;
+    }
+
     public void UpdateSnapshot(TimingSnapshot snapshot)
     {
         _snapshot = snapshot;
+        ApplyDisplay(snapshot.Championship);
         _raceText.Text = ChampionshipDisplay.CompactEvent(snapshot);
         _raceText.ToolTip = ChampionshipDisplay.FullEvent(snapshot);
         _lapText.Text = FormatSessionProgress(snapshot);
         _strip.Children.Clear();
         var duel = snapshot.Championship == Championship.FormulaE &&
             snapshot.Session.Contains("Duel", StringComparison.OrdinalIgnoreCase);
-        foreach (var standing in snapshot.Competitors.Take(duel ? 2 : _settings.DriverCount))
+        foreach (var standing in snapshot.Competitors.Take(duel ? 2 : _display.TaskbarCompetitorCount))
             _strip.Children.Add(CreateCell(standing));
         if (!duel)
-            while (_strip.Children.Count < _settings.DriverCount)
+            while (_strip.Children.Count < _display.TaskbarCompetitorCount)
                 _strip.Children.Add(CreateEmptyCell(_strip.Children.Count + 1));
         _flyout.UpdateSnapshot(snapshot);
         RefreshFlag();
@@ -222,7 +235,7 @@ public sealed class TaskbarWindow : Window
     {
         AlertKind? transient = _currentAlert?.Kind == AlertKind.Chequered ? AlertKind.Chequered : null;
         var kind = _snapshot is null ? null : TaskbarFlagDisplay.Resolve(_snapshot.TrackCondition, transient);
-        var show = _settings.ShowFlagAlerts && kind is not null && _snapshot is not null && !IsRallySnapshot(_snapshot);
+        var show = _display.TaskbarShowFlagAlerts && kind is not null && _snapshot is not null && !IsRallySnapshot(_snapshot);
         _alert.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         if (!show || kind is null) return;
         _secondFlagShape.Visibility = kind == AlertKind.DoubleYellow ? Visibility.Visible : Visibility.Collapsed;
@@ -259,41 +272,55 @@ public sealed class TaskbarWindow : Window
     private Border CreateCell(CompetitorStanding standing)
     {
         var layout = new Grid();
-        layout.ColumnDefinitions.Add(new() { Width = new GridLength(30) });
+        layout.ColumnDefinitions.Add(new() { Width = _display.TaskbarShowPositionMarker ? new GridLength(30) : new GridLength(0) });
         layout.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
-        Border marker;
-        if (!_settings.UseManufacturerLogos || !ManufacturerLogo.TryCreateForStanding(standing, _snapshot?.Championship ?? Championship.Formula1, 26, out marker))
-            marker = CreatePositionCard(standing.Position, standing.Position.ToString());
-        marker.Margin = new Thickness(1);
-        layout.Children.Add(marker);
-
-        var details = new StackPanel { Margin = new(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        var driver = new ScrollingTextBlock
+        if (_display.TaskbarShowPositionMarker)
         {
-            Text = standing.Code,
+            Border marker;
+            if (!_display.TaskbarUseManufacturerLogos || !ManufacturerLogo.TryCreateForStanding(
+                    standing, _snapshot?.Championship ?? Championship.Formula1, 26, out marker))
+                marker = CreatePositionCard(standing.Position, standing.Position.ToString());
+            marker.Margin = new Thickness(1);
+            layout.Children.Add(marker);
+        }
+
+        var details = new StackPanel { Margin = new(_display.TaskbarShowPositionMarker ? 5 : 2, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        var driver = new TextBlock
+        {
+            Text = TaskbarCompetitorText(standing),
             FontSize = 11,
-            FontWeight = FontWeights.SemiBold
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            ToolTip = standing.Name
         };
         driver.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-        var gap = new ScrollingTextBlock
+        var gap = new TextBlock
         {
-            Text = standing.Position == 1 ? "LEADER" : standing.GapToLeader ?? "—",
+            Text = standing.Position == 1 ? "LEAD" : standing.GapToLeader ?? "—",
             FontSize = 11,
-            MinHeight = 11
+            MinHeight = 11,
+            TextTrimming = TextTrimming.CharacterEllipsis
         };
-        gap.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorSecondaryBrush");
+        gap.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         details.Children.Add(driver);
-        if (_settings.ShowGaps) details.Children.Add(gap);
+        if (_display.TaskbarShowGaps) details.Children.Add(gap);
         Grid.SetColumn(details, 1); layout.Children.Add(details);
         return CreateCellContainer(layout);
     }
 
+    private string TaskbarCompetitorText(CompetitorStanding standing) => _display.TaskbarCompetitorLabel switch
+    {
+        TaskbarCompetitorLabel.FullName when !string.IsNullOrWhiteSpace(standing.Name) => standing.Name,
+        TaskbarCompetitorLabel.DriverNumber when !string.IsNullOrWhiteSpace(standing.DriverId) => standing.DriverId,
+        _ => standing.Code
+    };
+
     private Border CreateEmptyCell(int position)
     {
         var layout = new Grid();
-        layout.ColumnDefinitions.Add(new() { Width = new GridLength(30) });
+        layout.ColumnDefinitions.Add(new() { Width = _display.TaskbarShowPositionMarker ? new GridLength(30) : new GridLength(0) });
         layout.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
-        layout.Children.Add(CreatePositionCard(position, "—", .45));
+        if (_display.TaskbarShowPositionMarker) layout.Children.Add(CreatePositionCard(position, "—", .45));
         return CreateCellContainer(layout);
     }
 
@@ -307,7 +334,7 @@ public sealed class TaskbarWindow : Window
 
     private Border CreatePositionCard(int position, string text, double opacity = 1)
     {
-        (Color Start, Color End) colors = _settings.ShowPositionColors
+        (Color Start, Color End) colors = _display.TaskbarShowPositionColors
             ? CardColors[Math.Clamp(position, 1, CardColors.Length) - 1]
             : (Color.FromRgb(52, 55, 63), Color.FromRgb(83, 88, 100));
         var label = new TextBlock

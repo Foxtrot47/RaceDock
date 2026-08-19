@@ -1,0 +1,310 @@
+<Page x:Class="RaceDock.App.Settings.ChampionshipPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:core="clr-namespace:RaceDock.Core;assembly=RaceDock.Core"
+      Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Page.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Style="{StaticResource SettingsPagePanelStyle}">
+            <Border Style="{StaticResource SettingsChampionshipHeaderCardStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Image MaxWidth="240"
+                           MaxHeight="56"
+                           HorizontalAlignment="Left"
+                           Source="{Binding SelectedChampionshipPageLogo}"
+                           Stretch="Uniform"
+                           StretchDirection="DownOnly" />
+                    <Grid Grid.Column="1" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid DataContext="{Binding SelectedChampionshipStatus}"
+                              Margin="0,0,24,0"
+                              MaxWidth="260"
+                              VerticalAlignment="Center">
+                            <TextBlock x:Name="ChampionshipIdleText"
+                                       Style="{StaticResource SettingsStatusIdleTextStyle}" />
+                            <StackPanel HorizontalAlignment="Right"
+                                        Visibility="{Binding HasTiming, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock x:Name="ChampionshipEventText"
+                                           Text="{Binding EventName}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Right"
+                                           TextAlignment="Right"
+                                           TextTrimming="CharacterEllipsis" />
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,3,0,0"
+                                            HorizontalAlignment="Right">
+                                    <Ellipse Style="{StaticResource SettingsStatusDotStyle}" />
+                                    <TextBlock x:Name="ChampionshipSessionText"
+                                               Text="{Binding SessionName}"
+                                               FontSize="11"
+                                               Opacity="0.6"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock x:Name="ChampionshipProgressText"
+                                               Text="{Binding ProgressText}"
+                                               Margin="8,0,0,0"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Opacity="0.75" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                        <ToggleButton x:Name="ChampionshipMasterButton"
+                                      Grid.Column="1"
+                                      IsChecked="{Binding SelectedChampionshipEnabled, Mode=TwoWay}"
+                                      Style="{StaticResource SettingsChampionshipPowerSliderStyle}"
+                                      ToolTip="Toggle live timing"
+                                      AutomationProperties.Name="Enable live timing" />
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <StackPanel IsEnabled="{Binding SelectedChampionshipEnabled}"
+                        Style="{StaticResource SettingsChampionshipOptionsPanelStyle}">
+            <StackPanel HorizontalAlignment="Left">
+                <TextBlock Text="Taskbar widget" Style="{StaticResource SettingsSectionTitleStyle}" />
+            </StackPanel>
+
+            <StackPanel>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon NumberSymbol24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.TaskbarCountTitle}" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.TaskbarCountDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Slider x:Name="TaskbarCompetitorCountSlider" Minimum="1" Maximum="5" Value="{Binding TaskbarCompetitorCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SettingsSliderStyle}" />
+                        <TextBlock Text="{Binding TaskbarCompetitorCount}" Style="{StaticResource SettingsValueStyle}" />
+                    </StackPanel>
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon TextCaseTitle24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.CompetitorLabelTitle}" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.CompetitorLabelDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ComboBox SelectedValue="{Binding TaskbarCompetitorLabel, Mode=TwoWay}" SelectedValuePath="Tag" Style="{StaticResource SettingsComboBoxStyle}">
+                        <ComboBoxItem Content="{Binding DataContext.SelectedChampionshipPresentation.CodeOption, RelativeSource={RelativeSource AncestorType=Page}}" Tag="{x:Static core:TaskbarCompetitorLabel.Code}" />
+                        <ComboBoxItem Content="{Binding DataContext.SelectedChampionshipPresentation.FullNameOption, RelativeSource={RelativeSource AncestorType=Page}}" Tag="{x:Static core:TaskbarCompetitorLabel.FullName}" />
+                        <ComboBoxItem Content="{Binding DataContext.SelectedChampionshipPresentation.NumberOption, RelativeSource={RelativeSource AncestorType=Page}}" Tag="{x:Static core:TaskbarCompetitorLabel.DriverNumber}" />
+                    </ComboBox>
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Info24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Event name" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.TaskbarEventDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding TaskbarShowEventHeader, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Timer24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Session progress" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.TaskbarProgressDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding TaskbarShowSessionProgress, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon ArrowBetweenDown24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Competitor gaps" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.TaskbarGapDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding TaskbarShowGaps, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon ProjectionScreen24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Position marker" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.PositionMarkerDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding TaskbarShowPositionMarker, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Color24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Position colours" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="Colour the leading position cards." Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding TaskbarShowPositionColors, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl x:Name="TaskbarManufacturerCard"
+                                Style="{StaticResource SettingsCardStyle}"
+                                Icon="{ui:SymbolIcon PaintBrush24}"
+                                Visibility="{Binding SelectedChampionshipPresentation.ShowManufacturerSettings, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.ManufacturerTitle}" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.TaskbarManufacturerDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding TaskbarUseManufacturerLogos, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Info24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.FlagTitle}" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.FlagDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding TaskbarShowFlagAlerts, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+            </StackPanel>
+
+            <StackPanel HorizontalAlignment="Left">
+                <TextBlock Text="Classification flyout" Style="{StaticResource SettingsSectionTitleStyle}" />
+            </StackPanel>
+
+            <StackPanel>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon NumberSymbol24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.FlyoutCountTitle}" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.FlyoutCountDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Slider x:Name="FlyoutCompetitorCountSlider" Minimum="5" Maximum="40" Value="{Binding FlyoutCompetitorCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SettingsSliderStyle}" />
+                        <TextBlock Text="{Binding FlyoutCompetitorCount}" Style="{StaticResource SettingsValueStyle}" />
+                    </StackPanel>
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Info24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Event name" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.FlyoutEventDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutShowEventHeader, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Timer24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Session details" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.SessionDetailsDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutShowSessionDetails, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Info24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.TrackStatusTitle}" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.TrackStatusDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutShowTrackStatus, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon SoundWaveCircle24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Connection status" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="Show the timing-feed connection badge." Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutShowConnectionStatus, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl x:Name="FlyoutTeamCard"
+                                Style="{StaticResource SettingsCardStyle}"
+                                Icon="{ui:SymbolIcon TextCaseTitle24}"
+                                Visibility="{Binding SelectedChampionshipPresentation.ShowTeamSetting, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.TeamTitle}" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.TeamDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutShowTeamNames, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl x:Name="FlyoutManufacturerCard"
+                                Style="{StaticResource SettingsCardStyle}"
+                                Icon="{ui:SymbolIcon PaintBrush24}"
+                                Visibility="{Binding SelectedChampionshipPresentation.ShowManufacturerSettings, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.ManufacturerTitle}" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.FlyoutManufacturerDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutUseManufacturerLogos, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Color24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Position colours" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="Colour the leading position cards." Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutShowPositionColors, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon ArrowBetweenDown24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Leader gap" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.LeaderGapDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutShowGaps, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon ArrowRepeatAll24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Interval" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.IntervalDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutShowIntervals, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl x:Name="FlyoutResultCard"
+                                Style="{StaticResource SettingsCardStyle}"
+                                Icon="{ui:SymbolIcon DataBarVertical24}"
+                                Visibility="{Binding SelectedChampionshipPresentation.ShowResultSetting, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock x:Name="FlyoutResultTitle" Text="{Binding SelectedChampionshipPresentation.ResultTitle}" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.ResultDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutShowTyreOrResult, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon NumberSymbol24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock x:Name="FlyoutCategoryTitle" Text="{Binding SelectedChampionshipPresentation.CategoryTitle}" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.CategoryDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutShowCategoryOrLap, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+                <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Info24}">
+                    <ui:CardControl.Header>
+                        <StackPanel HorizontalAlignment="Left">
+                            <TextBlock Text="Status" Style="{StaticResource SettingsCardTitleStyle}" />
+                            <TextBlock Text="{Binding SelectedChampionshipPresentation.StatusDescription}" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                        </StackPanel>
+                    </ui:CardControl.Header>
+                    <ui:ToggleSwitch IsChecked="{Binding FlyoutShowStatus, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+                </ui:CardControl>
+            </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

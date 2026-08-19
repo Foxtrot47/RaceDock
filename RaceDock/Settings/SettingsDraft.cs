@@ -1,0 +1,521 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using RaceDock.Core;
+
+namespace RaceDock.App.Settings;
+
+internal enum ChampionshipStatusKind { Idle, PreSession, Live, RedFlag, Ended }
+
+internal sealed class ChampionshipStatusItem : INotifyPropertyChanged
+{
+    private bool _isChampionshipEnabled;
+    private bool _isVisible = true;
+    private bool _hasTiming;
+    private ChampionshipStatusKind _statusKind = ChampionshipStatusKind.Idle;
+    private string _eventName = "No active session";
+    private string _sessionName = "";
+    private string _progressText = "";
+
+    public ChampionshipStatusItem(Championship championship, string displayName, string iconSource, string description)
+    {
+        Championship = championship;
+        DisplayName = displayName;
+        IconSource = iconSource;
+        Description = description;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>Raised when the user toggles visibility; the draft applies the change so hiding also disables the championship.</summary>
+    public event EventHandler<bool>? VisibilityChangeRequested;
+
+    public Championship Championship { get; }
+    public string DisplayName { get; }
+    public string IconSource { get; }
+    public string Description { get; }
+    public string NavigationKey => $"Championship:{Championship}";
+    public bool IsChampionshipEnabled
+    {
+        get => _isChampionshipEnabled;
+        private set
+        {
+            if (_isChampionshipEnabled == value) return;
+            _isChampionshipEnabled = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsChampionshipEnabled)));
+        }
+    }
+    public bool IsVisible
+    {
+        get => _isVisible;
+        set
+        {
+            if (_isVisible == value) return;
+            VisibilityChangeRequested?.Invoke(this, value);
+        }
+    }
+
+    public bool HasTiming => _hasTiming;
+    public ChampionshipStatusKind StatusKind => _statusKind;
+    public string EventName => _eventName;
+    public string SessionName => _sessionName;
+    public string ProgressText => _progressText;
+
+    public string StatusLabel => _statusKind switch
+    {
+        ChampionshipStatusKind.Live => "LIVE",
+        ChampionshipStatusKind.PreSession => "UPCOMING",
+        ChampionshipStatusKind.RedFlag => "RED FLAG",
+        ChampionshipStatusKind.Ended => "FINISHED",
+        _ => ""
+    };
+
+    public string StatusTooltip => !_hasTiming
+        ? _eventName
+        : string.Join(" \u00b7 ", new[] { _eventName, _sessionName, _progressText }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    public void Update(bool enabled) => IsChampionshipEnabled = enabled;
+
+    public void SetVisible(bool visible)
+    {
+        if (_isVisible == visible) return;
+        _isVisible = visible;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsVisible)));
+    }
+
+    public void UpdateSnapshot(TimingSnapshot? snapshot)
+    {
+        var hasTiming = snapshot is not null;
+        if (_hasTiming != hasTiming)
+        {
+            _hasTiming = hasTiming;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasTiming)));
+        }
+        var eventName = snapshot is null || string.IsNullOrWhiteSpace(snapshot.Meeting)
+            ? "No active session"
+            : snapshot.Meeting;
+        var sessionName = snapshot is null || string.IsNullOrWhiteSpace(snapshot.Session)
+            ? ""
+            : snapshot.Session;
+        var progress = snapshot is null ? "" : FormatProgress(snapshot);
+        var statusKind = ClassifyStatus(snapshot);
+        if (_statusKind != statusKind)
+        {
+            _statusKind = statusKind;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusKind)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusLabel)));
+        }
+        SetStatus(ref _eventName, eventName, nameof(EventName));
+        SetStatus(ref _sessionName, sessionName, nameof(SessionName));
+        SetStatus(ref _progressText, progress, nameof(ProgressText));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusTooltip)));
+    }
+
+    private static ChampionshipStatusKind ClassifyStatus(TimingSnapshot? snapshot)
+    {
+        if (snapshot is null) return ChampionshipStatusKind.Idle;
+        if (snapshot.TrackCondition == TrackCondition.RedFlag) return ChampionshipStatusKind.RedFlag;
+        return snapshot.Lifecycle switch
+        {
+            SessionLifecycle.PreSession => ChampionshipStatusKind.PreSession,
+            SessionLifecycle.Live => ChampionshipStatusKind.Live,
+            SessionLifecycle.Ended => ChampionshipStatusKind.Ended,
+            _ => ChampionshipStatusKind.Idle
+        };
+    }
+
+    private static string FormatProgress(TimingSnapshot snapshot)
+    {
+        if (!string.IsNullOrWhiteSpace(snapshot.TimeRemaining)) return $"Time {snapshot.TimeRemaining}";
+        if (snapshot.TotalLaps is > 0) return $"Lap {snapshot.CurrentLap}/{snapshot.TotalLaps}";
+        if (snapshot.CurrentLap > 0) return $"Lap {snapshot.CurrentLap}";
+        return snapshot.Lifecycle switch
+        {
+            SessionLifecycle.PreSession => "Pre-session",
+            SessionLifecycle.Live => "Live",
+            SessionLifecycle.Ended => "Completed",
+            _ => ""
+        };
+    }
+
+    private void SetStatus(ref string field, string value, string propertyName)
+    {
+        if (field == value) return;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+internal sealed class SettingsDraft : INotifyPropertyChanged
+{
+    private const string ChampionshipLogoRoot = "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/";
+    private readonly IReadOnlyDictionary<Championship, ChampionshipStatusItem> _statusByChampionship;
+    private ChampionshipDisplayProfiles _profiles = new();
+    private bool _syncingProfile;
+    private bool _enableFormula1;
+    private bool _enableFormula2;
+    private bool _enableFormula3;
+    private bool _enableMotoGp;
+    private bool _enableMoto2;
+    private bool _enableMoto3;
+    private bool _enableGtWorldChallengeEurope;
+    private bool _enableWrc;
+    private bool _enableImsa;
+    private bool _enableFormulaE;
+    private bool _enableDtm;
+    private bool _enableIndyCar;
+    private bool _autoStartOnWindowsBoot;
+    private int _rotationSeconds;
+    private int _completedSessionRetentionMinutes;
+    private TaskbarWidgetPosition _widgetPosition;
+    private Championship _selectedChampionship;
+    private int _taskbarCompetitorCount;
+    private TaskbarCompetitorLabel _taskbarCompetitorLabel;
+    private bool _taskbarShowEventHeader;
+    private bool _taskbarShowSessionProgress;
+    private bool _taskbarShowGaps;
+    private bool _taskbarShowPositionMarker;
+    private bool _taskbarShowPositionColors;
+    private bool _taskbarUseManufacturerLogos;
+    private bool _taskbarShowFlagAlerts;
+    private int _flyoutCompetitorCount;
+    private bool _flyoutShowEventHeader;
+    private bool _flyoutShowSessionDetails;
+    private bool _flyoutShowTrackStatus;
+    private bool _flyoutShowConnectionStatus;
+    private bool _flyoutShowTeamNames;
+    private bool _flyoutUseManufacturerLogos;
+    private bool _flyoutShowPositionColors;
+    private bool _flyoutShowGaps;
+    private bool _flyoutShowIntervals;
+    private bool _flyoutShowTyreOrResult;
+    private bool _flyoutShowCategoryOrLap;
+    private bool _flyoutShowStatus;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public SettingsDraft()
+    {
+        ChampionshipStatuses =
+        [
+            Status(Championship.Formula1, "Formula 1", "f1.png", "World championship single-seaters"),
+            Status(Championship.Formula2, "Formula 2", "f2.png", "Junior single-seater feeder series"),
+            Status(Championship.Formula3, "Formula 3", "f3.png", "Junior single-seater feeder series"),
+            Status(Championship.FormulaE, "Formula E", "formulae.png", "All-electric street racing"),
+            Status(Championship.Dtm, "DTM", "dtm.png", "German GT3 touring car series"),
+            Status(Championship.IndyCar, "INDYCAR", "indycar.png", "North American open-wheel racing"),
+            Status(Championship.MotoGp, "MotoGP", "motogp.png", "Premier class motorcycle racing"),
+            Status(Championship.Moto2, "Moto2", "moto2-sidebar.png", "Intermediate Grand Prix motorcycle class"),
+            Status(Championship.Moto3, "Moto3", "moto3-sidebar.png", "Entry Grand Prix motorcycle class"),
+            Status(Championship.GtWorldChallengeEurope, "GT World Challenge Europe", "gtwc.png", "European GT3 endurance and sprint racing"),
+            Status(Championship.WorldRallyChampionship, "World Rally Championship", "wrc.png", "World championship rallying"),
+            Status(Championship.Imsa, "IMSA WeatherTech", "imsa.png", "North American sportscar endurance racing")
+        ];
+        _statusByChampionship = ChampionshipStatuses.ToDictionary(status => status.Championship);
+        DashboardChampionshipStatuses = [];
+        foreach (var status in ChampionshipStatuses)
+            status.VisibilityChangeRequested += (_, visible) => SetChampionshipVisible(status, visible);
+    }
+
+    public IReadOnlyList<ChampionshipStatusItem> ChampionshipStatuses { get; }
+    public ObservableCollection<ChampionshipStatusItem> DashboardChampionshipStatuses { get; }
+
+    public void UpdateTimingStatus(TimingSnapshot snapshot)
+    {
+        if (snapshot.Championship == Championship.Unknown || !_statusByChampionship.TryGetValue(snapshot.Championship, out var status)) return;
+        status.UpdateSnapshot(snapshot.Lifecycle == SessionLifecycle.OffSession ? null : snapshot);
+        RefreshDashboardChampionshipStatuses();
+    }
+
+    public void ClearTimingStatuses()
+    {
+        foreach (var status in ChampionshipStatuses) status.UpdateSnapshot(null);
+        RefreshDashboardChampionshipStatuses();
+    }
+
+    public bool EnableFormula1 { get => _enableFormula1; set => SetStream(Championship.Formula1, ref _enableFormula1, value); }
+    public bool EnableFormula2 { get => _enableFormula2; set => SetStream(Championship.Formula2, ref _enableFormula2, value); }
+    public bool EnableFormula3 { get => _enableFormula3; set => SetStream(Championship.Formula3, ref _enableFormula3, value); }
+    public bool EnableMotoGp { get => _enableMotoGp; set => SetStream(Championship.MotoGp, ref _enableMotoGp, value); }
+    public bool EnableMoto2 { get => _enableMoto2; set => SetStream(Championship.Moto2, ref _enableMoto2, value); }
+    public bool EnableMoto3 { get => _enableMoto3; set => SetStream(Championship.Moto3, ref _enableMoto3, value); }
+    public bool EnableGtWorldChallengeEurope { get => _enableGtWorldChallengeEurope; set => SetStream(Championship.GtWorldChallengeEurope, ref _enableGtWorldChallengeEurope, value); }
+    public bool EnableWrc { get => _enableWrc; set => SetStream(Championship.WorldRallyChampionship, ref _enableWrc, value); }
+    public bool EnableImsa { get => _enableImsa; set => SetStream(Championship.Imsa, ref _enableImsa, value); }
+    public bool EnableFormulaE { get => _enableFormulaE; set => SetStream(Championship.FormulaE, ref _enableFormulaE, value); }
+    public bool EnableDtm { get => _enableDtm; set => SetStream(Championship.Dtm, ref _enableDtm, value); }
+    public bool EnableIndyCar { get => _enableIndyCar; set => SetStream(Championship.IndyCar, ref _enableIndyCar, value); }
+    public bool AutoStartOnWindowsBoot { get => _autoStartOnWindowsBoot; set => Set(ref _autoStartOnWindowsBoot, value); }
+    public int RotationSeconds { get => _rotationSeconds; set => Set(ref _rotationSeconds, value); }
+    public int CompletedSessionRetentionMinutes { get => _completedSessionRetentionMinutes; set => Set(ref _completedSessionRetentionMinutes, value); }
+    public TaskbarWidgetPosition WidgetPosition { get => _widgetPosition; set => Set(ref _widgetPosition, value); }
+
+    public Championship SelectedChampionship
+    {
+        get => _selectedChampionship;
+        set
+        {
+            if (_selectedChampionship == value) return;
+            if (!_syncingProfile) StoreCurrentProfile();
+            Set(ref _selectedChampionship, value);
+            OnPropertyChanged(nameof(SelectedChampionshipPresentation));
+            OnPropertyChanged(nameof(SelectedChampionshipPageLogo));
+            OnPropertyChanged(nameof(SelectedChampionshipStatus));
+            OnPropertyChanged(nameof(SelectedChampionshipEnabled));
+            if (_syncingProfile) return;
+            _syncingProfile = true;
+            LoadProfile(_profiles.For(value));
+            _syncingProfile = false;
+        }
+    }
+
+    public ChampionshipSettingsPresentation SelectedChampionshipPresentation =>
+        ChampionshipSettingsPresentation.For(SelectedChampionship);
+
+    public ChampionshipStatusItem SelectedChampionshipStatus => _statusByChampionship[SelectedChampionship];
+
+    public string SelectedChampionshipPageLogo => SelectedChampionship switch
+    {
+        Championship.Formula1 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f1-wide.png",
+        Championship.Formula2 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f2-wide.png",
+        Championship.Formula3 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f3-wide.png",
+        Championship.MotoGp => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/motogp-wide.png",
+        Championship.Moto2 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/moto2.png",
+        Championship.Moto3 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/moto3.png",
+        Championship.GtWorldChallengeEurope => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/gtwc-wide.png",
+        Championship.WorldRallyChampionship => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/wrc-wide.png",
+        Championship.Imsa => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/imsa-wide.png",
+        Championship.FormulaE => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/formulae-full.png",
+        Championship.Dtm => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/dtm-wide.png",
+        Championship.IndyCar => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/indycar-wide.png",
+        _ => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f1.png"
+    };
+
+    public bool SelectedChampionshipEnabled
+    {
+        get => SelectedChampionship switch
+        {
+            Championship.Formula1 => EnableFormula1,
+            Championship.Formula2 => EnableFormula2,
+            Championship.Formula3 => EnableFormula3,
+            Championship.MotoGp => EnableMotoGp,
+            Championship.Moto2 => EnableMoto2,
+            Championship.Moto3 => EnableMoto3,
+            Championship.GtWorldChallengeEurope => EnableGtWorldChallengeEurope,
+            Championship.WorldRallyChampionship => EnableWrc,
+            Championship.Imsa => EnableImsa,
+            Championship.FormulaE => EnableFormulaE,
+            Championship.Dtm => EnableDtm,
+            Championship.IndyCar => EnableIndyCar,
+            _ => false
+        };
+        set => SetChampionshipEnabled(SelectedChampionship, value);
+    }
+
+    private void SetChampionshipEnabled(Championship championship, bool value)
+    {
+        switch (championship)
+        {
+            case Championship.Formula1: EnableFormula1 = value; break;
+            case Championship.Formula2: EnableFormula2 = value; break;
+            case Championship.Formula3: EnableFormula3 = value; break;
+            case Championship.MotoGp: EnableMotoGp = value; break;
+            case Championship.Moto2: EnableMoto2 = value; break;
+            case Championship.Moto3: EnableMoto3 = value; break;
+            case Championship.GtWorldChallengeEurope: EnableGtWorldChallengeEurope = value; break;
+            case Championship.WorldRallyChampionship: EnableWrc = value; break;
+            case Championship.Imsa: EnableImsa = value; break;
+            case Championship.FormulaE: EnableFormulaE = value; break;
+            case Championship.Dtm: EnableDtm = value; break;
+            case Championship.IndyCar: EnableIndyCar = value; break;
+        }
+    }
+
+    public int TaskbarCompetitorCount { get => _taskbarCompetitorCount; set => Set(ref _taskbarCompetitorCount, value); }
+    public TaskbarCompetitorLabel TaskbarCompetitorLabel { get => _taskbarCompetitorLabel; set => Set(ref _taskbarCompetitorLabel, value); }
+    public bool TaskbarShowEventHeader { get => _taskbarShowEventHeader; set => Set(ref _taskbarShowEventHeader, value); }
+    public bool TaskbarShowSessionProgress { get => _taskbarShowSessionProgress; set => Set(ref _taskbarShowSessionProgress, value); }
+    public bool TaskbarShowGaps { get => _taskbarShowGaps; set => Set(ref _taskbarShowGaps, value); }
+    public bool TaskbarShowPositionMarker { get => _taskbarShowPositionMarker; set => Set(ref _taskbarShowPositionMarker, value); }
+    public bool TaskbarShowPositionColors { get => _taskbarShowPositionColors; set => Set(ref _taskbarShowPositionColors, value); }
+    public bool TaskbarUseManufacturerLogos { get => _taskbarUseManufacturerLogos; set => Set(ref _taskbarUseManufacturerLogos, value); }
+    public bool TaskbarShowFlagAlerts { get => _taskbarShowFlagAlerts; set => Set(ref _taskbarShowFlagAlerts, value); }
+
+    public int FlyoutCompetitorCount { get => _flyoutCompetitorCount; set => Set(ref _flyoutCompetitorCount, value); }
+    public bool FlyoutShowEventHeader { get => _flyoutShowEventHeader; set => Set(ref _flyoutShowEventHeader, value); }
+    public bool FlyoutShowSessionDetails { get => _flyoutShowSessionDetails; set => Set(ref _flyoutShowSessionDetails, value); }
+    public bool FlyoutShowTrackStatus { get => _flyoutShowTrackStatus; set => Set(ref _flyoutShowTrackStatus, value); }
+    public bool FlyoutShowConnectionStatus { get => _flyoutShowConnectionStatus; set => Set(ref _flyoutShowConnectionStatus, value); }
+    public bool FlyoutShowTeamNames { get => _flyoutShowTeamNames; set => Set(ref _flyoutShowTeamNames, value); }
+    public bool FlyoutUseManufacturerLogos { get => _flyoutUseManufacturerLogos; set => Set(ref _flyoutUseManufacturerLogos, value); }
+    public bool FlyoutShowPositionColors { get => _flyoutShowPositionColors; set => Set(ref _flyoutShowPositionColors, value); }
+    public bool FlyoutShowGaps { get => _flyoutShowGaps; set => Set(ref _flyoutShowGaps, value); }
+    public bool FlyoutShowIntervals { get => _flyoutShowIntervals; set => Set(ref _flyoutShowIntervals, value); }
+    public bool FlyoutShowTyreOrResult { get => _flyoutShowTyreOrResult; set => Set(ref _flyoutShowTyreOrResult, value); }
+    public bool FlyoutShowCategoryOrLap { get => _flyoutShowCategoryOrLap; set => Set(ref _flyoutShowCategoryOrLap, value); }
+    public bool FlyoutShowStatus { get => _flyoutShowStatus; set => Set(ref _flyoutShowStatus, value); }
+
+    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 ||
+        EnableMoto3 || EnableGtWorldChallengeEurope || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar;
+
+    public void Load(UserSettings settings)
+    {
+        var normalized = settings.Normalize();
+        _syncingProfile = true;
+        foreach (var status in ChampionshipStatuses)
+            status.SetVisible(normalized.IsChampionshipVisible(status.Championship));
+        EnableFormula1 = normalized.EnableFormula1;
+        EnableFormula2 = normalized.EnableFormula2;
+        EnableFormula3 = normalized.EnableFormula3;
+        EnableMotoGp = normalized.EnableMotoGp;
+        EnableMoto2 = normalized.EnableMoto2;
+        EnableMoto3 = normalized.EnableMoto3;
+        EnableGtWorldChallengeEurope = normalized.EnableGtWorldChallengeEurope;
+        EnableWrc = normalized.EnableWrc;
+        EnableImsa = normalized.EnableImsa;
+        EnableFormulaE = normalized.EnableFormulaE;
+        EnableDtm = normalized.EnableDtm;
+        EnableIndyCar = normalized.EnableIndyCar;
+        AutoStartOnWindowsBoot = normalized.AutoStartOnWindowsBoot;
+        RotationSeconds = normalized.RotationSeconds;
+        CompletedSessionRetentionMinutes = normalized.CompletedSessionRetentionMinutes;
+        WidgetPosition = normalized.WidgetPosition;
+        _profiles = normalized.ChampionshipDisplay!;
+        SelectedChampionship = Championship.Formula1;
+        LoadProfile(_profiles.For(SelectedChampionship));
+        _syncingProfile = false;
+        RefreshDashboardChampionshipStatuses();
+        OnPropertyChanged(nameof(HasEnabledStream));
+        OnPropertyChanged(nameof(ChampionshipStatuses));
+    }
+
+    public UserSettings BuildSettings()
+    {
+        StoreCurrentProfile();
+        var formula1 = _profiles.For(Championship.Formula1);
+        return new UserSettings
+        {
+            EnableFormula1 = EnableFormula1,
+            EnableFormula2 = EnableFormula2,
+            EnableFormula3 = EnableFormula3,
+            EnableMotoGp = EnableMotoGp,
+            EnableMoto2 = EnableMoto2,
+            EnableMoto3 = EnableMoto3,
+            EnableGtWorldChallengeEurope = EnableGtWorldChallengeEurope,
+            EnableWrc = EnableWrc,
+            EnableImsa = EnableImsa,
+            EnableFormulaE = EnableFormulaE,
+            EnableDtm = EnableDtm,
+            EnableIndyCar = EnableIndyCar,
+            HiddenChampionships = [.. ChampionshipStatuses.Where(status => !status.IsVisible).Select(status => status.Championship)],
+            RotationSeconds = RotationSeconds,
+            CompletedSessionRetentionMinutes = CompletedSessionRetentionMinutes,
+            DriverCount = formula1.TaskbarCompetitorCount,
+            ShowEventHeader = formula1.TaskbarShowEventHeader,
+            ShowSessionProgress = formula1.TaskbarShowSessionProgress,
+            ShowGaps = formula1.TaskbarShowGaps,
+            ShowPositionColors = formula1.TaskbarShowPositionColors,
+            UseManufacturerLogos = formula1.TaskbarUseManufacturerLogos,
+            ShowFlagAlerts = formula1.TaskbarShowFlagAlerts,
+            AutoStartOnWindowsBoot = AutoStartOnWindowsBoot,
+            WidgetPosition = WidgetPosition,
+            ChampionshipDisplay = _profiles.Normalize()
+        }.Normalize();
+    }
+
+    private void LoadProfile(ChampionshipDisplaySettings display)
+    {
+        TaskbarCompetitorCount = display.TaskbarCompetitorCount;
+        TaskbarCompetitorLabel = display.TaskbarCompetitorLabel;
+        TaskbarShowEventHeader = display.TaskbarShowEventHeader;
+        TaskbarShowSessionProgress = display.TaskbarShowSessionProgress;
+        TaskbarShowGaps = display.TaskbarShowGaps;
+        TaskbarShowPositionMarker = display.TaskbarShowPositionMarker;
+        TaskbarShowPositionColors = display.TaskbarShowPositionColors;
+        TaskbarUseManufacturerLogos = display.TaskbarUseManufacturerLogos;
+        TaskbarShowFlagAlerts = display.TaskbarShowFlagAlerts;
+        FlyoutCompetitorCount = display.FlyoutCompetitorCount;
+        FlyoutShowEventHeader = display.FlyoutShowEventHeader;
+        FlyoutShowSessionDetails = display.FlyoutShowSessionDetails;
+        FlyoutShowTrackStatus = display.FlyoutShowTrackStatus;
+        FlyoutShowConnectionStatus = display.FlyoutShowConnectionStatus;
+        FlyoutShowTeamNames = display.FlyoutShowTeamNames;
+        FlyoutUseManufacturerLogos = display.FlyoutUseManufacturerLogos;
+        FlyoutShowPositionColors = display.FlyoutShowPositionColors;
+        FlyoutShowGaps = display.FlyoutShowGaps;
+        FlyoutShowIntervals = display.FlyoutShowIntervals;
+        FlyoutShowTyreOrResult = display.FlyoutShowTyreOrResult;
+        FlyoutShowCategoryOrLap = display.FlyoutShowCategoryOrLap;
+        FlyoutShowStatus = display.FlyoutShowStatus;
+    }
+
+    private void StoreCurrentProfile()
+    {
+        var display = new ChampionshipDisplaySettings
+        {
+            TaskbarCompetitorCount = TaskbarCompetitorCount,
+            TaskbarCompetitorLabel = TaskbarCompetitorLabel,
+            TaskbarShowEventHeader = TaskbarShowEventHeader,
+            TaskbarShowSessionProgress = TaskbarShowSessionProgress,
+            TaskbarShowGaps = TaskbarShowGaps,
+            TaskbarShowPositionMarker = TaskbarShowPositionMarker,
+            TaskbarShowPositionColors = TaskbarShowPositionColors,
+            TaskbarUseManufacturerLogos = TaskbarUseManufacturerLogos,
+            TaskbarShowFlagAlerts = TaskbarShowFlagAlerts,
+            FlyoutCompetitorCount = FlyoutCompetitorCount,
+            FlyoutShowEventHeader = FlyoutShowEventHeader,
+            FlyoutShowSessionDetails = FlyoutShowSessionDetails,
+            FlyoutShowTrackStatus = FlyoutShowTrackStatus,
+            FlyoutShowConnectionStatus = FlyoutShowConnectionStatus,
+            FlyoutShowTeamNames = FlyoutShowTeamNames,
+            FlyoutUseManufacturerLogos = FlyoutUseManufacturerLogos,
+            FlyoutShowPositionColors = FlyoutShowPositionColors,
+            FlyoutShowGaps = FlyoutShowGaps,
+            FlyoutShowIntervals = FlyoutShowIntervals,
+            FlyoutShowTyreOrResult = FlyoutShowTyreOrResult,
+            FlyoutShowCategoryOrLap = FlyoutShowCategoryOrLap,
+            FlyoutShowStatus = FlyoutShowStatus
+        }.Normalize();
+        _profiles = _profiles.With(SelectedChampionship, display);
+    }
+
+    private void SetStream(Championship championship, ref bool field, bool value, [CallerMemberName] string? name = null)
+    {
+        if (!Set(ref field, value, name)) return;
+        _statusByChampionship[championship].Update(value);
+        RefreshDashboardChampionshipStatuses();
+        OnPropertyChanged(nameof(HasEnabledStream));
+        if (championship == SelectedChampionship) OnPropertyChanged(nameof(SelectedChampionshipEnabled));
+    }
+
+    private void RefreshDashboardChampionshipStatuses()
+    {
+        DashboardChampionshipStatuses.Clear();
+        foreach (var status in ChampionshipStatuses.Where(status => status.IsVisible && (status.IsChampionshipEnabled || status.HasTiming)))
+            DashboardChampionshipStatuses.Add(status);
+    }
+
+    private static ChampionshipStatusItem Status(Championship championship, string displayName, string iconFile, string description) =>
+        new(championship, displayName, ChampionshipLogoRoot + iconFile, description);
+
+    /// <summary>Applies a visibility change; hiding a championship disables it so nothing runs while it is out of sight.</summary>
+    private void SetChampionshipVisible(ChampionshipStatusItem status, bool visible)
+    {
+        status.SetVisible(visible);
+        if (!visible) SetChampionshipEnabled(status.Championship, false);
+        RefreshDashboardChampionshipStatuses();
+        OnPropertyChanged(nameof(ChampionshipStatuses));
+    }
+
+    private bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        OnPropertyChanged(name);
+        return true;
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}

@@ -16,6 +16,7 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
         _mutex = new Mutex(true, @"Local\RaceDock.Singleton", out var first);
         if (!first) { Shutdown(); return; }
         Directory.SetCurrentDirectory(AppContext.BaseDirectory);

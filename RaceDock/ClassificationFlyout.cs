@@ -27,16 +27,24 @@ public sealed class ClassificationFlyout : Window
     private readonly Border _connectionBadge = new();
     private readonly TextBlock _trackText = new();
     private readonly Border _trackBadge = new();
+    private Grid _sessionHeader = null!;
+    private StackPanel _badges = null!;
+    private Grid _columnHeader = null!;
+    private ScrollingTextBlock _gapHeader = null!;
+    private ScrollingTextBlock _intervalHeader = null!;
     private ScrollingTextBlock _tyreHeader = null!;
     private ScrollingTextBlock _categoryHeader = null!;
+    private ScrollingTextBlock _statusHeader = null!;
     private readonly DispatcherTimer _closeTimer;
     private UserSettings _settings;
+    private ChampionshipDisplaySettings _display;
 
     public event EventHandler? PointerEntered;
 
     public ClassificationFlyout(UserSettings settings)
     {
         _settings = settings.Normalize();
+        _display = _settings.DisplayFor(Championship.Formula1);
         _title.Clock = _scrollClock;
         _sessionDetails.Clock = _scrollClock;
         Width = 610;
@@ -78,11 +86,12 @@ public sealed class ClassificationFlyout : Window
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        layout.Children.Add(CreateSessionHeader());
+        _sessionHeader = CreateSessionHeader();
+        layout.Children.Add(_sessionHeader);
 
-        var columnHeader = CreateColumnHeader();
-        Grid.SetRow(columnHeader, 1);
-        layout.Children.Add(columnHeader);
+        _columnHeader = CreateColumnHeader();
+        Grid.SetRow(_columnHeader, 1);
+        layout.Children.Add(_columnHeader);
 
         var scroll = new ScrollViewer
         {
@@ -129,10 +138,12 @@ public sealed class ClassificationFlyout : Window
 
     public void UpdateSnapshot(TimingSnapshot snapshot)
     {
+        _display = _settings.DisplayFor(snapshot.Championship);
+        ApplyDisplay();
         _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : ChampionshipDisplay.FullEvent(snapshot);
         var rally = IsRallySnapshot(snapshot);
         var endurance = IsEnduranceSnapshot(snapshot);
-        var formulaE = snapshot.Championship is Championship.FormulaE or Championship.Dtm or Championship.IndyCar;
+        var bestLapAndLap = snapshot.Championship is Championship.FormulaE or Championship.Dtm or Championship.IndyCar;
         if (rally)
         {
             _tyreHeader.Text = "TIME";
@@ -143,7 +154,7 @@ public sealed class ClassificationFlyout : Window
             _tyreHeader.Text = "BEST";
             _categoryHeader.Text = "CLASS";
         }
-        else if (formulaE)
+        else if (bestLapAndLap)
         {
             _tyreHeader.Text = "BEST";
             _categoryHeader.Text = "LAP";
@@ -164,8 +175,27 @@ public sealed class ClassificationFlyout : Window
         UpdateTrackBadge(snapshot.TrackCondition);
 
         _rows.Children.Clear();
-        foreach (var standing in snapshot.Competitors.OrderBy(standing => standing.Position))
-            _rows.Children.Add(CreateStandingRow(standing, snapshot.Championship, rally, endurance, formulaE));
+        foreach (var standing in snapshot.Competitors.OrderBy(standing => standing.Position).Take(_display.FlyoutCompetitorCount))
+            _rows.Children.Add(CreateStandingRow(standing, snapshot.Championship, rally, endurance, bestLapAndLap));
+    }
+
+    private void ApplyDisplay()
+    {
+        _title.Visibility = _display.FlyoutShowEventHeader ? Visibility.Visible : Visibility.Collapsed;
+        _sessionDetails.Visibility = _display.FlyoutShowSessionDetails ? Visibility.Visible : Visibility.Collapsed;
+        _trackBadge.Visibility = _display.FlyoutShowTrackStatus ? Visibility.Visible : Visibility.Collapsed;
+        _connectionBadge.Visibility = _display.FlyoutShowConnectionStatus ? Visibility.Visible : Visibility.Collapsed;
+        _badges.Visibility = _display.FlyoutShowTrackStatus || _display.FlyoutShowConnectionStatus
+            ? Visibility.Visible : Visibility.Collapsed;
+        _sessionHeader.Visibility = _display.FlyoutShowEventHeader || _display.FlyoutShowSessionDetails ||
+            _display.FlyoutShowTrackStatus || _display.FlyoutShowConnectionStatus
+            ? Visibility.Visible : Visibility.Collapsed;
+        _gapHeader.Visibility = _display.FlyoutShowGaps ? Visibility.Visible : Visibility.Collapsed;
+        _intervalHeader.Visibility = _display.FlyoutShowIntervals ? Visibility.Visible : Visibility.Collapsed;
+        _tyreHeader.Visibility = _display.FlyoutShowTyreOrResult ? Visibility.Visible : Visibility.Collapsed;
+        _categoryHeader.Visibility = _display.FlyoutShowCategoryOrLap ? Visibility.Visible : Visibility.Collapsed;
+        _statusHeader.Visibility = _display.FlyoutShowStatus ? Visibility.Visible : Visibility.Collapsed;
+        ApplyColumnWidths(_columnHeader);
     }
 
     public void ScheduleClose()
@@ -216,7 +246,7 @@ public sealed class ClassificationFlyout : Window
         copy.Children.Add(_sessionDetails);
         header.Children.Add(copy);
 
-        var badges = new StackPanel
+        _badges = new StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center
@@ -224,10 +254,10 @@ public sealed class ClassificationFlyout : Window
         ConfigureBadge(_trackBadge, _trackText);
         ConfigureBadge(_connectionBadge, _connectionText);
         _trackBadge.Margin = new Thickness(0, 0, 6, 0);
-        badges.Children.Add(_trackBadge);
-        badges.Children.Add(_connectionBadge);
-        Grid.SetColumn(badges, 1);
-        header.Children.Add(badges);
+        _badges.Children.Add(_trackBadge);
+        _badges.Children.Add(_connectionBadge);
+        Grid.SetColumn(_badges, 1);
+        header.Children.Add(_badges);
         return header;
     }
 
@@ -237,15 +267,15 @@ public sealed class ClassificationFlyout : Window
         header.Margin = new Thickness(2, 0, 4, 2);
         AddHeaderLabel(header, "POS", 0);
         AddHeaderLabel(header, "DRIVER", 1);
-        AddHeaderLabel(header, "GAP", 2);
-        AddHeaderLabel(header, "INTERVAL", 3);
+        _gapHeader = AddHeaderLabel(header, "GAP", 2);
+        _intervalHeader = AddHeaderLabel(header, "INTERVAL", 3);
         _tyreHeader = AddHeaderLabel(header, "TYRE", 4);
         _categoryHeader = AddHeaderLabel(header, "LAP", 5, TextAlignment.Center);
-        AddHeaderLabel(header, "STATUS", 6, TextAlignment.Center);
+        _statusHeader = AddHeaderLabel(header, "STATUS", 6, TextAlignment.Center);
         return header;
     }
 
-    private UIElement CreateStandingRow(CompetitorStanding standing, Championship championship, bool rally, bool endurance, bool formulaE)
+    private UIElement CreateStandingRow(CompetitorStanding standing, Championship championship, bool rally, bool endurance, bool bestLapAndLap)
     {
         var grid = CreateColumns();
         grid.MinHeight = 38;
@@ -319,13 +349,14 @@ public sealed class ClassificationFlyout : Window
             Text = standing.Team,
             FontSize = 9.5,
             ToolTip = standing.Team,
-            Clock = _scrollClock
+            Clock = _scrollClock,
+            Visibility = _display.FlyoutShowTeamNames ? Visibility.Visible : Visibility.Collapsed
         };
         team.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorTertiaryBrush");
         driverCopy.Children.Add(driverLine);
         Grid.SetRow(team, 1);
         driverCopy.Children.Add(team);
-        if (_settings.UseManufacturerLogos && ManufacturerLogo.TryCreateForStanding(standing, championship, 26, out var logo))
+        if (_display.FlyoutUseManufacturerLogos && ManufacturerLogo.TryCreateForStanding(standing, championship, 26, out var logo))
         {
             logo.Margin = new Thickness(0, 0, 6, 0);
             logo.VerticalAlignment = VerticalAlignment.Center;
@@ -337,23 +368,32 @@ public sealed class ClassificationFlyout : Window
         Grid.SetColumn(driver, 1);
         grid.Children.Add(driver);
 
-        AddValue(grid, standing.Position == 1 ? "LEADER" : standing.GapToLeader ?? "—", 2,
-            standing.Position == 1 ? FontWeights.SemiBold : FontWeights.Normal);
-        AddValue(grid, standing.Position == 1 ? "—" : standing.IntervalToPositionAhead ?? "—", 3);
+        if (_display.FlyoutShowGaps)
+            AddValue(grid, standing.Position == 1 ? "LEADER" : standing.GapToLeader ?? "—", 2,
+                standing.Position == 1 ? FontWeights.SemiBold : FontWeights.Normal);
+        if (_display.FlyoutShowIntervals)
+            AddValue(grid, standing.Position == 1 ? "—" : standing.IntervalToPositionAhead ?? "—", 3);
 
-        if (rally || endurance || formulaE) AddValue(grid, standing.ResultTime ?? "—", 4);
-        else
+        if (_display.FlyoutShowTyreOrResult)
         {
-            var tyre = CreateTyreBadge(standing.Tyre);
-            Grid.SetColumn(tyre, 4);
-            grid.Children.Add(tyre);
+            if (rally || endurance || bestLapAndLap) AddValue(grid, standing.ResultTime ?? "—", 4);
+            else
+            {
+                var tyre = CreateTyreBadge(standing.Tyre);
+                Grid.SetColumn(tyre, 4);
+                grid.Children.Add(tyre);
+            }
         }
 
-        AddValue(grid, rally || endurance ? standing.Category ?? "—" : standing.Lap.ToString(), 5, alignment: TextAlignment.Center);
+        if (_display.FlyoutShowCategoryOrLap)
+            AddValue(grid, rally || endurance ? standing.Category ?? "—" : standing.Lap.ToString(), 5, alignment: TextAlignment.Center);
 
-        var status = CreateStatusBadge(standing);
-        Grid.SetColumn(status, 6);
-        grid.Children.Add(status);
+        if (_display.FlyoutShowStatus)
+        {
+            var status = CreateStatusBadge(standing);
+            Grid.SetColumn(status, 6);
+            grid.Children.Add(status);
+        }
 
         if (standing.Retired || standing.Stopped)
             grid.Opacity = 0.62;
@@ -462,17 +502,23 @@ public sealed class ClassificationFlyout : Window
         };
     }
 
-    private static Grid CreateColumns()
+    private Grid CreateColumns()
     {
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(42) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(72) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(58) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(64) });
+        for (var index = 0; index < 7; index++) grid.ColumnDefinitions.Add(new ColumnDefinition());
+        ApplyColumnWidths(grid);
         return grid;
+    }
+
+    private void ApplyColumnWidths(Grid grid)
+    {
+        grid.ColumnDefinitions[0].Width = new GridLength(42);
+        grid.ColumnDefinitions[1].Width = new GridLength(1, GridUnitType.Star);
+        grid.ColumnDefinitions[2].Width = _display.FlyoutShowGaps ? new GridLength(78) : new GridLength(0);
+        grid.ColumnDefinitions[3].Width = _display.FlyoutShowIntervals ? new GridLength(78) : new GridLength(0);
+        grid.ColumnDefinitions[4].Width = _display.FlyoutShowTyreOrResult ? new GridLength(72) : new GridLength(0);
+        grid.ColumnDefinitions[5].Width = _display.FlyoutShowCategoryOrLap ? new GridLength(58) : new GridLength(0);
+        grid.ColumnDefinitions[6].Width = _display.FlyoutShowStatus ? new GridLength(64) : new GridLength(0);
     }
 
     private ScrollingTextBlock AddHeaderLabel(Grid grid, string text, int column, TextAlignment alignment = TextAlignment.Left)
@@ -514,7 +560,7 @@ public sealed class ClassificationFlyout : Window
 
     private LinearGradientBrush CreatePositionBrush(int position)
     {
-        (Color Start, Color End) colors = _settings.ShowPositionColors && position is >= 1 and <= 5
+        (Color Start, Color End) colors = _display.FlyoutShowPositionColors && position is >= 1 and <= 5
             ? PositionColors[position - 1]
             : (Color.FromRgb(52, 55, 63), Color.FromRgb(83, 88, 100));
         return new LinearGradientBrush(colors.Start, colors.End, 35);
