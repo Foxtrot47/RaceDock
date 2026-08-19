@@ -162,7 +162,16 @@ internal sealed class AlkamelLiveTimingSource : ILiveTimingSource
     private async Task ProcessMessageAsync(JsonObject message, CancellationToken cancellationToken)
     {
         var type = JsonSupport.String(message["msg"]);
-        if (type == "_sockjsHeartbeat") return;
+        if (type == "_sockjsHeartbeat")
+        {
+            if (_definition.Championship == Championship.FormulaE && !_hasLiveSnapshot &&
+                JsonSupport.Bool(_feedState["running"]) && _feedState["sessions"] is JsonArray)
+            {
+                _sessionIdsFingerprint = null;
+                await ApplyFeedAsync(_feedState, cancellationToken);
+            }
+            return;
+        }
         if (type == "connected")
         {
             SetConnection(ConnectionState.Connected);
@@ -280,12 +289,12 @@ internal sealed class AlkamelLiveTimingSource : ILiveTimingSource
             .ToList();
         var open = candidates.Where(document => !JsonSupport.Bool(document["info"]?["closed"])).ToList();
         var now = _clock.UtcNow.ToUnixTimeMilliseconds();
-        var selected = open.Where(document => SessionDate(document) <= now &&
-                (SessionEndDate(document) == 0 || SessionEndDate(document) >= now))
-            .OrderByDescending(SessionDate).FirstOrDefault()
-            ?? open.Where(document => SessionDate(document) <= now).OrderByDescending(SessionDate).FirstOrDefault()
-            ?? open.Where(document => SessionDate(document) > now).OrderBy(SessionDate).FirstOrDefault()
-            ?? candidates.OrderByDescending(SessionDate).FirstOrDefault();
+        var futureTolerance = _definition.Championship == Championship.FormulaE
+            ? (long)TimeSpan.FromMinutes(10).TotalMilliseconds
+            : 0;
+        var selected = open.Where(document => IsCurrentSession(SessionDate(document), SessionEndDate(document), now, futureTolerance))
+            .OrderByDescending(SessionDate)
+            .FirstOrDefault();
         var sessionId = selected is null ? null : SessionReferenceValue(selected["session"]);
         if (sessionId == _selectedSessionId) return;
 
@@ -421,6 +430,15 @@ internal sealed class AlkamelLiveTimingSource : ILiveTimingSource
         var sessionId = SessionReferenceValue(infoDocument["session"]);
         return sessionId is not null && Collection("sessions").TryGetValue(sessionId, out var session) &&
             long.TryParse(JsonSupport.String(session["endDate"]), out var endDate) ? endDate : 0;
+    }
+
+    internal static bool IsCurrentSession(long start, long end, long now, long futureTolerance = 0)
+    {
+        if (start <= 0 || start - now > futureTolerance) return false;
+        if (start > now) return true;
+        if (end > start) return end >= now;
+        if (end == start) return now - start <= TimeSpan.FromHours(3).TotalMilliseconds;
+        return now - start <= TimeSpan.FromHours(36).TotalMilliseconds;
     }
 
     private static string? SessionReferenceValue(JsonNode? node) =>

@@ -44,11 +44,13 @@ var tests = new (string Name, Action Run)[]
     ("IMSA SockJS frames preserve DDP messages", ImsaSockJsProtocol),
     ("IMSA standings map endurance timing", ImsaStandings),
     ("IMSA flags statuses and clocks map provider values", ImsaFlagsAndClock),
+    ("Al Kamel session selection rejects stale placeholders", AlkamelSessionWindow),
     ("IMSA source subscribes and publishes an active classification", ImsaSourceLifecycle),
     ("Formula E practice maps Al Kamel timing", FormulaEStandings),
     ("Formula E duels publish only the active pairing", FormulaEDuelPairing),
     ("Formula E future races remain pre-session", FormulaEFutureRace),
     ("Formula E source subscribes and publishes an active classification", FormulaESourceLifecycle),
+    ("Formula E source refreshes session discovery between duels", FormulaESourceRefreshesBetweenDuels),
     ("DTM bootstrap maps live race timing", DtmBootstrapTiming),
     ("DTM discovery selects only the running session", DtmSessionSelection),
     ("INDYCAR practice maps official timing", IndyCarPracticeTiming),
@@ -1362,6 +1364,22 @@ static void ImsaFlagsAndClock()
         DateTimeOffset.FromUnixTimeSeconds(1300)));
 }
 
+static void AlkamelSessionWindow()
+{
+    var now = new DateTimeOffset(2026, 8, 15, 16, 0, 0, TimeSpan.Zero).ToUnixTimeMilliseconds();
+    True(AlkamelLiveTimingSource.IsCurrentSession(now - (long)TimeSpan.FromHours(1).TotalMilliseconds, 0, now));
+    True(AlkamelLiveTimingSource.IsCurrentSession(now - (long)TimeSpan.FromHours(2).TotalMilliseconds, now + 1, now));
+    False(AlkamelLiveTimingSource.IsCurrentSession(now - (long)TimeSpan.FromDays(13).TotalMilliseconds, 0, now));
+    False(AlkamelLiveTimingSource.IsCurrentSession(now - (long)TimeSpan.FromHours(2).TotalMilliseconds, now - 1, now));
+    True(AlkamelLiveTimingSource.IsCurrentSession(now - (long)TimeSpan.FromMinutes(5).TotalMilliseconds,
+        now - (long)TimeSpan.FromMinutes(5).TotalMilliseconds, now));
+    False(AlkamelLiveTimingSource.IsCurrentSession(now - (long)TimeSpan.FromHours(4).TotalMilliseconds,
+        now - (long)TimeSpan.FromHours(4).TotalMilliseconds, now));
+    False(AlkamelLiveTimingSource.IsCurrentSession(now + 1, 0, now));
+    True(AlkamelLiveTimingSource.IsCurrentSession(now + (long)TimeSpan.FromMinutes(5).TotalMilliseconds,
+        now + (long)TimeSpan.FromMinutes(5).TotalMilliseconds, now, (long)TimeSpan.FromMinutes(10).TotalMilliseconds));
+}
+
 static void ImsaSourceLifecycle()
 {
     var sessionReference = ImsaSessionReference("session-1");
@@ -1547,6 +1565,27 @@ static void FormulaESourceLifecycle()
     var feedSubscription = client.Sent.First(message => JsonSupport.String(message["name"]) == "livetimingFeed");
     Equal("fiaformulae", JsonSupport.String(feedSubscription["params"]?[0]));
     True(client.Sent.Any(message => JsonSupport.String(message["name"]) == "standings"));
+}
+
+static void FormulaESourceRefreshesBetweenDuels()
+{
+    var sessionReference = ImsaSessionReference("fe-duel");
+    var messages = new List<JsonObject>
+    {
+        new() { ["msg"] = "connected", ["session"] = "test" },
+        DdpAdded("feeds", "feed", new JsonObject { ["running"] = true, ["sessions"] = new JsonArray { sessionReference.DeepClone() } }),
+        DdpAdded("sessions", "fe-duel", new JsonObject { ["name"] = "Qualifying Duel Quarter-Final 1", ["date"] = 1000000, ["endDate"] = 1000000 }),
+        DdpAdded("session_info", "info", new JsonObject { ["session"] = sessionReference.DeepClone(), ["info"] = JsonNode.Parse("{\"name\":\"QUALIFYING DUEL QUARTER-FINAL 1\",\"closed\":true}") }),
+        new() { ["msg"] = "_sockjsHeartbeat" }
+    };
+    var client = new FakeAlkamelDdpClient(messages);
+    var clock = new FakeClock(DateTimeOffset.FromUnixTimeSeconds(1100));
+    var source = new FormulaELiveTimingSource(() => client, clock, new BlockingDelay(), new AlertArbiter(clock),
+        new AlkamelTimingOptions(TimeSpan.FromHours(1), [TimeSpan.FromHours(1)]));
+
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(SpinWait.SpinUntil(() => client.SubscriptionCount("sessionInfo") >= 2, TimeSpan.FromSeconds(2)));
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
 }
 
 static void DtmBootstrapTiming()
