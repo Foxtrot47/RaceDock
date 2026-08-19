@@ -491,9 +491,11 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
 
     private void RefreshDashboardChampionshipStatuses()
     {
+        var visible = ChampionshipStatuses.Where(status => status.IsVisible && (status.IsChampionshipEnabled || status.HasTiming)).ToList();
+        // Timing updates arrive several times a second, so only rebuild the cards when the set itself changes.
+        if (DashboardChampionshipStatuses.SequenceEqual(visible)) return;
         DashboardChampionshipStatuses.Clear();
-        foreach (var status in ChampionshipStatuses.Where(status => status.IsVisible && (status.IsChampionshipEnabled || status.HasTiming)))
-            DashboardChampionshipStatuses.Add(status);
+        foreach (var status in visible) DashboardChampionshipStatuses.Add(status);
     }
 
     private static ChampionshipStatusItem Status(Championship championship, string displayName, string iconFile, string description) =>
