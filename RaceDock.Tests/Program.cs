@@ -1075,30 +1075,28 @@ static void ChampionshipVisibility()
     False(withoutFormula1.EnableFormula1);
     True(withoutFormula1.EnableGtWorldChallengeEurope);
 
-    // Something has to run, so the fallback picks a visible championship instead of forcing a hidden one back on.
-    var formula1Hidden = new UserSettings
+    // Switching everything off is a valid idle state; nothing is turned back on behind the user's back.
+    var idle = new UserSettings
     {
         EnableFormula1 = false,
         EnableGtWorldChallengeEurope = false,
         EnableWrc = false,
         HiddenChampionships = [Championship.Formula1]
     }.Normalize();
-    True(formula1Hidden.HasEnabledStream);
-    False(formula1Hidden.IsChampionshipVisible(Championship.Formula1));
-    False(formula1Hidden.EnableFormula1);
-    True(formula1Hidden.EnableFormula2);
-    True(formula1Hidden.IsChampionshipVisible(Championship.Formula2));
+    False(idle.HasEnabledStream);
+    False(idle.IsChampionshipVisible(Championship.Formula1));
+    True(idle.IsChampionshipVisible(Championship.Formula2));
 
-    // Normalizing again keeps the repaired settings stable.
-    var renormalized = formula1Hidden.Normalize();
-    True(renormalized.EnableFormula2);
+    // Normalizing again keeps the idle state stable.
+    var renormalized = idle.Normalize();
+    False(renormalized.HasEnabledStream);
     False(renormalized.IsChampionshipVisible(Championship.Formula1));
 
-    // Hiding everything leaves nothing to fall back to, so Formula 1 comes back.
+    // Hiding every championship disables all of them and leaves nothing visible.
     var allHidden = new UserSettings { HiddenChampionships = [.. UserSettings.AllChampionships] }.Normalize();
-    True(allHidden.HasEnabledStream);
-    True(allHidden.IsChampionshipVisible(Championship.Formula1));
-    True(allHidden.EnableFormula1);
+    False(allHidden.HasEnabledStream);
+    False(allHidden.IsChampionshipVisible(Championship.Formula1));
+    False(allHidden.EnableFormula1);
     False(allHidden.IsChampionshipVisible(Championship.Imsa));
 
     var directory = Path.Combine(Path.GetTempPath(), $"RaceDock.Tests.{Guid.NewGuid():N}");
@@ -1150,7 +1148,7 @@ static void UserSettingsPersistence()
             AutoStartOnWindowsBoot = false
         });
         var loaded = store.Load();
-        True(loaded.EnableFormula1);
+        False(loaded.HasEnabledStream);
         Equal(5, loaded.DriverCount);
         Equal(2, loaded.RotationSeconds);
         Equal(30, loaded.CompletedSessionRetentionMinutes);

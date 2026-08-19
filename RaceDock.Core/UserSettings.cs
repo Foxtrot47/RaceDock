@@ -264,23 +264,6 @@ public sealed record UserSettings
         _ => this
     };
 
-    private UserSettings WithChampionshipEnabled(Championship championship) => championship switch
-    {
-        Championship.Formula2 => this with { EnableFormula2 = true },
-        Championship.Formula3 => this with { EnableFormula3 = true },
-        Championship.MotoGp => this with { EnableMotoGp = true },
-        Championship.Moto2 => this with { EnableMoto2 = true },
-        Championship.Moto3 => this with { EnableMoto3 = true },
-        Championship.GtWorldChallengeEurope => this with { EnableGtWorldChallengeEurope = true },
-        Championship.WorldRallyChampionship => this with { EnableWrc = true },
-        Championship.Imsa => this with { EnableImsa = true },
-        Championship.FormulaE => this with { EnableFormulaE = true },
-        Championship.Dtm => this with { EnableDtm = true },
-        Championship.IndyCar => this with { EnableIndyCar = true },
-        _ => this with { EnableFormula1 = true }
-    };
-
-
     public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 || EnableMoto3 || EnableGtWorldChallengeEurope || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar;
     public ChampionshipDisplaySettings DisplayFor(Championship championship) =>
         (ChampionshipDisplay ?? ChampionshipDisplayProfiles.Create(ChampionshipDisplaySettings.FromLegacy(this)))
@@ -302,14 +285,8 @@ public sealed record UserSettings
             ChampionshipDisplay = (ChampionshipDisplay ?? ChampionshipDisplayProfiles.Create(legacyDisplay)).Normalize()
         };
         foreach (var championship in hidden) normalized = normalized.WithChampionshipDisabled(championship);
-        if (normalized.HasEnabledStream) return normalized;
-
-        // Something has to run: fall back to the first visible championship, or bring Formula 1 back if all are hidden.
-        var fallback = AllChampionships.FirstOrDefault(normalized.IsChampionshipVisible, Championship.Formula1);
-        return normalized.WithChampionshipEnabled(fallback) with
-        {
-            HiddenChampionships = [.. normalized.HiddenChampionships!.Where(championship => championship != fallback)]
-        };
+        // Turning every championship off is a valid idle state: nothing is fetched and the widget stays hidden.
+        return normalized;
     }
 }
 
