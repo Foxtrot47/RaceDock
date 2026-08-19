@@ -4,6 +4,12 @@ using System.Text.Json;
 
 namespace RaceDock.Core;
 
+public enum TaskbarWidgetPosition
+{
+    LeftOfStart,
+    RightOfStart
+}
+
 public sealed record UserSettings
 {
     public bool EnableFormula1 { get; init; } = true;

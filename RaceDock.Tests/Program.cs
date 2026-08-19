@@ -199,6 +199,8 @@ static void GeometryAndRecovery()
     var afterWidgets = TaskbarGeometry.CalculateLeftChild(new(0, 0, 1920, 48), 96, [new(0, 0, 52, 48)])!.Value; Equal(56, afterWidgets.X);
     var skipsHostedApp = TaskbarGeometry.CalculateLeftChild(new(0, 0, 2400, 48), 96, [new(0, 0, 52, 48), new(56, 0, 500, 48)])!.Value; Equal(504, skipsHostedApp.X);
     var adaptive = TaskbarGeometry.CalculateLeftChild(new(0, 0, 2560, 48), 96, [new(20, 0, 411, 48), new(926, 0, 1414, 48)])!.Value; Equal(415, adaptive.X); Equal(511, adaptive.Width);
+    var right = TaskbarGeometry.CalculateChild(new(0, 0, 1920, 48), 96, TaskbarWidgetPosition.RightOfStart)!.Value; Equal(996, right.X); Equal(520, right.Width); Equal(4, right.Y);
+    var blockedRight = TaskbarGeometry.CalculateChild(new(0, 0, 1920, 48), 96, TaskbarWidgetPosition.RightOfStart, [new(1300, 0, 1920, 48)]); Equal<(int X, int Y, int Width, int Height)?>(null, blockedRight);
     var noSafeGap = TaskbarGeometry.CalculateLeftChild(new(0, 0, 1280, 48), 96, [new(0, 0, 240, 48)]); Equal<(int X, int Y, int Width, int Height)?>(null, noSafeGap);
     var hi = TaskbarGeometry.CalculateLeftChild(new(0, 0, 3840, 96), 192)!.Value; Equal(16, hi.X); Equal(1040, hi.Width); Equal(80, hi.Height);
     True(TaskbarRecovery.NeedsReattach(10, 0, false)); True(TaskbarRecovery.NeedsReattach(10, 10, true)); False(TaskbarRecovery.NeedsReattach(10, 10, false));

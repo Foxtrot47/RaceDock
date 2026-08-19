@@ -16,10 +16,18 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
     private const int WmMouseActivate = 0x0021, MaNoActivate = 3;
     private readonly int _taskbarCreated = RegisterWindowMessage("TaskbarCreated");
     private IntPtr _hwnd;
+    private TaskbarWidgetPosition _position;
     private DateTime _lastAutomationScanUtc = DateTime.MinValue;
     private IReadOnlyList<PixelRect> _automationRectangles = [];
     public event Action? ExplorerRestarted;
     public event Action<bool>? PositionChanged;
+
+    public void ApplyPosition(TaskbarWidgetPosition position)
+    {
+        if (_position == position) return;
+        _position = position;
+        Reattach();
+    }
 
     public void Attach()
     {
@@ -36,7 +44,7 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
         SetParent(_hwnd, taskbar);
         if (!GetWindowRect(taskbar, out var rect)) return;
         var taskbarRect = new PixelRect(rect.Left, rect.Top, rect.Right, rect.Bottom);
-        var geometry = TaskbarGeometry.CalculateLeftChild(taskbarRect, GetDpiForWindow(taskbar), FindOccupiedRectangles(taskbar, taskbarRect));
+        var geometry = TaskbarGeometry.CalculateChild(taskbarRect, GetDpiForWindow(taskbar), _position, FindOccupiedRectangles(taskbar, taskbarRect));
         if (geometry is null) { ShowWindow(_hwnd, SwHide); PositionChanged?.Invoke(false); return; }
         var placement = geometry.Value;
         var parentPoint = new Point { X = taskbarRect.Left + placement.X, Y = taskbarRect.Top + placement.Y };
