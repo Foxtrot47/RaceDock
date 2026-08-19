@@ -25,6 +25,7 @@ var tests = new (string Name, Action Run)[]
     ("Timing71 HAR archives load embedded manifest and states", TimingArchiveHarReplay),
     ("Timing71 archive patches enforce complexity limits", TimingArchivePatchLimits),
     ("active feeds rotate at the display interval", FeedRotation),
+    ("completed classifications remain visible for the configured interval", CompletedClassificationRetention),
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
     ("WRC season discovery excludes ERC and finds the next rally", WrcSeasonDiscovery),
     ("WRC provider keeps event rally and itinerary ids distinct", WrcProviderIdentifiers),
@@ -511,6 +512,26 @@ static void FeedRotation()
     True(meetings.Count >= 4);
     Equal("F1", meetings[0]);
     True(meetings.Zip(meetings.Skip(1)).Any(pair => pair.First != pair.Second));
+}
+
+static void CompletedClassificationRetention()
+{
+    var clock = new FakeClock();
+    var feed = new FakeTimingSource(Snapshot("British Grand Prix"));
+    var source = new CompositeLiveTimingSource([() => feed], clock, TimeSpan.FromMilliseconds(20), TimeSpan.FromMinutes(6));
+    List<TimingSnapshot> snapshots = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+    feed.Publish(TimingSnapshot.Hidden(clock.UtcNow));
+    clock.Advance(TimeSpan.FromMinutes(5));
+    Thread.Sleep(30);
+    Equal("British Grand Prix", snapshots[^1].Meeting);
+    clock.Advance(TimeSpan.FromMinutes(1));
+    Thread.Sleep(30);
+    Equal(SessionLifecycle.OffSession, snapshots[^1].Lifecycle);
+
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
 }
 
 static void WrcCategoryEligibility()
@@ -2335,6 +2356,7 @@ sealed class FakeTimingSource(TimingSnapshot snapshot) : ILiveTimingSource
         SnapshotReceived?.Invoke(snapshot);
         return Task.CompletedTask;
     }
+    public void Publish(TimingSnapshot value) => SnapshotReceived?.Invoke(value);
     public Task StopAsync() => Task.CompletedTask;
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

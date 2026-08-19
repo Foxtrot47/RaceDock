@@ -6,13 +6,16 @@ namespace RaceDock.Core;
 public sealed class CompositeLiveTimingSource(
     IReadOnlyList<Func<ILiveTimingSource>> factories,
     IClock clock,
-    TimeSpan? displayInterval = null) : ILiveTimingSource
+    TimeSpan? displayInterval = null,
+    TimeSpan? completedSessionRetention = null) : ILiveTimingSource
 {
     private readonly TimeSpan _displayInterval = displayInterval ?? TimeSpan.FromSeconds(5);
+    private readonly TimeSpan _completedSessionRetention = completedSessionRetention ?? TimeSpan.FromMinutes(5);
     private readonly List<ILiveTimingSource> _sources = [];
     private readonly Dictionary<ILiveTimingSource, TimingSnapshot> _snapshots = [];
     private readonly Dictionary<ILiveTimingSource, ConnectionState> _connections = [];
     private readonly Dictionary<ILiveTimingSource, Subscription> _subscriptions = [];
+    private readonly Dictionary<ILiveTimingSource, DateTimeOffset> _retainedUntil = [];
     private readonly object _gate = new();
     private CancellationTokenSource? _runCts;
     private Task? _rotation;
@@ -64,7 +67,16 @@ public sealed class CompositeLiveTimingSource(
         TimingSnapshot? selected = null;
         lock (_gate)
         {
-            _snapshots[source] = snapshot;
+            if (snapshot.Lifecycle != SessionLifecycle.Live && _snapshots.TryGetValue(source, out var previous) &&
+                previous.Lifecycle == SessionLifecycle.Live)
+            {
+                _retainedUntil.TryAdd(source, clock.UtcNow + _completedSessionRetention);
+            }
+            else
+            {
+                _snapshots[source] = snapshot;
+                if (snapshot.Lifecycle == SessionLifecycle.Live) _retainedUntil.Remove(source);
+            }
             var active = ActiveSources();
             if (active.Count == 0)
             {
@@ -89,7 +101,11 @@ public sealed class CompositeLiveTimingSource(
             lock (_gate)
             {
                 var active = ActiveSources();
-                if (active.Count == 0) _selected = null;
+                if (active.Count == 0)
+                {
+                    if (_selected is not null) selected = TimingSnapshot.Hidden(clock.UtcNow);
+                    _selected = null;
+                }
                 else if (active.Count == 1) _selected = active[0];
                 else
                 {
@@ -104,7 +120,8 @@ public sealed class CompositeLiveTimingSource(
 
     private List<ILiveTimingSource> ActiveSources() => _sources
         .Where(source => _snapshots.TryGetValue(source, out var snapshot) &&
-            snapshot.Lifecycle == SessionLifecycle.Live && snapshot.Competitors.Count > 0)
+            snapshot.Lifecycle == SessionLifecycle.Live && snapshot.Competitors.Count > 0 &&
+            (!_retainedUntil.TryGetValue(source, out var until) || until > clock.UtcNow))
         .ToList();
 
     private void OnConnection(ILiveTimingSource source, ConnectionState state)
