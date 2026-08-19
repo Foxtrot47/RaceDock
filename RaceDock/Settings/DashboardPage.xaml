@@ -102,12 +102,7 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <TextBlock Text="Tools"
-                 FontSize="14"
-                 FontWeight="SemiBold"
-                 Margin="0,24,0,6" />
-
-      <Grid Margin="-4">
+      <Grid Margin="-4,45,-4,-4">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
           <ColumnDefinition Width="*" />
@@ -122,25 +117,19 @@
           <ui:CardAction.Icon>
             <ui:SymbolIcon Symbol="Settings24" FontSize="28" />
           </ui:CardAction.Icon>
-          <StackPanel>
-            <TextBlock Text="General" FontWeight="SemiBold" />
-            <TextBlock Text="Configure" FontSize="12" Opacity="0.65" />
-          </StackPanel>
+          <TextBlock Text="General" FontWeight="SemiBold" />
         </ui:CardAction>
 
         <ui:CardAction Grid.Column="1"
-                       Tag="Testing"
+                       Tag="About"
                        Margin="4"
                        Padding="12,20"
                        IsChevronVisible="True"
                        Click="SettingsCard_Click">
           <ui:CardAction.Icon>
-            <ui:SymbolIcon Symbol="Bug24" FontSize="28" />
+            <ui:SymbolIcon Symbol="Info24" FontSize="28" />
           </ui:CardAction.Icon>
-          <StackPanel>
-            <TextBlock Text="Testing" FontWeight="SemiBold" />
-            <TextBlock Text="Configure" FontSize="12" Opacity="0.65" />
-          </StackPanel>
+          <TextBlock Text="About" FontWeight="SemiBold" />
         </ui:CardAction>
       </Grid>
     </StackPanel>
