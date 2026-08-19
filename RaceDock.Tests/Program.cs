@@ -52,6 +52,7 @@ var tests = new (string Name, Action Run)[]
     ("Formula E source subscribes and publishes an active classification", FormulaESourceLifecycle),
     ("Formula E source refreshes session discovery between duels", FormulaESourceRefreshesBetweenDuels),
     ("DTM bootstrap maps live race timing", DtmBootstrapTiming),
+    ("DTM qualifying derives standings from valid laps", DtmQualifyingTiming),
     ("DTM discovery selects only the running session", DtmSessionSelection),
     ("INDYCAR practice maps official timing", IndyCarPracticeTiming),
     ("INDYCAR source publishes captured practice timing", IndyCarSourceLifecycle),
@@ -1631,6 +1632,42 @@ static void DtmBootstrapTiming()
     True(snapshot.Competitors[1].Retired);
     True(snapshot.Competitors[1].InPit);
     True(snapshot.Competitors[0].IsOverallFastest);
+}
+
+static void DtmQualifyingTiming()
+{
+    var session = JsonNode.Parse("""
+        {"id":101,"name":"Qualifying 2","isRunning":true,"hasResult":false,"hasSeenChequered":false,
+         "event":{"name":"06 Nürburgring"},"series":{"name":"DTM"}}
+        """)!.AsObject();
+    var bootstrap = JsonNode.Parse("""
+        {"sessionInfo":{"eventName":"06 Nürburgring","sessionName":"Qualifying 2","trackName":"Nürburgring","isStarted":true},
+         "participants":[
+           {"pid":1,"carNumber":"10","threeLettersName":"MAP","displayName":"Marco Map","teamName":"Team A","manufacturer":"BMW"},
+           {"pid":2,"carNumber":"130","threeLettersName":"ENG","displayName":"Emil Eng","teamName":"Team B","manufacturer":"Mercedes-AMG"},
+           {"pid":3,"carNumber":"11","threeLettersName":"WIT","displayName":"Will Wit","teamName":"Team C","manufacturer":"BMW"}],
+         "ranks":[],"gaps":[],"bestLaps":[],
+         "laps":[
+           {"pid":1,"lapNumber":3,"lapTimeMillis":95698,"isValid":true},
+           {"pid":2,"lapNumber":3,"lapTimeMillis":95112,"isValid":true},
+           {"pid":3,"lapNumber":2,"lapTimeMillis":611115,"isValid":false}],
+         "runningStatuses":[],"carLocations":[],"raceFlags":[{"flag":"Green"}],"chequeredFlags":[],
+         "sessionLengthLimit":{"sessionLengthType":"TimeOnly","lapsLimit":-1,"timeLimitSeconds":1200},
+         "sessionClock":{"startTime":"2026-08-16T07:10:00Z","tsNow":"2026-08-16T07:22:00Z"}}
+        """)!.AsObject();
+
+    var snapshot = DtmTiming.BuildSnapshot(session, bootstrap,
+        new DateTimeOffset(2026, 8, 16, 7, 22, 0, TimeSpan.Zero), ConnectionState.Connected);
+
+    Equal(SessionLifecycle.Live, snapshot.Lifecycle);
+    Equal(3, snapshot.Competitors.Count);
+    Equal("ENG", snapshot.Competitors[0].Code);
+    Equal("LEAD", snapshot.Competitors[0].GapToLeader);
+    Equal("MAP", snapshot.Competitors[1].Code);
+    Equal("+0.586", snapshot.Competitors[1].GapToLeader);
+    Equal("WIT", snapshot.Competitors[2].Code);
+    Equal<string?>(null, snapshot.Competitors[2].GapToLeader);
+    Equal("00:08:00", snapshot.TimeRemaining);
 }
 
 static void DtmSessionSelection()

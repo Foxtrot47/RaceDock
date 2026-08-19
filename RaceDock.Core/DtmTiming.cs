@@ -16,12 +16,15 @@ internal static partial class DtmTiming
     {
         var info = bootstrap["sessionInfo"] as JsonObject ?? [];
         var participants = ByPid(bootstrap["participants"] as JsonArray);
+        var lapValues = bootstrap["laps"] as JsonArray;
+        var bestLaps = BestLapsByPid(bootstrap["bestLaps"] as JsonArray, lapValues);
         var ranks = ByPid(bootstrap["ranks"] as JsonArray);
+        if (ranks.Count == 0 && bestLaps.Count > 0) ranks = QualifyingRanks(participants, bestLaps);
         var gaps = ByPid(bootstrap["gaps"] as JsonArray);
+        if (gaps.Count == 0 && bestLaps.Count > 0) gaps = QualifyingGaps(bestLaps);
         var statuses = ByPid(bootstrap["runningStatuses"] as JsonArray);
         var locations = ByPid(bootstrap["carLocations"] as JsonArray);
-        var bestLaps = BestLapsByPid(bootstrap["bestLaps"] as JsonArray);
-        var laps = LatestLapsByPid(bootstrap["laps"] as JsonArray);
+        var laps = LatestLapsByPid(lapValues);
         var fastestPid = bestLaps
             .Where(pair => JsonSupport.Int(pair.Value["lapTimeMillis"]) is > 0)
             .OrderBy(pair => JsonSupport.Int(pair.Value["lapTimeMillis"]))
@@ -104,15 +107,55 @@ internal static partial class DtmTiming
         return result;
     }
 
-    private static Dictionary<long, JsonObject> BestLapsByPid(JsonArray? values)
+    private static Dictionary<long, JsonObject> BestLapsByPid(JsonArray? values, JsonArray? laps)
     {
         Dictionary<long, JsonObject> result = [];
-        if (values is null) return result;
+        AddBestLaps(result, values, requireValid: false);
+        if (result.Count == 0) AddBestLaps(result, laps, requireValid: true);
+        return result;
+    }
+
+    private static void AddBestLaps(Dictionary<long, JsonObject> result, JsonArray? values, bool requireValid)
+    {
+        if (values is null) return;
         foreach (var value in values.OfType<JsonObject>())
         {
+            if (requireValid && !JsonSupport.Bool(value["isValid"])) continue;
             if (!long.TryParse(JsonSupport.String(value["pid"]), out var pid) || JsonSupport.Int(value["lapTimeMillis"]) is not > 0) continue;
             if (!result.TryGetValue(pid, out var current) || JsonSupport.Int(value["lapTimeMillis"]) < JsonSupport.Int(current["lapTimeMillis"]))
                 result[pid] = value;
+        }
+    }
+
+    private static Dictionary<long, JsonObject> QualifyingRanks(
+        Dictionary<long, JsonObject> participants,
+        Dictionary<long, JsonObject> bestLaps)
+    {
+        return participants.Keys
+            .OrderBy(pid => bestLaps.TryGetValue(pid, out var lap) ? JsonSupport.Int(lap["lapTimeMillis"]) : int.MaxValue)
+            .ThenBy(pid => pid)
+            .Select((pid, index) => (pid, rank: new JsonObject { ["overallPosition"] = index + 1 }))
+            .ToDictionary(value => value.pid, value => value.rank);
+    }
+
+    private static Dictionary<long, JsonObject> QualifyingGaps(Dictionary<long, JsonObject> bestLaps)
+    {
+        var ordered = bestLaps
+            .Where(pair => JsonSupport.Int(pair.Value["lapTimeMillis"]) is > 0)
+            .OrderBy(pair => JsonSupport.Int(pair.Value["lapTimeMillis"]))
+            .ToList();
+        if (ordered.Count == 0) return [];
+        var leader = JsonSupport.Int(ordered[0].Value["lapTimeMillis"])!.Value;
+        Dictionary<long, JsonObject> result = [];
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            var time = JsonSupport.Int(ordered[index].Value["lapTimeMillis"])!.Value;
+            var previous = index == 0 ? time : JsonSupport.Int(ordered[index - 1].Value["lapTimeMillis"])!.Value;
+            result[ordered[index].Key] = new JsonObject
+            {
+                ["gapToFirstMillis"] = time - leader,
+                ["gapToAheadMillis"] = time - previous
+            };
         }
         return result;
     }
