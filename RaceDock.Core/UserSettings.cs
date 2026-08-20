@@ -38,9 +38,12 @@ public sealed record ChampionshipDisplaySettings
     public bool FlyoutShowTeamNames { get; init; } = true;
     public bool FlyoutUseManufacturerLogos { get; init; }
     public bool FlyoutShowPositionColors { get; init; } = true;
-    public bool FlyoutShowGaps { get; init; } = true;
+    // Interval to the car ahead is the more useful figure in every session type, so the gap to the
+    // leader is available but off by default.
+    public bool FlyoutShowGaps { get; init; }
     public bool FlyoutShowIntervals { get; init; } = true;
-    public bool FlyoutShowTyreOrResult { get; init; } = true;
+    public bool FlyoutShowLapTime { get; init; } = true;
+    public bool FlyoutShowTyre { get; init; } = true;
     public bool FlyoutShowCategoryOrLap { get; init; } = true;
     public bool FlyoutShowStatus { get; init; } = true;
 
@@ -59,15 +62,19 @@ public sealed record ChampionshipDisplaySettings
         {
             TaskbarUseManufacturerLogos = false,
             FlyoutUseManufacturerLogos = false,
-            FlyoutShowTyreOrResult = false
+            FlyoutShowTyre = false
         },
-        Championship.MotoGp or Championship.Moto2 or Championship.Moto3 => this with
+        // Bike and sportscar feeds carry no tyre compound, so the column would only hold placeholders.
+        Championship.MotoGp or Championship.Moto2 or Championship.Moto3
+            or Championship.GtWorldChallengeEurope or Championship.Imsa
+            or Championship.FormulaE or Championship.Dtm => this with
         {
-            FlyoutShowTyreOrResult = false
+            FlyoutShowTyre = false
         },
         Championship.WorldRallyChampionship => this with
         {
-            FlyoutShowTeamNames = false
+            FlyoutShowTeamNames = false,
+            FlyoutShowTyre = false
         },
         _ => this
     };

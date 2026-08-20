@@ -38,7 +38,11 @@ internal sealed record ChampionshipSettingsPresentation
     public required string StatusDescription { get; init; }
     public bool ShowManufacturerSettings { get; init; } = true;
     public bool ShowTeamSetting { get; init; } = true;
+    /// <summary>Whether this championship's feed carries a tyre compound worth a column.</summary>
     public bool ShowResultSetting { get; init; } = true;
+    public string LapTimeTitle { get; init; } = "Lap time";
+    public string LapTimeDescription { get; init; } =
+        "Show the best lap in practice and qualifying, and the last lap in sprints and races.";
 
     public static ChampionshipSettingsPresentation For(Championship championship) => championship switch
     {

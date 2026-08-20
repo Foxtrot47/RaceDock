@@ -32,12 +32,16 @@ public sealed class ClassificationFlyout : Window
     private Grid _columnHeader = null!;
     private ScrollingTextBlock _gapHeader = null!;
     private ScrollingTextBlock _intervalHeader = null!;
+    private ScrollingTextBlock _lapTimeHeader = null!;
     private ScrollingTextBlock _tyreHeader = null!;
     private ScrollingTextBlock _categoryHeader = null!;
     private ScrollingTextBlock _statusHeader = null!;
     private readonly DispatcherTimer _closeTimer;
+    private readonly List<ClassificationRow> _standingRows = [];
     private UserSettings _settings;
     private ChampionshipDisplaySettings _display;
+    private TimingSnapshot? _snapshot;
+
 
     public event EventHandler? PointerEntered;
 
@@ -120,7 +124,10 @@ public sealed class ClassificationFlyout : Window
         MouseLeave += (_, _) => ScheduleClose();
         IsVisibleChanged += (_, _) =>
         {
-            if (IsVisible) _scrollClock.Reset();
+            if (!IsVisible) return;
+            _scrollClock.Reset();
+            // Updates are skipped while hidden, so the retained snapshot is drawn on the way back in.
+            RefreshFromSnapshot();
         };
     }
 
@@ -138,32 +145,17 @@ public sealed class ClassificationFlyout : Window
 
     public void UpdateSnapshot(TimingSnapshot snapshot)
     {
+        _snapshot = snapshot;
+        // A closed flyout is redrawn when it opens, so keeping it current while hidden is pure cost.
+        if (!IsVisible) return;
         _display = _settings.DisplayFor(snapshot.Championship);
         ApplyDisplay();
         _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : ChampionshipDisplay.FullEvent(snapshot);
         var rally = IsRallySnapshot(snapshot);
         var endurance = IsEnduranceSnapshot(snapshot);
-        var bestLapAndLap = snapshot.Championship is Championship.FormulaE or Championship.Dtm or Championship.IndyCar;
-        if (rally)
-        {
-            _tyreHeader.Text = "TIME";
-            _categoryHeader.Text = "CLASS";
-        }
-        else if (endurance)
-        {
-            _tyreHeader.Text = "BEST";
-            _categoryHeader.Text = "CLASS";
-        }
-        else if (bestLapAndLap)
-        {
-            _tyreHeader.Text = "BEST";
-            _categoryHeader.Text = "LAP";
-        }
-        else
-        {
-            _tyreHeader.Text = "TYRE";
-            _categoryHeader.Text = "LAP";
-        }
+        var lapTimeMode = ChampionshipDisplay.LapTimeModeFor(snapshot);
+        _lapTimeHeader.Text = rally ? "TIME" : lapTimeMode == LapTimeMode.LastLap ? "LAST" : "BEST";
+        _categoryHeader.Text = rally || endurance ? "CLASS" : "LAP";
         _sessionDetails.Text = string.Join("  ·  ", new[]
         {
             snapshot.Session,
@@ -174,9 +166,42 @@ public sealed class ClassificationFlyout : Window
         UpdateConnectionBadge(snapshot.ConnectionState);
         UpdateTrackBadge(snapshot.TrackCondition);
 
-        _rows.Children.Clear();
-        foreach (var standing in snapshot.Competitors.OrderBy(standing => standing.Position).Take(_display.FlyoutCompetitorCount))
-            _rows.Children.Add(CreateStandingRow(standing, snapshot.Championship, rally, endurance, bestLapAndLap));
+        UpdateRows(snapshot, new ClassificationRowFormat(rally, endurance, lapTimeMode));
+    }
+
+    /// <summary>Redraws the classification by reusing the realized rows instead of rebuilding the visual tree.</summary>
+    private void UpdateRows(TimingSnapshot snapshot, ClassificationRowFormat format)
+    {
+        var standings = snapshot.Competitors
+            .OrderBy(standing => standing.Position)
+            .Take(_display.FlyoutCompetitorCount)
+            .ToList();
+
+        while (_standingRows.Count < standings.Count)
+        {
+            var row = new ClassificationRow(_scrollClock);
+            _standingRows.Add(row);
+            _rows.Children.Add(row.Element);
+        }
+        while (_standingRows.Count > standings.Count)
+        {
+            _rows.Children.RemoveAt(_rows.Children.Count - 1);
+            _standingRows.RemoveAt(_standingRows.Count - 1);
+        }
+
+        var widths = ColumnWidths();
+        for (var index = 0; index < standings.Count; index++)
+        {
+            var row = _standingRows[index];
+            row.ApplyDisplay(_display, widths);
+            row.Update(standings[index], snapshot.Championship, _display, format);
+        }
+    }
+
+    /// <summary>Redraws from the retained snapshot, used when the flyout becomes visible again.</summary>
+    private void RefreshFromSnapshot()
+    {
+        if (_snapshot is { } snapshot) UpdateSnapshot(snapshot);
     }
 
     private void ApplyDisplay()
@@ -192,7 +217,8 @@ public sealed class ClassificationFlyout : Window
             ? Visibility.Visible : Visibility.Collapsed;
         _gapHeader.Visibility = _display.FlyoutShowGaps ? Visibility.Visible : Visibility.Collapsed;
         _intervalHeader.Visibility = _display.FlyoutShowIntervals ? Visibility.Visible : Visibility.Collapsed;
-        _tyreHeader.Visibility = _display.FlyoutShowTyreOrResult ? Visibility.Visible : Visibility.Collapsed;
+        _lapTimeHeader.Visibility = _display.FlyoutShowLapTime ? Visibility.Visible : Visibility.Collapsed;
+        _tyreHeader.Visibility = _display.FlyoutShowTyre ? Visibility.Visible : Visibility.Collapsed;
         _categoryHeader.Visibility = _display.FlyoutShowCategoryOrLap ? Visibility.Visible : Visibility.Collapsed;
         _statusHeader.Visibility = _display.FlyoutShowStatus ? Visibility.Visible : Visibility.Collapsed;
         ApplyColumnWidths(_columnHeader);
@@ -208,6 +234,7 @@ public sealed class ClassificationFlyout : Window
 
     private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Championship == Championship.WorldRallyChampionship || snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
     private static bool IsEnduranceSnapshot(TimingSnapshot snapshot) => snapshot.Championship is Championship.GtWorldChallengeEurope or Championship.Imsa;
+
     private static string SessionProgress(TimingSnapshot snapshot)
     {
         if (IsRallySnapshot(snapshot)) return snapshot.Session;
@@ -269,136 +296,11 @@ public sealed class ClassificationFlyout : Window
         AddHeaderLabel(header, "DRIVER", 1);
         _gapHeader = AddHeaderLabel(header, "GAP", 2);
         _intervalHeader = AddHeaderLabel(header, "INTERVAL", 3);
-        _tyreHeader = AddHeaderLabel(header, "TYRE", 4);
-        _categoryHeader = AddHeaderLabel(header, "LAP", 5, TextAlignment.Center);
-        _statusHeader = AddHeaderLabel(header, "STATUS", 6, TextAlignment.Center);
+        _lapTimeHeader = AddHeaderLabel(header, "BEST", 4);
+        _tyreHeader = AddHeaderLabel(header, "TYRE", 5, TextAlignment.Center);
+        _categoryHeader = AddHeaderLabel(header, "LAP", 6, TextAlignment.Center);
+        _statusHeader = AddHeaderLabel(header, "STATUS", 7, TextAlignment.Center);
         return header;
-    }
-
-    private UIElement CreateStandingRow(CompetitorStanding standing, Championship championship, bool rally, bool endurance, bool bestLapAndLap)
-    {
-        var grid = CreateColumns();
-        grid.MinHeight = 38;
-
-        var positionCard = new Border
-        {
-            Width = 32,
-            Height = 32,
-            Margin = new Thickness(5),
-            CornerRadius = new CornerRadius(8),
-            Background = CreatePositionBrush(standing.Position),
-            Effect = new DropShadowEffect
-            {
-                BlurRadius = 8,
-                ShadowDepth = 1,
-                Direction = 270,
-                Opacity = 0.28
-            },
-            Child = new TextBlock
-            {
-                Text = standing.PositionLabel ?? standing.Position.ToString(),
-                Foreground = Brushes.White,
-                FontSize = 12,
-                FontWeight = FontWeights.SemiBold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            }
-        };
-        grid.Children.Add(positionCard);
-
-        var driver = new Grid
-        {
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(4, 0, 8, 0),
-            ToolTip = string.IsNullOrWhiteSpace(standing.Name) ? null : standing.Name
-        };
-        driver.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        driver.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var driverCopy = new Grid { VerticalAlignment = VerticalAlignment.Center };
-        driverCopy.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        driverCopy.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var driverLine = new Grid();
-        driverLine.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        driverLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var driverName = new ScrollingTextBlock
-        {
-            Text = string.IsNullOrWhiteSpace(standing.Name) ? standing.Code : standing.Name,
-            FontSize = 11.5,
-            FontWeight = FontWeights.SemiBold,
-            ToolTip = string.IsNullOrWhiteSpace(standing.Name) ? standing.Code : standing.Name,
-            Clock = _scrollClock
-        };
-        driverName.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty,
-            standing.Retired ? "TextFillColorTertiaryBrush" : "TextFillColorPrimaryBrush");
-        driverLine.Children.Add(driverName);
-        if (standing.IsOverallFastest)
-        {
-            var fastest = new TextBlock
-            {
-                Text = "●",
-                Foreground = new SolidColorBrush(Color.FromRgb(196, 87, 255)),
-                FontSize = 9,
-                Margin = new Thickness(5, 1, 0, 0),
-                ToolTip = "Overall fastest lap"
-            };
-            Grid.SetColumn(fastest, 1);
-            driverLine.Children.Add(fastest);
-        }
-        var team = new ScrollingTextBlock
-        {
-            Text = standing.Team,
-            FontSize = 9.5,
-            ToolTip = standing.Team,
-            Clock = _scrollClock,
-            Visibility = _display.FlyoutShowTeamNames ? Visibility.Visible : Visibility.Collapsed
-        };
-        team.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorTertiaryBrush");
-        driverCopy.Children.Add(driverLine);
-        Grid.SetRow(team, 1);
-        driverCopy.Children.Add(team);
-        if (_display.FlyoutUseManufacturerLogos && ManufacturerLogo.TryCreateForStanding(standing, championship, 26, out var logo))
-        {
-            logo.Margin = new Thickness(0, 0, 6, 0);
-            logo.VerticalAlignment = VerticalAlignment.Center;
-            driver.Children.Add(logo);
-            Grid.SetColumn(driverCopy, 1);
-        }
-        else Grid.SetColumnSpan(driverCopy, 2);
-        driver.Children.Add(driverCopy);
-        Grid.SetColumn(driver, 1);
-        grid.Children.Add(driver);
-
-        if (_display.FlyoutShowGaps)
-            AddValue(grid, standing.Position == 1 ? "LEADER" : standing.GapToLeader ?? "—", 2,
-                standing.Position == 1 ? FontWeights.SemiBold : FontWeights.Normal);
-        if (_display.FlyoutShowIntervals)
-            AddValue(grid, standing.Position == 1 ? "—" : standing.IntervalToPositionAhead ?? "—", 3);
-
-        if (_display.FlyoutShowTyreOrResult)
-        {
-            if (rally || endurance || bestLapAndLap) AddValue(grid, standing.ResultTime ?? "—", 4);
-            else
-            {
-                var tyre = CreateTyreBadge(standing.Tyre);
-                Grid.SetColumn(tyre, 4);
-                grid.Children.Add(tyre);
-            }
-        }
-
-        if (_display.FlyoutShowCategoryOrLap)
-            AddValue(grid, rally || endurance ? standing.Category ?? "—" : standing.Lap.ToString(), 5, alignment: TextAlignment.Center);
-
-        if (_display.FlyoutShowStatus)
-        {
-            var status = CreateStatusBadge(standing);
-            Grid.SetColumn(status, 6);
-            grid.Children.Add(status);
-        }
-
-        if (standing.Retired || standing.Stopped)
-            grid.Opacity = 0.62;
-
-        return grid;
     }
 
     private void UpdateConnectionBadge(ConnectionState state)
@@ -439,87 +341,34 @@ public sealed class ClassificationFlyout : Window
         badge.Child = text;
     }
 
-    private static Border CreateTyreBadge(string? tyre)
-    {
-        var normalized = string.IsNullOrWhiteSpace(tyre) ? "—" : tyre.Trim().ToUpperInvariant();
-        var (background, foreground) = normalized switch
-        {
-            "SOFT" or "S" => (BrushFrom(205, 45, 62, 0.85), Brushes.White),
-            "MEDIUM" or "M" => (BrushFrom(226, 182, 36, 0.9), new SolidColorBrush(Color.FromRgb(35, 35, 35))),
-            "HARD" or "H" => (BrushFrom(224, 226, 232, 0.9), new SolidColorBrush(Color.FromRgb(35, 35, 35))),
-            "INTERMEDIATE" or "I" => (BrushFrom(40, 156, 87, 0.85), Brushes.White),
-            "WET" or "W" => (BrushFrom(35, 115, 196, 0.85), Brushes.White),
-            _ => (BrushFrom(92, 96, 106, 0.3), Brushes.White)
-        };
-        return new Border
-        {
-            CornerRadius = new CornerRadius(7),
-            Padding = new Thickness(7, 3, 7, 3),
-            Margin = new Thickness(4, 0, 8, 0),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Center,
-            Background = background,
-            Child = new TextBlock
-            {
-                Text = normalized,
-                Foreground = foreground,
-                FontSize = 9.5,
-                FontWeight = FontWeights.SemiBold
-            }
-        };
-    }
 
-    private static Border CreateStatusBadge(CompetitorStanding standing)
-    {
-        var (text, background) = standing switch
-        {
-            { Retired: true } => ("RET", BrushFrom(199, 45, 70, 0.35)),
-            { Stopped: true } => ("STOP", BrushFrom(199, 45, 70, 0.35)),
-            { InPit: true } => ("PIT", BrushFrom(33, 132, 188, 0.3)),
-            { StatusLabel: "RUN" } => ("RUN", BrushFrom(33, 132, 188, 0.3)),
-            { StatusLabel: "OUT" } => ("OUT", BrushFrom(33, 132, 188, 0.3)),
-            { StatusLabel: "FIN" } => ("FIN", BrushFrom(30, 138, 88, 0.28)),
-            { StatusLabel: "N/S" } => ("N/S", BrushFrom(92, 96, 106, 0.3)),
-            { StatusLabel: "N/C" } => ("N/C", BrushFrom(92, 96, 106, 0.3)),
-            { StatusLabel: "DSQ" } => ("DSQ", BrushFrom(199, 45, 70, 0.35)),
-            { StatusLabel: "DUE" } => ("DUE", BrushFrom(92, 96, 106, 0.3)),
-            _ => ("", Brushes.Transparent)
-        };
-        return new Border
-        {
-            CornerRadius = new CornerRadius(7),
-            Padding = new Thickness(7, 3, 7, 3),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Background = background,
-            Child = new TextBlock
-            {
-                Text = text,
-                Foreground = Brushes.White,
-                FontSize = 9.5,
-                FontWeight = FontWeights.SemiBold
-            }
-        };
-    }
 
     private Grid CreateColumns()
     {
         var grid = new Grid();
-        for (var index = 0; index < 7; index++) grid.ColumnDefinitions.Add(new ColumnDefinition());
+        for (var index = 0; index < 8; index++) grid.ColumnDefinitions.Add(new ColumnDefinition());
         ApplyColumnWidths(grid);
         return grid;
     }
 
     private void ApplyColumnWidths(Grid grid)
     {
-        grid.ColumnDefinitions[0].Width = new GridLength(42);
-        grid.ColumnDefinitions[1].Width = new GridLength(1, GridUnitType.Star);
-        grid.ColumnDefinitions[2].Width = _display.FlyoutShowGaps ? new GridLength(78) : new GridLength(0);
-        grid.ColumnDefinitions[3].Width = _display.FlyoutShowIntervals ? new GridLength(78) : new GridLength(0);
-        grid.ColumnDefinitions[4].Width = _display.FlyoutShowTyreOrResult ? new GridLength(72) : new GridLength(0);
-        grid.ColumnDefinitions[5].Width = _display.FlyoutShowCategoryOrLap ? new GridLength(58) : new GridLength(0);
-        grid.ColumnDefinitions[6].Width = _display.FlyoutShowStatus ? new GridLength(64) : new GridLength(0);
+        var widths = ColumnWidths();
+        for (var index = 0; index < widths.Count; index++) grid.ColumnDefinitions[index].Width = widths[index];
     }
+
+
+    private IReadOnlyList<GridLength> ColumnWidths() =>
+    [
+        new GridLength(42),
+        new GridLength(1, GridUnitType.Star),
+        _display.FlyoutShowGaps ? new GridLength(78) : new GridLength(0),
+        _display.FlyoutShowIntervals ? new GridLength(78) : new GridLength(0),
+        _display.FlyoutShowLapTime ? new GridLength(78) : new GridLength(0),
+        _display.FlyoutShowTyre ? new GridLength(60) : new GridLength(0),
+        _display.FlyoutShowCategoryOrLap ? new GridLength(58) : new GridLength(0),
+        _display.FlyoutShowStatus ? new GridLength(64) : new GridLength(0)
+    ];
 
     private ScrollingTextBlock AddHeaderLabel(Grid grid, string text, int column, TextAlignment alignment = TextAlignment.Left)
     {
@@ -537,33 +386,6 @@ public sealed class ClassificationFlyout : Window
         Grid.SetColumn(label, column);
         grid.Children.Add(label);
         return label;
-    }
-
-    private void AddValue(Grid grid, string text, int column, FontWeight? weight = null,
-        TextAlignment alignment = TextAlignment.Left)
-    {
-        var value = new ScrollingTextBlock
-        {
-            Text = text,
-            FontSize = 11,
-            FontWeight = weight ?? FontWeights.Normal,
-            TextAlignment = alignment,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = text,
-            Clock = _scrollClock,
-            Margin = new Thickness(4, 0, 8, 0)
-        };
-        value.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-        Grid.SetColumn(value, column);
-        grid.Children.Add(value);
-    }
-
-    private LinearGradientBrush CreatePositionBrush(int position)
-    {
-        (Color Start, Color End) colors = _display.FlyoutShowPositionColors && position is >= 1 and <= 5
-            ? PositionColors[position - 1]
-            : (Color.FromRgb(52, 55, 63), Color.FromRgb(83, 88, 100));
-        return new LinearGradientBrush(colors.Start, colors.End, 35);
     }
 
     private static SolidColorBrush BrushFrom(byte red, byte green, byte blue, double opacity) =>

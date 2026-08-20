@@ -1237,12 +1237,12 @@ static void UserSettingsPersistence()
         Equal(30, loaded.CompletedSessionRetentionMinutes);
         True(loaded.UseManufacturerLogos);
         True(loaded.DisplayFor(Championship.Formula1).TaskbarUseManufacturerLogos);
-        True(loaded.DisplayFor(Championship.Formula1).FlyoutShowTyreOrResult);
+        True(loaded.DisplayFor(Championship.Formula1).FlyoutShowTyre);
         False(loaded.DisplayFor(Championship.Formula2).TaskbarUseManufacturerLogos);
         False(loaded.DisplayFor(Championship.Formula2).FlyoutUseManufacturerLogos);
-        False(loaded.DisplayFor(Championship.Formula2).FlyoutShowTyreOrResult);
+        False(loaded.DisplayFor(Championship.Formula2).FlyoutShowTyre);
         True(loaded.DisplayFor(Championship.Moto3).FlyoutUseManufacturerLogos);
-        False(loaded.DisplayFor(Championship.Moto3).FlyoutShowTyreOrResult);
+        False(loaded.DisplayFor(Championship.Moto3).FlyoutShowTyre);
         False(loaded.DisplayFor(Championship.WorldRallyChampionship).FlyoutShowTeamNames);
         False(loaded.AutoStartOnWindowsBoot);
         False(loaded.EnableGtWorldChallengeEurope);

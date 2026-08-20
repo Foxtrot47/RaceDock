@@ -191,7 +191,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private bool _flyoutShowPositionColors;
     private bool _flyoutShowGaps;
     private bool _flyoutShowIntervals;
-    private bool _flyoutShowTyreOrResult;
+    private bool _flyoutShowLapTime;
+    private bool _flyoutShowTyre;
     private bool _flyoutShowCategoryOrLap;
     private bool _flyoutShowStatus;
 
@@ -358,7 +359,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     public bool FlyoutShowPositionColors { get => _flyoutShowPositionColors; set => Set(ref _flyoutShowPositionColors, value); }
     public bool FlyoutShowGaps { get => _flyoutShowGaps; set => Set(ref _flyoutShowGaps, value); }
     public bool FlyoutShowIntervals { get => _flyoutShowIntervals; set => Set(ref _flyoutShowIntervals, value); }
-    public bool FlyoutShowTyreOrResult { get => _flyoutShowTyreOrResult; set => Set(ref _flyoutShowTyreOrResult, value); }
+    public bool FlyoutShowLapTime { get => _flyoutShowLapTime; set => Set(ref _flyoutShowLapTime, value); }
+    public bool FlyoutShowTyre { get => _flyoutShowTyre; set => Set(ref _flyoutShowTyre, value); }
     public bool FlyoutShowCategoryOrLap { get => _flyoutShowCategoryOrLap; set => Set(ref _flyoutShowCategoryOrLap, value); }
     public bool FlyoutShowStatus { get => _flyoutShowStatus; set => Set(ref _flyoutShowStatus, value); }
 
@@ -478,7 +480,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         FlyoutShowPositionColors = display.FlyoutShowPositionColors;
         FlyoutShowGaps = display.FlyoutShowGaps;
         FlyoutShowIntervals = display.FlyoutShowIntervals;
-        FlyoutShowTyreOrResult = display.FlyoutShowTyreOrResult;
+        FlyoutShowLapTime = display.FlyoutShowLapTime;
+        FlyoutShowTyre = display.FlyoutShowTyre;
         FlyoutShowCategoryOrLap = display.FlyoutShowCategoryOrLap;
         FlyoutShowStatus = display.FlyoutShowStatus;
     }
@@ -506,7 +509,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             FlyoutShowPositionColors = FlyoutShowPositionColors,
             FlyoutShowGaps = FlyoutShowGaps,
             FlyoutShowIntervals = FlyoutShowIntervals,
-            FlyoutShowTyreOrResult = FlyoutShowTyreOrResult,
+            FlyoutShowLapTime = FlyoutShowLapTime,
+            FlyoutShowTyre = FlyoutShowTyre,
             FlyoutShowCategoryOrLap = FlyoutShowCategoryOrLap,
             FlyoutShowStatus = FlyoutShowStatus
         }.Normalize();
