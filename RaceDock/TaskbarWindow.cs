@@ -12,15 +12,6 @@ namespace RaceDock.App;
 
 public sealed class TaskbarWindow : Window
 {
-    private static readonly (Color Start, Color End)[] CardColors =
-    [
-        (Color.FromRgb(145, 62, 7), Color.FromRgb(211, 119, 26)),
-        (Color.FromRgb(128, 16, 54), Color.FromRgb(202, 42, 98)),
-        (Color.FromRgb(14, 73, 107), Color.FromRgb(32, 131, 185)),
-        (Color.FromRgb(74, 20, 115), Color.FromRgb(130, 48, 198)),
-        (Color.FromRgb(16, 84, 55), Color.FromRgb(36, 148, 101))
-    ];
-
     private readonly Grid _root = new();
     private readonly ColumnDefinition _contextColumn = new() { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 150 };
     private readonly UniformGrid _strip = new() { Rows = 1, Columns = 5, Margin = new(2) };
@@ -52,6 +43,7 @@ public sealed class TaskbarWindow : Window
     };
     private readonly NativeTaskbar _host;
     private readonly ClassificationFlyout _flyout;
+    private readonly List<TaskbarCell> _cells = [];
     private readonly DispatcherTimer _reattach;
     private TimingSnapshot? _snapshot;
     private RaceAlert? _currentAlert;
@@ -122,14 +114,7 @@ public sealed class TaskbarWindow : Window
         _raceText.Text = ChampionshipDisplay.CompactEvent(snapshot);
         _raceText.ToolTip = ChampionshipDisplay.FullEvent(snapshot);
         _lapText.Text = FormatSessionProgress(snapshot);
-        _strip.Children.Clear();
-        var duel = snapshot.Championship == Championship.FormulaE &&
-            snapshot.Session.Contains("Duel", StringComparison.OrdinalIgnoreCase);
-        foreach (var standing in snapshot.Competitors.Take(duel ? 2 : _display.TaskbarCompetitorCount))
-            _strip.Children.Add(CreateCell(standing));
-        if (!duel)
-            while (_strip.Children.Count < _display.TaskbarCompetitorCount)
-                _strip.Children.Add(CreateEmptyCell(_strip.Children.Count + 1));
+        UpdateCells(snapshot);
         _flyout.UpdateSnapshot(snapshot);
         RefreshFlag();
     }
@@ -269,43 +254,32 @@ public sealed class TaskbarWindow : Window
         _ => Brushes.Gold
     };
 
-    private Border CreateCell(CompetitorStanding standing)
+    /// <summary>Redraws the strip by reusing the realized cells instead of rebuilding the visual tree.</summary>
+    private void UpdateCells(TimingSnapshot snapshot)
     {
-        var layout = new Grid();
-        layout.ColumnDefinitions.Add(new() { Width = _display.TaskbarShowPositionMarker ? new GridLength(30) : new GridLength(0) });
-        layout.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
-        if (_display.TaskbarShowPositionMarker)
+        var duel = snapshot.Championship == Championship.FormulaE &&
+            snapshot.Session.Contains("Duel", StringComparison.OrdinalIgnoreCase);
+        var standings = snapshot.Competitors.Take(duel ? 2 : _display.TaskbarCompetitorCount).ToList();
+        var count = duel ? standings.Count : Math.Max(standings.Count, _display.TaskbarCompetitorCount);
+
+        while (_cells.Count < count)
         {
-            Border marker;
-            if (!_display.TaskbarUseManufacturerLogos || !ManufacturerLogo.TryCreateForStanding(
-                    standing, _snapshot?.Championship ?? Championship.Formula1, 26, out marker))
-                marker = CreatePositionCard(standing.Position, standing.Position.ToString());
-            marker.Margin = new Thickness(1);
-            layout.Children.Add(marker);
+            var cell = new TaskbarCell();
+            _cells.Add(cell);
+            _strip.Children.Add(cell.Element);
+        }
+        while (_cells.Count > count)
+        {
+            _strip.Children.RemoveAt(_strip.Children.Count - 1);
+            _cells.RemoveAt(_cells.Count - 1);
         }
 
-        var details = new StackPanel { Margin = new(_display.TaskbarShowPositionMarker ? 5 : 2, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        var driver = new TextBlock
+        for (var index = 0; index < count; index++)
         {
-            Text = TaskbarCompetitorText(standing),
-            FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            ToolTip = standing.Name
-        };
-        driver.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-        var gap = new TextBlock
-        {
-            Text = standing.Position == 1 ? "LEAD" : standing.GapToLeader ?? "—",
-            FontSize = 11,
-            MinHeight = 11,
-            TextTrimming = TextTrimming.CharacterEllipsis
-        };
-        gap.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        details.Children.Add(driver);
-        if (_display.TaskbarShowGaps) details.Children.Add(gap);
-        Grid.SetColumn(details, 1); layout.Children.Add(details);
-        return CreateCellContainer(layout);
+            if (index < standings.Count)
+                _cells[index].Update(standings[index], snapshot.Championship, _display, TaskbarCompetitorText(standings[index]));
+            else _cells[index].UpdateEmpty(index + 1, _display);
+        }
     }
 
     private string TaskbarCompetitorText(CompetitorStanding standing) => _display.TaskbarCompetitorLabel switch
@@ -314,59 +288,6 @@ public sealed class TaskbarWindow : Window
         TaskbarCompetitorLabel.DriverNumber when !string.IsNullOrWhiteSpace(standing.DriverId) => standing.DriverId,
         _ => standing.Code
     };
-
-    private Border CreateEmptyCell(int position)
-    {
-        var layout = new Grid();
-        layout.ColumnDefinitions.Add(new() { Width = _display.TaskbarShowPositionMarker ? new GridLength(30) : new GridLength(0) });
-        layout.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
-        if (_display.TaskbarShowPositionMarker) layout.Children.Add(CreatePositionCard(position, "—", .45));
-        return CreateCellContainer(layout);
-    }
-
-    private static Border CreateCellContainer(UIElement child) => new()
-    {
-        Child = child,
-        Background = Brushes.Transparent,
-        Margin = new(2, 2, 2, 2),
-        SnapsToDevicePixels = true
-    };
-
-    private Border CreatePositionCard(int position, string text, double opacity = 1)
-    {
-        (Color Start, Color End) colors = _display.TaskbarShowPositionColors
-            ? CardColors[Math.Clamp(position, 1, CardColors.Length) - 1]
-            : (Color.FromRgb(52, 55, 63), Color.FromRgb(83, 88, 100));
-        var label = new TextBlock
-        {
-            Text = text,
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Foreground = Brushes.White
-        };
-        return new Border
-        {
-            Width = 26,
-            Height = 28,
-            Margin = new(1),
-            Padding = new(1),
-            CornerRadius = new(7),
-            Opacity = opacity,
-            Child = label,
-            SnapsToDevicePixels = true,
-            Background = new LinearGradientBrush(colors.Start, colors.End, 35),
-            Effect = new DropShadowEffect
-            {
-                BlurRadius = 8,
-                ShadowDepth = 1,
-                Direction = 270,
-                Opacity = .28,
-                Color = Colors.Black
-            }
-        };
-    }
 
     private void ShowFlyout()
     {

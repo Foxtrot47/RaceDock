@@ -20,6 +20,15 @@ internal static class ManufacturerLogo
     private static readonly Regex SvgNumberPattern = new(@"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?", RegexOptions.Compiled);
     private static readonly Lazy<IReadOnlyDictionary<string, LogoDefinition>> Catalog = new(LoadCatalog);
 
+    /// <summary>Decoded artwork per asset, so a redraw never re-runs the image codec or the SVG parser.</summary>
+    private static readonly Dictionary<string, LogoArtwork?> ArtworkCache = new(StringComparer.Ordinal);
+
+    /// <summary>Manufacturer lookups per raw competitor string, so a redraw never re-runs the alias scan.</summary>
+    private static readonly Dictionary<string, LogoDefinition?> ResolvedNames = new(StringComparer.Ordinal);
+
+    /// <summary>Frozen artwork that any number of logo elements can share.</summary>
+    private sealed record LogoArtwork(ImageSource? Image, System.Windows.Media.Brush? Fill, System.Windows.Media.Brush? Mask);
+
     public static bool TryCreateForStanding(CompetitorStanding standing, Championship championship, double size, out Border logo)
     {
         if (championship is Championship.FormulaE or Championship.IndyCar)
@@ -36,32 +45,62 @@ internal static class ManufacturerLogo
         logo = null!;
         var definition = Resolve(manufacturer);
         if (definition is null) return false;
+        var artwork = LoadArtwork(definition);
+        if (artwork is null) return false;
 
+        logo = HighQualityRendering(new Border
+        {
+            Width = size,
+            Height = size,
+            Background = Brushes.Transparent,
+            ToolTip = manufacturer,
+            Child = Present(artwork),
+            SnapsToDevicePixels = true
+        });
+        return true;
+    }
+
+    /// <summary>Wraps shared artwork in the per-use elements that carry layout state.</summary>
+    private static FrameworkElement Present(LogoArtwork artwork) => artwork.Image is { } image
+        ? Artwork(image)
+        : HighQualityRendering(new Border
+        {
+            Background = artwork.Fill,
+            OpacityMask = artwork.Mask,
+            Margin = new Thickness(2),
+            UseLayoutRounding = true,
+            SnapsToDevicePixels = true
+        });
+
+    private static LogoArtwork? LoadArtwork(LogoDefinition definition)
+    {
+        if (ArtworkCache.TryGetValue(definition.Asset, out var cached)) return cached;
+        LogoArtwork? artwork;
         try
         {
-            var artwork = definition.Asset.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
+            artwork = definition.Asset.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
                 ? LoadVector(definition)
                 : LoadBitmap(definition);
-            if (artwork is null) return false;
-
-            logo = HighQualityRendering(new Border
-            {
-                Width = size,
-                Height = size,
-                Background = Brushes.Transparent,
-                ToolTip = manufacturer,
-                Child = artwork,
-                SnapsToDevicePixels = true
-            });
-            return true;
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or JsonException or System.Xml.XmlException or NotSupportedException)
         {
-            return false;
+            artwork = null;
         }
+        // A failed asset is cached as a miss so a broken file cannot be reopened on every redraw.
+        ArtworkCache[definition.Asset] = artwork;
+        return artwork;
     }
 
     private static LogoDefinition? Resolve(string? manufacturer)
+    {
+        var name = manufacturer ?? "";
+        if (ResolvedNames.TryGetValue(name, out var cached)) return cached;
+        var definition = ResolveUncached(name);
+        ResolvedNames[name] = definition;
+        return definition;
+    }
+
+    private static LogoDefinition? ResolveUncached(string? manufacturer)
     {
         var key = Normalize(manufacturer);
         if (key.Length == 0) return null;
@@ -88,7 +127,7 @@ internal static class ManufacturerLogo
             .ToDictionary(group => group.Key, group => group.First().Definition, StringComparer.Ordinal);
     }
 
-    private static FrameworkElement? LoadVector(LogoDefinition definition)
+    private static LogoArtwork? LoadVector(LogoDefinition definition)
     {
         using var stream = OpenResource(definition.Asset);
         if (stream is null) return null;
@@ -107,10 +146,10 @@ internal static class ManufacturerLogo
         var brush = BrandBrush(definition);
         var image = new DrawingImage(new GeometryDrawing(brush, null, group));
         image.Freeze();
-        return Artwork(image);
+        return new LogoArtwork(image, null, null);
     }
 
-    private static FrameworkElement? LoadColorVector(XDocument document)
+    private static LogoArtwork? LoadColorVector(XDocument document)
     {
         var drawing = new DrawingGroup();
         foreach (var element in SvgDrawableElements(document))
@@ -126,7 +165,7 @@ internal static class ManufacturerLogo
         drawing.Freeze();
         var image = new DrawingImage(drawing);
         image.Freeze();
-        return Artwork(image);
+        return new LogoArtwork(image, null, null);
     }
 
     private static IEnumerable<XElement> SvgDrawableElements(XDocument document) => document.Descendants()
@@ -291,7 +330,7 @@ internal static class ManufacturerLogo
     private static bool TrySvgNumber(string? value, out double number) =>
         double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out number);
 
-    private static FrameworkElement? LoadBitmap(LogoDefinition definition)
+    private static LogoArtwork? LoadBitmap(LogoDefinition definition)
     {
         using var stream = OpenResource(definition.Asset);
         if (stream is null) return null;
@@ -301,7 +340,7 @@ internal static class ManufacturerLogo
         bitmap.StreamSource = stream;
         bitmap.EndInit();
         bitmap.Freeze();
-        if (definition.PreserveColors) return Artwork(bitmap);
+        if (definition.PreserveColors) return new LogoArtwork(bitmap, null, null);
 
         var mask = new ImageBrush(bitmap)
         {
@@ -311,14 +350,7 @@ internal static class ManufacturerLogo
         };
         RenderOptions.SetBitmapScalingMode(mask, BitmapScalingMode.HighQuality);
         mask.Freeze();
-        return HighQualityRendering(new Border
-        {
-            Background = BrandBrush(definition),
-            OpacityMask = mask,
-            Margin = new Thickness(2),
-            UseLayoutRounding = true,
-            SnapsToDevicePixels = true
-        });
+        return new LogoArtwork(null, BrandBrush(definition), mask);
     }
 
     private static SolidColorBrush BrandBrush(LogoDefinition definition)
