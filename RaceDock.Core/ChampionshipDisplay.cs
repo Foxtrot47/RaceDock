@@ -17,6 +17,24 @@ public static class ChampionshipDisplay
     public static string FullEvent(TimingSnapshot snapshot) =>
         Join(FullName(snapshot.Championship), snapshot.Meeting, " · ");
 
+    /// <summary>
+    /// Practice and qualifying are judged on the best lap set; sprints and races on the most recent
+    /// lap. Qualifying wins over sprint so "Sprint Qualifying" reports a best lap. Rally stages keep
+    /// their own stage times and are never reclassified.
+    /// </summary>
+    public static LapTimeMode LapTimeModeFor(TimingSnapshot snapshot)
+    {
+        if (snapshot.Championship == Championship.WorldRallyChampionship) return LapTimeMode.BestLap;
+        var session = snapshot.Session ?? "";
+        if (Mentions(session, "qualif", "practice", "fp", "shakedown", "warm")) return LapTimeMode.BestLap;
+        if (Mentions(session, "race", "sprint", "grand prix", "e-prix", "eprix", "feature", "heat", "final"))
+            return LapTimeMode.LastLap;
+        return LapTimeMode.BestLap;
+    }
+
+    private static bool Mentions(string session, params string[] tokens) =>
+        tokens.Any(token => session.Contains(token, StringComparison.OrdinalIgnoreCase));
+
     public static string ShortName(Championship championship) => championship switch
     {
         Championship.Formula1 => "F1",

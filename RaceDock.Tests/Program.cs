@@ -35,6 +35,7 @@ var tests = new (string Name, Action Run)[]
     ("WRC shakedown standings use actual best runs", WrcShakedownTiming),
     ("WRC missing shakedown data is not a feed failure", WrcOptionalShakedown),
     ("championship labels use compact taskbar and full flyout names", ChampionshipLabels),
+    ("practice and qualifying report best laps, races report last laps", SessionLapTimeMode),
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
     ("hidden championships stay disabled and out of sight", ChampionshipVisibility),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
@@ -982,6 +983,27 @@ static void FiaRosterTeams(string series, string season, Championship championsh
     Equal(championship, snapshot!.Championship);
     foreach (var driver in drivers)
         Equal(driver.Team, snapshot.Competitors.Single(x => x.Code == driver.Code).Team);
+}
+
+static void SessionLapTimeMode()
+{
+    var now = DateTimeOffset.UtcNow;
+    LapTimeMode Mode(string session, Championship championship = Championship.Formula1) =>
+        ChampionshipDisplay.LapTimeModeFor(new TimingSnapshot("Event", session, "Circuit", 1, null,
+            TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: championship));
+
+    Equal(LapTimeMode.BestLap, Mode("Qualifying"));
+    Equal(LapTimeMode.BestLap, Mode("Qualifying Nr. 2"));
+    Equal(LapTimeMode.BestLap, Mode("Practice 1"));
+    Equal(LapTimeMode.BestLap, Mode("Free Practice 2"));
+    Equal(LapTimeMode.LastLap, Mode("Race"));
+    Equal(LapTimeMode.LastLap, Mode("Grand Prix"));
+    Equal(LapTimeMode.LastLap, Mode("Sprint"));
+    // Qualifying wins over sprint, so sprint shootouts still report a best lap.
+    Equal(LapTimeMode.BestLap, Mode("Sprint Qualifying"));
+    // Rally stages carry their own stage time and are never reclassified as last-lap sessions.
+    Equal(LapTimeMode.BestLap, Mode("SS1", Championship.WorldRallyChampionship));
+    Equal(LapTimeMode.BestLap, Mode("Race", Championship.WorldRallyChampionship));
 }
 
 static void ChampionshipLabels()

@@ -137,7 +137,9 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
                     JsonSupport.TimingValue(line["GapToLeader"]),
                     JsonSupport.TimingValue(line["IntervalToPositionAhead"]), LatestCompound(appLines?[pair.Key] as JsonObject),
                     JsonSupport.Int(line["NumberOfLaps"]) ?? 0, JsonSupport.Bool(line["InPit"]),
-                    JsonSupport.Bool(line["Retired"]), JsonSupport.Bool(line["Stopped"]), pair.Key == _fastestDriver));
+                    JsonSupport.Bool(line["Retired"]), JsonSupport.Bool(line["Stopped"]), pair.Key == _fastestDriver,
+                    ResultTime: bestLap,
+                    LastLapTime: JsonSupport.TimingValue(line["LastLapTime"])));
             }
         }
         standings = [.. standings.Where(x => x.Position > 0 && x.Position < int.MaxValue).OrderBy(x => x.Position)];

@@ -29,7 +29,10 @@ public sealed record CompetitorStanding(
     string? GapToLeader, string? IntervalToPositionAhead, string? Tyre, int Lap,
     bool InPit, bool Retired, bool Stopped, bool IsOverallFastest,
     string? ResultTime = null, string? StatusLabel = null, string? PositionLabel = null, string? Category = null,
-    string? Manufacturer = null);
+    string? Manufacturer = null, string? LastLapTime = null);
+
+/// <summary>Which lap time a session is judged on: the best lap set, or the most recent one.</summary>
+public enum LapTimeMode { BestLap, LastLap }
 
 public sealed record TimingSnapshot(
     string Meeting, string Session, string Circuit, int CurrentLap, int? TotalLaps,
