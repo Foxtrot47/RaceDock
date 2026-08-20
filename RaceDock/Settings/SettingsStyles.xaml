@@ -346,6 +346,18 @@
   </Style>
 
   <!--  Settings apply as they change, so each page ends with its own way back to the defaults.  -->
+  <!-- Square icon-only buttons that move a classification column up or down the order. -->
+  <Style x:Key="SettingsColumnMoveButtonStyle"
+         TargetType="ui:Button"
+         BasedOn="{StaticResource {x:Type ui:Button}}">
+    <Setter Property="Width" Value="36" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0,0,8,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+  </Style>
+
   <Style x:Key="SettingsResetCardStyle"
          TargetType="ui:CardControl"
          BasedOn="{StaticResource {x:Type ui:CardControl}}">

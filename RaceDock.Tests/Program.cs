@@ -37,6 +37,7 @@ var tests = new (string Name, Action Run)[]
     ("WRC missing shakedown data is not a feed failure", WrcOptionalShakedown),
     ("championship labels use compact taskbar and full flyout names", ChampionshipLabels),
     ("practice and qualifying report best laps, races report last laps", SessionLapTimeMode),
+    ("stored classification column orders are repaired", FlyoutColumnOrderNormalization),
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
     ("hidden championships stay disabled and out of sight", ChampionshipVisibility),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
@@ -1044,6 +1045,43 @@ static void FiaRosterTeams(string series, string season, Championship championsh
     Equal(championship, snapshot!.Championship);
     foreach (var driver in drivers)
         Equal(driver.Team, snapshot.Competitors.Single(x => x.Code == driver.Code).Team);
+}
+
+static void FlyoutColumnOrderNormalization()
+{
+    // A hand-edited order that repeats a column, names one that no longer exists, and omits four others.
+    var repaired = new ChampionshipDisplaySettings
+    {
+        FlyoutColumnOrder = [FlyoutColumn.Status, FlyoutColumn.Status, (FlyoutColumn)99, FlyoutColumn.Tyre]
+    }.Normalize().FlyoutColumnOrder;
+    // The columns that were named keep their position, then the missing ones follow in the canonical order.
+    Equal("Status,Tyre,Gap,Interval,LapTime,Category", string.Join(",", repaired));
+
+    var canonical = string.Join(",", ChampionshipDisplaySettings.DefaultColumnOrder);
+    Equal(canonical, string.Join(",", new ChampionshipDisplaySettings { FlyoutColumnOrder = [] }.Normalize().FlyoutColumnOrder));
+    Equal(canonical, string.Join(",", new ChampionshipDisplaySettings { FlyoutColumnOrder = null! }.Normalize().FlyoutColumnOrder));
+    Equal(canonical, string.Join(",", new ChampionshipDisplaySettings().FlyoutColumnOrder));
+
+    // A rearranged order has to survive a real save and load, since it is a newly serialized shape.
+    var directory = Path.Combine(Path.GetTempPath(), $"RaceDock.Tests.{Guid.NewGuid():N}");
+    var path = Path.Combine(directory, "settings.json");
+    try
+    {
+        var store = new UserSettingsStore(path);
+        var order = new[] { FlyoutColumn.Status, FlyoutColumn.LapTime, FlyoutColumn.Tyre, FlyoutColumn.Category, FlyoutColumn.Interval, FlyoutColumn.Gap };
+        store.Save(new UserSettings
+        {
+            ChampionshipDisplay = new ChampionshipDisplayProfiles()
+                .With(Championship.Formula1, new ChampionshipDisplaySettings { FlyoutColumnOrder = order })
+        });
+        // The enum is written by name, so the file stays readable to anyone editing it by hand.
+        True(File.ReadAllText(path).Contains("\"Status\""));
+        Equal(string.Join(",", order), string.Join(",", store.Load().DisplayFor(Championship.Formula1).FlyoutColumnOrder));
+    }
+    finally
+    {
+        if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+    }
 }
 
 static void SessionLapTimeMode()

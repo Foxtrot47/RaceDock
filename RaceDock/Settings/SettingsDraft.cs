@@ -153,6 +153,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
 {
     private const string ChampionshipLogoRoot = "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/";
     private readonly IReadOnlyDictionary<Championship, ChampionshipStatusItem> _statusByChampionship;
+    private readonly ObservableCollection<FlyoutColumnItem> _flyoutColumns = [];
     private ChampionshipDisplayProfiles _profiles = new();
     private bool _syncingProfile;
     private bool _enableFormula1;
@@ -364,6 +365,78 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     public bool FlyoutShowCategoryOrLap { get => _flyoutShowCategoryOrLap; set => Set(ref _flyoutShowCategoryOrLap, value); }
     public bool FlyoutShowStatus { get => _flyoutShowStatus; set => Set(ref _flyoutShowStatus, value); }
 
+    /// <summary>The movable classification columns of the championship on screen, in the order they appear.</summary>
+    public ObservableCollection<FlyoutColumnItem> FlyoutColumns => _flyoutColumns;
+
+    internal bool IsColumnVisible(FlyoutColumn column) => column switch
+    {
+        FlyoutColumn.Gap => FlyoutShowGaps,
+        FlyoutColumn.Interval => FlyoutShowIntervals,
+        FlyoutColumn.LapTime => FlyoutShowLapTime,
+        FlyoutColumn.Tyre => FlyoutShowTyre,
+        FlyoutColumn.Category => FlyoutShowCategoryOrLap,
+        _ => FlyoutShowStatus
+    };
+
+    internal void SetColumnVisible(FlyoutColumn column, bool value)
+    {
+        switch (column)
+        {
+            case FlyoutColumn.Gap: FlyoutShowGaps = value; break;
+            case FlyoutColumn.Interval: FlyoutShowIntervals = value; break;
+            case FlyoutColumn.LapTime: FlyoutShowLapTime = value; break;
+            case FlyoutColumn.Tyre: FlyoutShowTyre = value; break;
+            case FlyoutColumn.Category: FlyoutShowCategoryOrLap = value; break;
+            default: FlyoutShowStatus = value; break;
+        }
+    }
+
+    /// <summary>Moves a column one place towards the front or the back of the classification.</summary>
+    public void MoveColumn(FlyoutColumnItem item, int offset)
+    {
+        var index = _flyoutColumns.IndexOf(item);
+        if (index < 0) return;
+        // Unsupported columns are hidden from the page, so a move has to step over them to land somewhere visible.
+        var target = index + offset;
+        while (target >= 0 && target < _flyoutColumns.Count && !_flyoutColumns[target].IsSupported)
+            target += offset;
+        if (target < 0 || target >= _flyoutColumns.Count) return;
+        _flyoutColumns.Move(index, target);
+        UpdateColumnMoveState();
+        OnPropertyChanged(nameof(FlyoutColumns));
+    }
+
+    private void RebuildFlyoutColumns(IReadOnlyList<FlyoutColumn> order)
+    {
+        var presentation = SelectedChampionshipPresentation;
+        _flyoutColumns.Clear();
+        foreach (var column in order)
+            _flyoutColumns.Add(CreateColumnItem(column, presentation));
+        UpdateColumnMoveState();
+        OnPropertyChanged(nameof(FlyoutColumns));
+    }
+
+    private FlyoutColumnItem CreateColumnItem(FlyoutColumn column, ChampionshipSettingsPresentation presentation) => column switch
+    {
+        FlyoutColumn.Gap => new(this, column, "Leader gap", presentation.LeaderGapDescription, true),
+        FlyoutColumn.Interval => new(this, column, "Interval", presentation.IntervalDescription, true),
+        FlyoutColumn.LapTime => new(this, column, presentation.LapTimeTitle, presentation.LapTimeDescription, true),
+        FlyoutColumn.Tyre => new(this, column, presentation.ResultTitle, presentation.ResultDescription, presentation.ShowResultSetting),
+        FlyoutColumn.Category => new(this, column, presentation.CategoryTitle, presentation.CategoryDescription, true),
+        _ => new(this, column, "Status", presentation.StatusDescription, true)
+    };
+
+    /// <summary>Greys out the move buttons at the ends of the list, counting only the columns the page shows.</summary>
+    private void UpdateColumnMoveState()
+    {
+        var supported = _flyoutColumns.Where(item => item.IsSupported).ToList();
+        foreach (var item in _flyoutColumns)
+        {
+            item.CanMoveUp = supported.Count > 0 && !ReferenceEquals(item, supported[0]);
+            item.CanMoveDown = supported.Count > 0 && !ReferenceEquals(item, supported[^1]);
+        }
+    }
+
     public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 ||
         EnableMoto3 || EnableGtWorldChallengeEurope || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar;
 
@@ -484,6 +557,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         FlyoutShowTyre = display.FlyoutShowTyre;
         FlyoutShowCategoryOrLap = display.FlyoutShowCategoryOrLap;
         FlyoutShowStatus = display.FlyoutShowStatus;
+        RebuildFlyoutColumns(display.FlyoutColumnOrder);
     }
 
     private void StoreCurrentProfile()
@@ -512,7 +586,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             FlyoutShowLapTime = FlyoutShowLapTime,
             FlyoutShowTyre = FlyoutShowTyre,
             FlyoutShowCategoryOrLap = FlyoutShowCategoryOrLap,
-            FlyoutShowStatus = FlyoutShowStatus
+            FlyoutShowStatus = FlyoutShowStatus,
+            FlyoutColumnOrder = [.. _flyoutColumns.Select(item => item.Column)]
         }.Normalize();
         _profiles = _profiles.With(SelectedChampionship, display);
     }
