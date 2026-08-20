@@ -81,6 +81,8 @@ public sealed class TaskbarWindow : Window
         _host.PositionChanged += visible => { if (!visible) _flyout.Hide(); else if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
         MouseLeftButtonUp += (_, _) => ShowFlyout(); MouseLeave += (_, _) => _flyout.ScheduleClose();
         _flyout.PointerEntered += (_, _) => _flyout.CancelClose();
+        // The flyout resizes when columns are toggled or the field changes, so it has to be re-centred.
+        _flyout.SizeChanged += (_, _) => { if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
         _reattach = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => _host.Reattach(), Dispatcher); _reattach.Start();
         ApplySettings(_settings);
     }

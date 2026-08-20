@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -41,7 +42,24 @@ public sealed class ClassificationFlyout : Window
     private UserSettings _settings;
     private ChampionshipDisplaySettings _display;
     private TimingSnapshot? _snapshot;
+    private double _driverColumnWidth = MinimumDriverColumn;
+    private int _driverSignature;
+    private int _visibleRowCount;
 
+    /// <summary>Root padding and border, added to the column total to get the window width.</summary>
+    private const double ChromeWidth = 26;
+    private const double MinimumDriverColumn = 150;
+    private const double MaximumDriverColumn = 260;
+    /// <summary>The driver grid's own left and right margins.</summary>
+    private const double DriverPadding = 12;
+    /// <summary>Manufacturer badge plus its trailing margin.</summary>
+    private const double LogoWidth = 32;
+    private const double FastestMarkerWidth = 14;
+    private const double RowHeight = 42;
+    /// <summary>Session header, column header and vertical padding above the rows.</summary>
+    private const double ChromeHeight = 85;
+    /// <summary>Rows shown before the classification starts scrolling.</summary>
+    private const int MaximumVisibleRows = 12;
 
     public event EventHandler? PointerEntered;
 
@@ -51,8 +69,13 @@ public sealed class ClassificationFlyout : Window
         _display = _settings.DisplayFor(Championship.Formula1);
         _title.Clock = _scrollClock;
         _sessionDetails.Clock = _scrollClock;
-        Width = 610;
-        Height = 470;
+        // Width follows the visible columns and the widest name in the field; height follows the row
+        // count until it reaches the cap, after which the classification scrolls.
+        Width = MinimumDriverColumn + ChromeWidth;
+        SizeToContent = SizeToContent.Height;
+        MaxHeight = Math.Min(
+            Math.Round(SystemParameters.WorkArea.Height * 0.7),
+            ChromeHeight + (MaximumVisibleRows * RowHeight));
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
@@ -149,6 +172,8 @@ public sealed class ClassificationFlyout : Window
         // A closed flyout is redrawn when it opens, so keeping it current while hidden is pure cost.
         if (!IsVisible) return;
         _display = _settings.DisplayFor(snapshot.Championship);
+        _visibleRowCount = Math.Min(snapshot.Competitors.Count, _display.FlyoutCompetitorCount);
+        UpdateDriverColumnWidth(snapshot);
         ApplyDisplay();
         _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : ChampionshipDisplay.FullEvent(snapshot);
         var rally = IsRallySnapshot(snapshot);
@@ -204,6 +229,49 @@ public sealed class ClassificationFlyout : Window
         if (_snapshot is { } snapshot) UpdateSnapshot(snapshot);
     }
 
+    /// <summary>
+    /// Sizes the driver column to the widest name and team in the field, capped so that endurance entries
+    /// with long names scroll within the column instead of widening the flyout without bound. The field is
+    /// fixed for a session, so this settles immediately and does not resize as positions change.
+    /// </summary>
+    private void UpdateDriverColumnWidth(TimingSnapshot snapshot)
+    {
+        var signature = new HashCode();
+        foreach (var standing in snapshot.Competitors)
+        {
+            signature.Add(standing.Name);
+            signature.Add(standing.Team);
+        }
+        signature.Add(_display.FlyoutShowTeamNames);
+        signature.Add(_display.FlyoutUseManufacturerLogos);
+        var current = signature.ToHashCode();
+        if (current == _driverSignature) return;
+        _driverSignature = current;
+
+        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var nameFace = new Typeface(FontFamily, FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+        var teamFace = new Typeface(FontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        double widest = 0;
+        foreach (var standing in snapshot.Competitors)
+        {
+            var name = string.IsNullOrWhiteSpace(standing.Name) ? standing.Code : standing.Name;
+            // The fastest-lap dot sits beside the name, so it has to be reserved or it would clip the text.
+            widest = Math.Max(widest, Measure(name, nameFace, 11.5, dpi) + FastestMarkerWidth);
+            if (_display.FlyoutShowTeamNames)
+                widest = Math.Max(widest, Measure(standing.Team, teamFace, 9.5, dpi));
+        }
+
+        var logo = _display.FlyoutUseManufacturerLogos ? LogoWidth : 0;
+        _driverColumnWidth = Math.Clamp(
+            Math.Ceiling(widest) + logo + DriverPadding, MinimumDriverColumn, MaximumDriverColumn);
+
+        double Measure(string text, Typeface face, double size, double pixelsPerDip) =>
+            string.IsNullOrEmpty(text)
+                ? 0
+                : new FormattedText(text, CultureInfo.CurrentUICulture, System.Windows.FlowDirection.LeftToRight, face, size,
+                    Brushes.Black, pixelsPerDip).WidthIncludingTrailingWhitespace;
+    }
+
     private void ApplyDisplay()
     {
         _title.Visibility = _display.FlyoutShowEventHeader ? Visibility.Visible : Visibility.Collapsed;
@@ -222,6 +290,10 @@ public sealed class ClassificationFlyout : Window
         _categoryHeader.Visibility = _display.FlyoutShowCategoryOrLap ? Visibility.Visible : Visibility.Collapsed;
         _statusHeader.Visibility = _display.FlyoutShowStatus ? Visibility.Visible : Visibility.Collapsed;
         ApplyColumnWidths(_columnHeader);
+        // Every column keeps its full width, so the window grows to fit rather than truncating values.
+        // Once the classification scrolls, the scrollbar needs its own space or it would clip the last column.
+        var scrollbar = _visibleRowCount > MaximumVisibleRows ? SystemParameters.VerticalScrollBarWidth : 0;
+        Width = ColumnWidths().Sum(column => column.Value) + ChromeWidth + scrollbar;
     }
 
     public void ScheduleClose()
@@ -361,7 +433,7 @@ public sealed class ClassificationFlyout : Window
     private IReadOnlyList<GridLength> ColumnWidths() =>
     [
         new GridLength(42),
-        new GridLength(1, GridUnitType.Star),
+        new GridLength(_driverColumnWidth),
         _display.FlyoutShowGaps ? new GridLength(78) : new GridLength(0),
         _display.FlyoutShowIntervals ? new GridLength(78) : new GridLength(0),
         _display.FlyoutShowLapTime ? new GridLength(78) : new GridLength(0),
