@@ -604,8 +604,10 @@ internal static class TimingArchiveLoader
     {
         var spec = manifest["colSpec"] as JsonArray ?? [];
         if (spec.Count > MaxColumns) throw new InvalidDataException($"The manifest exceeds the {MaxColumns}-column limit.");
-        var columns = spec.Select((node, index) => (Name: Text(node?[0]) ?? "", Index: index))
-            .Where(value => value.Name.Length > 0)
+        // Columns are addressable by their short header ("T") and by their description ("Tyre"),
+        // because feeds abbreviate headers inconsistently across championships.
+        var columns = spec.SelectMany((node, index) => ColumnNames(node)
+                .Select(name => (Name: name, Index: index)))
             .GroupBy(value => value.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First().Index, StringComparer.OrdinalIgnoreCase);
         var rows = state["cars"] as JsonArray ?? [];
@@ -643,7 +645,8 @@ internal static class TimingArchiveLoader
                 status,
                 null,
                 CellText(row, columns, "Class", "Category"),
-                Manufacturer(CellText(row, columns, "Car", "Vehicle", "Bike"))), best));
+                Manufacturer(CellText(row, columns, "Car", "Vehicle", "Bike")),
+                FormatTime(CellDouble(row, columns, "Last", "Last lap time") ?? 0)), best));
         }
         var fastest = parsed.Where(value => value.Best > 0).OrderBy(value => value.Best).FirstOrDefault().Standing?.DriverId;
         var competitors = parsed.Select(value => value.Standing with { IsOverallFastest = value.Standing.DriverId == fastest }).ToList();
@@ -684,6 +687,20 @@ internal static class TimingArchiveLoader
             ConnectionState.Connected,
             remaining,
             ChampionshipFor(Text(manifest["name"])));
+    }
+
+    private const int HeaderPosition = 0;
+    private const int DescriptionPosition = 2;
+
+    /// <summary>Yields a column's short header and its description, skipping absent entries.</summary>
+    private static IEnumerable<string> ColumnNames(JsonNode? node)
+    {
+        if (node is not JsonArray entry) yield break;
+        foreach (var position in new[] { HeaderPosition, DescriptionPosition })
+        {
+            if (entry.Count <= position) continue;
+            if (Text(entry[position]) is { } name && !string.IsNullOrWhiteSpace(name)) yield return name;
+        }
     }
 
     private static JsonNode? Cell(JsonArray row, IReadOnlyDictionary<string, int> columns, params string[] names)

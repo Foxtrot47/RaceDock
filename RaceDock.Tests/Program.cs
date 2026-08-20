@@ -24,6 +24,7 @@ var tests = new (string Name, Action Run)[]
     ("Timing71 archives recognize INDYCAR", TimingArchiveIndyCar),
     ("Timing71 HAR archives load embedded manifest and states", TimingArchiveHarReplay),
     ("Timing71 archive patches enforce complexity limits", TimingArchivePatchLimits),
+    ("Timing71 columns resolve by abbreviation and description", TimingArchiveAbbreviatedColumns),
     ("active feeds rotate at the display interval", FeedRotation),
     ("completed classifications remain visible for the configured interval", CompletedClassificationRetention),
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
@@ -248,6 +249,66 @@ static void ScenarioIntegration()
     s.Trigger(ScenarioCommand.Yellow); Equal(AlertKind.Yellow, alerts.Current?.Kind); s.Trigger(ScenarioCommand.SafetyCar); Equal(AlertKind.SafetyCar, alerts.Current?.Kind); s.Trigger(ScenarioCommand.Green); Equal(null, alerts.Current);
     s.Trigger(ScenarioCommand.RedFlag); Equal(AlertKind.RedFlag, alerts.Current?.Kind); s.Trigger(ScenarioCommand.Green); Equal(null, alerts.Current); s.Trigger(ScenarioCommand.Disconnect); Equal(ConnectionState.Disconnected, p.Current.ConnectionState); s.Trigger(ScenarioCommand.Reconnect); Equal(ConnectionState.Connected, p.Current.ConnectionState); s.Trigger(ScenarioCommand.Chequered); Equal(AlertKind.Chequered, alerts.Current?.Kind);
     s.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
+/// <summary>
+/// Feeds abbreviate headers inconsistently: Formula 1 and INDYCAR name the tyre column "T" and only
+/// the description says "Tyre", so columns must resolve under both.
+/// </summary>
+static void TimingArchiveAbbreviatedColumns()
+{
+    var directory = Path.Combine(Path.GetTempPath(), $"RaceDock-archive-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(directory);
+    var path = Path.Combine(directory, "abbreviated.zip");
+    try
+    {
+        using (var archive = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            WriteZipJson(archive, "manifest.json", new JsonObject
+            {
+                ["version"] = 1,
+                ["name"] = "Formula 1",
+                ["description"] = "Las Vegas Grand Prix - Qualifying",
+                ["colSpec"] = new JsonArray
+                {
+                    new JsonArray("Num", "text", "Car number"), new JsonArray("State", "text"),
+                    new JsonArray("Driver", "text"), new JsonArray("Team", "text"),
+                    new JsonArray("Laps", "numeric"), new JsonArray("T", "text", "Tyre"),
+                    new JsonArray("TS", "numeric", "Tyre stint - laps on these tyres since last stop"),
+                    new JsonArray("Gap", "delta", "Gap to leader"), new JsonArray("Int", "delta", "Interval to car in front"),
+                    new JsonArray("Spd", "numeric", "Last lap speed"),
+                    new JsonArray("Last", "laptime", "Last lap time"), new JsonArray("Best", "laptime", "Best lap time")
+                },
+                ["trackDataSpec"] = new JsonArray()
+            });
+            WriteZipJson(archive, "01700000000.json", new JsonObject
+            {
+                ["cars"] = new JsonArray
+                {
+                    new JsonArray("1", "RUN", "VERSTAPPEN, Max", "Red Bull Racing", 11, "W", 4, 0.0, 0.0, 210.5,
+                        new JsonArray(113.5, ""), new JsonArray(113.302, ""))
+                },
+                ["session"] = new JsonObject { ["flagState"] = "green", ["timeRemain"] = 600 }
+            });
+        }
+
+        var source = new TimingArchiveReplaySource(path, new FakeClock());
+        TimingSnapshot? snapshot = null;
+        source.SnapshotReceived += value => snapshot = value;
+        source.Speed = 20;
+        source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        Thread.Sleep(10);
+        source.Pause();
+        Thread.Sleep(100);
+
+        var standing = snapshot?.Competitors[0];
+        // "T" resolves through its description rather than the unrelated "Tyre stint" column.
+        Equal("W", standing?.Tyre);
+        Equal("1:53.302", standing?.ResultTime);
+        Equal("1:53.500", standing?.LastLapTime);
+        source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    }
+    finally { Directory.Delete(directory, true); }
 }
 
 static void TimingArchiveZipReplay()
