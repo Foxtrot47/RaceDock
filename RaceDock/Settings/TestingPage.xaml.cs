@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using RaceDock.Core;
+using Wpf.Ui.Controls;
+using DataFormats = System.Windows.DataFormats;
+using DragDropEffects = System.Windows.DragDropEffects;
+using DragEventArgs = System.Windows.DragEventArgs;
+using Page = System.Windows.Controls.Page;
 
 namespace RaceDock.App.Settings;
 
@@ -18,6 +25,8 @@ public sealed partial class TestingPage : Page
         ScenarioCommand.VirtualSafetyCarEnding,
         ScenarioCommand.RedFlag
     ];
+
+    private static readonly string[] ArchiveExtensions = [".zip", ".har"];
 
     private readonly AppController _controller;
     private readonly Dictionary<ScenarioCommand, ToggleButton> _commandButtons;
@@ -49,13 +58,14 @@ public sealed partial class TestingPage : Page
     public void UpdateSnapshot(TimingSnapshot snapshot)
     {
         if (!_controller.TestMode) return;
-        var mode = PlaybackState(_controller.Playback, _controller.Archive?.IsCompleted == true);
         var progress = !string.IsNullOrWhiteSpace(snapshot.TimeRemaining)
             ? $"Time {snapshot.TimeRemaining}"
             : $"Lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}";
-        var archive = _controller.Archive is { } replay ? $" · frame {replay.FrameIndex}/{replay.FrameCount}" : "";
-        TestStatusText.Text = $"{snapshot.ConnectionState} · {snapshot.Meeting} {snapshot.Session} · {progress} · {snapshot.TrackCondition} · {mode}{archive}";
-        if (_controller.Playback is { } playback) SetTransportState(playback.IsPaused);
+        var session = string.IsNullOrWhiteSpace(snapshot.Meeting)
+            ? snapshot.Session
+            : $"{snapshot.Meeting} · {snapshot.Session}";
+        SetSecondary($"{session} · {progress} · {snapshot.TrackCondition} · {snapshot.ConnectionState}");
+        UpdateTransportState();
         if (_controller.Scenario is not null) SyncScenarioState(snapshot);
     }
 
@@ -64,31 +74,79 @@ public sealed partial class TestingPage : Page
         _syncingControls = true;
         TestModeToggle.IsChecked = _controller.Scenario is not null;
         _syncingControls = false;
-        TestingControlsPanel.IsEnabled = _controller.Playback is not null;
+
+        TransportControls.IsEnabled = _controller.Playback is not null;
         ScenarioControlsPanel.IsEnabled = _controller.Scenario is not null;
+        ReturnToLiveButton.IsEnabled = _controller.TestMode;
+        ScenarioHintText.Text = _controller.Scenario is not null
+            ? "Track and feed states apply immediately. Select an active state again to clear it."
+            : "Enable the deterministic scenario to drive track, feed, and classification states.";
+
         if (_controller.Playback is { } playback)
         {
+            _syncingControls = true;
             SpeedSlider.Value = playback.Speed;
-            SetTransportState(playback.IsPaused);
-            if (_controller.Archive is { } archive)
-            {
-                ArchivePathTextBox.Text = archive.ArchivePath;
-                ArchivePathTextBox.ToolTip = archive.ArchiveName;
-                TestStatusText.Text = $"Archive ready · {archive.FrameCount} frames · {PlaybackState(playback, archive.IsCompleted)}";
-            }
-            else
-            {
-                ArchivePathTextBox.Text = "";
-                ArchivePathTextBox.ToolTip = null;
-                TestStatusText.Text = playback.IsPaused ? "Test scenario ready · PAUSED" : "Test scenario ready · RUNNING";
-            }
+            _syncingControls = false;
+            SpeedValueText.Text = $"{playback.Speed:0.00}x";
         }
-        else
+
+        ArchiveSummaryText.Text = _controller.Archive is { } archive
+            ? $"{archive.ArchiveName} · {archive.FrameCount} frames"
+            : "Drop a Timing71 ZIP export or HAR capture here, or browse for one.";
+        UpdateTransportState();
+    }
+
+    /// <summary>Renders the single source of truth for what is driving the widget right now.</summary>
+    private void UpdateTransportState()
+    {
+        var playback = _controller.Playback;
+        var archive = _controller.Archive;
+        var completed = archive?.IsCompleted == true;
+        var paused = playback?.IsPaused == true;
+
+        var (label, tint) = playback switch
         {
-            ArchivePathTextBox.Text = "";
-            ArchivePathTextBox.ToolTip = null;
-            TestStatusText.Text = "Live streams are active.";
+            null => ("LIVE", "SystemFillColorSuccessBackgroundBrush"),
+            _ when completed => ("COMPLETED", "SystemFillColorNeutralBackgroundBrush"),
+            _ when paused => ("PAUSED", "SystemFillColorCautionBackgroundBrush"),
+            _ => ("REPLAY", "SystemFillColorAttentionBackgroundBrush")
+        };
+        TransportStateText.Text = label;
+        TransportStateBadge.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, tint);
+
+        TransportPrimaryText.Text = playback switch
+        {
+            null => "Live streams are active",
+            _ when archive is not null => archive.ArchiveName,
+            _ => "Deterministic scenario"
+        };
+
+        // Play and pause share one button so the transport never shows a control that does nothing.
+        PlayPauseButton.Icon = paused
+            ? new SymbolIcon { Symbol = SymbolRegular.Play24 }
+            : new SymbolIcon { Symbol = SymbolRegular.Pause24 };
+        PlayPauseButton.ToolTip = paused ? "Resume" : "Pause";
+
+        if (archive is not null)
+        {
+            TransportFrameText.Text = $"{archive.FrameIndex}/{archive.FrameCount}";
+            TransportFrameText.Visibility = Visibility.Visible;
         }
+        else TransportFrameText.Visibility = Visibility.Collapsed;
+
+        if (playback is null) SetSecondary(null);
+    }
+
+    private void SetSecondary(string? text)
+    {
+        TransportSecondaryText.Text = text ?? "";
+        TransportSecondaryText.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void ShowError(string message)
+    {
+        TestingInfoBar.Message = message;
+        TestingInfoBar.IsOpen = true;
     }
 
     private async void ChooseArchiveButton_Click(object sender, RoutedEventArgs e)
@@ -101,52 +159,87 @@ public sealed partial class TestingPage : Page
             Multiselect = false
         };
         if (picker.ShowDialog(Window.GetWindow(this)) != true) return;
-        TestStatusText.Text = "Loading archive…";
+        await LoadArchiveAsync(picker.FileName);
+    }
+
+    private void ArchiveCard_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = TryGetDroppedArchive(e, out _) ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void ArchiveCard_Drop(object sender, DragEventArgs e)
+    {
+        if (!TryGetDroppedArchive(e, out var path)) return;
+        e.Handled = true;
+        await LoadArchiveAsync(path);
+    }
+
+    private static bool TryGetDroppedArchive(DragEventArgs e, out string path)
+    {
+        path = "";
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] { Length: > 0 } paths) return false;
+        var candidate = paths[0];
+        if (!ArchiveExtensions.Contains(Path.GetExtension(candidate), StringComparer.OrdinalIgnoreCase)) return false;
+        path = candidate;
+        return true;
+    }
+
+    private async Task LoadArchiveAsync(string path)
+    {
+        TestingInfoBar.IsOpen = false;
+        SetSecondary($"Loading {Path.GetFileName(path)}…");
         try
         {
-            await _controller.LoadArchiveReplayAsync(picker.FileName);
-            SyncMode();
+            await _controller.LoadArchiveReplayAsync(path);
         }
         catch (Exception ex)
         {
-            TestStatusText.Text = $"Could not load archive: {ex.Message}";
+            ShowError($"Could not load archive: {ex.Message}");
         }
+        SyncMode();
     }
 
     private async void ReturnToLiveButton_Click(object sender, RoutedEventArgs e)
     {
-        TestStatusText.Text = "Returning to live streams…";
+        TestingInfoBar.IsOpen = false;
+        SetSecondary("Returning to live streams…");
         try
         {
             await _controller.ReturnToLiveAsync();
-            SyncMode();
         }
         catch (Exception ex)
         {
-            TestStatusText.Text = $"Could not restore live streams: {ex.Message}";
+            ShowError($"Could not restore live streams: {ex.Message}");
         }
+        SyncMode();
     }
 
-    private void PauseButton_Click(object sender, RoutedEventArgs e) => SetPaused(PauseButton.IsChecked == true);
-
-    private void ResumeButton_Click(object sender, RoutedEventArgs e) => SetPaused(ResumeButton.IsChecked != true);
+    private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryPlayback(out var playback)) return;
+        if (playback.IsPaused) playback.Resume(); else playback.Pause();
+        UpdateTransportState();
+    }
 
     private void SingleStepButton_Click(object sender, RoutedEventArgs e)
     {
         if (!TryPlayback(out var playback)) return;
         playback.Step();
-        SetTransportState(true);
+        UpdateTransportState();
     }
 
     private void RestartButton_Click(object sender, RoutedEventArgs e)
     {
         if (!TryPlayback(out var playback)) return;
         playback.Restart();
-        SetTransportState(true);
+        UpdateTransportState();
     }
 
     private void SpeedSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
+        if (SpeedValueText is not null) SpeedValueText.Text = $"{SpeedSlider.Value:0.00}x";
+        if (_syncingControls) return;
         if (_controller.Playback is { } playback) playback.Speed = SpeedSlider.Value;
     }
 
@@ -158,22 +251,20 @@ public sealed partial class TestingPage : Page
     {
         if (_syncingControls) return;
         TestModeToggle.IsEnabled = false;
-        TestStatusText.Text = enabled ? "Starting test mode…" : "Returning to live streams…";
+        TestingInfoBar.IsOpen = false;
+        SetSecondary(enabled ? "Starting the scenario…" : "Returning to live streams…");
         try
         {
             await _controller.SetTestModeAsync(enabled);
-            SyncMode();
         }
         catch (Exception ex)
         {
-            TestStatusText.Text = $"Could not switch feed: {ex.Message}";
-            _syncingControls = true;
-            TestModeToggle.IsChecked = _controller.Scenario is not null;
-            _syncingControls = false;
+            ShowError($"Could not switch feed: {ex.Message}");
         }
         finally
         {
             TestModeToggle.IsEnabled = true;
+            SyncMode();
         }
     }
 
@@ -236,23 +327,6 @@ public sealed partial class TestingPage : Page
     private void DiagnosticRecordingToggle_Unchecked(object sender, RoutedEventArgs e) =>
         _controller.SetDiagnosticRecording(false);
 
-    private void SetPaused(bool paused)
-    {
-        if (_syncingControls || !TryPlayback(out var playback)) return;
-        if (paused) playback.Pause(); else playback.Resume();
-        SetTransportState(playback.IsPaused);
-        if (_controller.Archive is { } archive)
-            TestStatusText.Text = $"Archive · frame {archive.FrameIndex}/{archive.FrameCount} · {PlaybackState(playback, archive.IsCompleted)}";
-    }
-
-    private void SetTransportState(bool paused)
-    {
-        _syncingControls = true;
-        PauseButton.IsChecked = paused;
-        ResumeButton.IsChecked = !paused;
-        _syncingControls = false;
-    }
-
     private void SyncScenarioState(TimingSnapshot snapshot)
     {
         var track = snapshot.TrackCondition switch
@@ -303,7 +377,7 @@ public sealed partial class TestingPage : Page
     {
         playback = _controller.Playback!;
         if (playback is not null) return true;
-        TestStatusText.Text = "Load an archive or enable deterministic test mode before using playback controls.";
+        ShowError("Load an archive or enable the deterministic scenario before using playback controls.");
         return false;
     }
 
@@ -311,13 +385,7 @@ public sealed partial class TestingPage : Page
     {
         scenario = _controller.Scenario!;
         if (scenario is not null) return true;
-        TestStatusText.Text = "Enable deterministic test mode before using scenario controls.";
+        ShowError("Enable the deterministic scenario before using scenario controls.");
         return false;
-    }
-
-    private static string PlaybackState(ITimingPlaybackSource? playback, bool completed)
-    {
-        if (completed) return "COMPLETED";
-        return playback?.IsPaused == true ? "PAUSED" : "RUNNING";
     }
 }

@@ -8,103 +8,108 @@
                 HorizontalScrollBarVisibility="Disabled">
     <StackPanel Style="{StaticResource SettingsPagePanelStyle}">
       <TextBlock Text="Testing" Style="{StaticResource SettingsPageTitleStyle}" />
-      <TextBlock Text="Replay timing archives or use a deterministic scenario to verify RaceDock without waiting for a live session."
+      <TextBlock Text="Replay a timing archive or drive a deterministic scenario to verify RaceDock without waiting for a live session."
                  Style="{StaticResource SettingsPageDescriptionStyle}" />
 
-      <TextBlock Text="Archive replay" Style="{StaticResource SettingsSectionTitleStyle}" />
-      <ui:CardExpander Style="{StaticResource SettingsExpanderStyle}"
-                       Icon="{ui:SymbolIcon FolderOpen20}">
-        <ui:CardExpander.Header>
-          <StackPanel HorizontalAlignment="Left">
-            <TextBlock Text="Timing71 archive" Style="{StaticResource SettingsCardTitleStyle}" />
-            <TextBlock Text="Load a ZIP export or HAR. Long inactive gaps are compressed during playback."
-                       Style="{StaticResource SettingsCardDescriptionStyle}" />
-          </StackPanel>
-        </ui:CardExpander.Header>
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <TextBox x:Name="ArchivePathTextBox"
-                   IsReadOnly="True"
-                   VerticalContentAlignment="Center" />
-          <ui:Button Grid.Column="1"
-                     Content="Choose archive…"
-                     MinWidth="112"
-                     Padding="8,5"
-                     Margin="6,0,2,0"
-                     Click="ChooseArchiveButton_Click" />
-          <ui:Button Grid.Column="2"
-                     Content="Return to live"
-                     MinWidth="102"
-                     Padding="8,5"
-                     Margin="4,0,0,0"
-                     Click="ReturnToLiveButton_Click" />
-        </Grid>
-      </ui:CardExpander>
-
-      <TextBlock Text="Playback" Style="{StaticResource SettingsSectionTitleStyle}" />
-      <ui:CardExpander Style="{StaticResource SettingsExpanderStyle}"
-                       Icon="{ui:SymbolIcon VideoPlayPause24}">
-        <ui:CardExpander.Header>
-          <StackPanel HorizontalAlignment="Left">
-            <TextBlock Text="Playback controls" Style="{StaticResource SettingsCardTitleStyle}" />
-            <TextBlock Text="Pause, step, restart, or change the speed of the active archive or scenario."
-                       Style="{StaticResource SettingsCardDescriptionStyle}" />
-          </StackPanel>
-        </ui:CardExpander.Header>
+      <!--  Transport bar: what is driving the widget, and every playback control, in one fixed place.  -->
+      <Border Style="{StaticResource SettingsTransportBarStyle}">
         <StackPanel>
-          <TextBlock x:Name="TestStatusText"
-                     Margin="2,4,2,8"
-                     TextWrapping="Wrap"
-                     Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-          <WrapPanel x:Name="TestingControlsPanel" Margin="0,6,0,0">
-            <ToggleButton x:Name="PauseButton"
-                          Content="Pause"
-                          IsChecked="True"
-                          MinWidth="70"
-                          Margin="2"
-                          Padding="8,4"
-                          Click="PauseButton_Click" />
-            <ToggleButton x:Name="ResumeButton"
-                          Content="Resume"
-                          MinWidth="70"
-                          Margin="2"
-                          Padding="8,4"
-                          Click="ResumeButton_Click" />
-            <ui:Button Content="Single step"
-                       MinWidth="70"
-                       Margin="2"
-                       Padding="8,4"
-                       Click="SingleStepButton_Click" />
-            <ui:Button Content="Restart"
-                       MinWidth="70"
-                       Margin="2"
-                       Padding="8,4"
-                       Click="RestartButton_Click" />
-            <TextBlock Text="Speed"
-                       Margin="12,0,8,0"
-                       VerticalAlignment="Center" />
-            <Slider x:Name="SpeedSlider"
-                    Minimum="0.25"
-                    Maximum="20"
-                    Value="4"
-                    Width="240"
-                    TickFrequency="0.25"
-                    VerticalAlignment="Center"
-                    ValueChanged="SpeedSlider_ValueChanged" />
-          </WrapPanel>
-        </StackPanel>
-      </ui:CardExpander>
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Border x:Name="TransportStateBadge" Style="{StaticResource SettingsTransportBadgeStyle}">
+              <StackPanel Orientation="Horizontal">
+                <Ellipse Style="{StaticResource SettingsTransportDotStyle}" />
+                <TextBlock x:Name="TransportStateText"
+                           Text="LIVE"
+                           Style="{StaticResource SettingsTransportBadgeTextStyle}" />
+              </StackPanel>
+            </Border>
+            <StackPanel Grid.Column="1" Margin="12,0,12,0" VerticalAlignment="Center">
+              <TextBlock x:Name="TransportPrimaryText"
+                         Text="Live streams are active"
+                         FontSize="13"
+                         FontWeight="SemiBold"
+                         TextTrimming="CharacterEllipsis" />
+              <TextBlock x:Name="TransportSecondaryText"
+                         FontSize="11.5"
+                         TextTrimming="CharacterEllipsis"
+                         Visibility="Collapsed"
+                         Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+            <TextBlock x:Name="TransportFrameText"
+                       Grid.Column="2"
+                       VerticalAlignment="Center"
+                       FontFamily="Consolas"
+                       Visibility="Collapsed"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+          </Grid>
 
-      <TextBlock Text="Deterministic scenario" Style="{StaticResource SettingsSectionTitleStyle}" />
+          <Grid x:Name="TransportControls" Margin="0,14,0,0" IsEnabled="False">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal">
+              <ui:Button x:Name="PlayPauseButton"
+                         Style="{StaticResource SettingsTransportButtonStyle}"
+                         Icon="{ui:SymbolIcon Play24}"
+                         ToolTip="Resume"
+                         Click="PlayPauseButton_Click" />
+              <ui:Button Style="{StaticResource SettingsTransportButtonStyle}"
+                         Icon="{ui:SymbolIcon Next24}"
+                         ToolTip="Advance one frame"
+                         Click="SingleStepButton_Click" />
+              <ui:Button Style="{StaticResource SettingsTransportButtonStyle}"
+                         Icon="{ui:SymbolIcon ArrowCounterclockwise24}"
+                         ToolTip="Restart from the first frame"
+                         Click="RestartButton_Click" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+              <TextBlock Text="Speed"
+                         Margin="0,0,10,0"
+                         VerticalAlignment="Center"
+                         Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+              <Slider x:Name="SpeedSlider"
+                      Minimum="0.25"
+                      Maximum="20"
+                      Value="4"
+                      Width="190"
+                      TickFrequency="0.25"
+                      IsSnapToTickEnabled="True"
+                      VerticalAlignment="Center"
+                      ValueChanged="SpeedSlider_ValueChanged" />
+              <TextBlock x:Name="SpeedValueText"
+                         Text="4.00x"
+                         Width="50"
+                         Margin="10,0,0,0"
+                         VerticalAlignment="Center"
+                         TextAlignment="Right"
+                         FontFamily="Consolas" />
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <ui:InfoBar x:Name="TestingInfoBar"
+                  Margin="0,0,0,10"
+                  IsOpen="False"
+                  IsClosable="True"
+                  Severity="Error" />
+
+      <TextBlock Text="Source" Style="{StaticResource SettingsSectionTitleStyle}" />
+      <TextBlock Text="One source drives the widget at a time. Either option replaces the live feeds until you return to live."
+                 Style="{StaticResource SettingsSectionDescriptionStyle}" />
+
       <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Bug24}">
         <ui:CardControl.Header>
           <StackPanel HorizontalAlignment="Left">
-            <TextBlock Text="Enable test mode" Style="{StaticResource SettingsCardTitleStyle}" />
-            <TextBlock Text="Temporarily replace live streams with the scripted testing feed."
+            <TextBlock Text="Deterministic scenario" Style="{StaticResource SettingsCardTitleStyle}" />
+            <TextBlock Text="Replace live streams with the scripted feed you drive by hand."
                        Style="{StaticResource SettingsCardDescriptionStyle}" />
           </StackPanel>
         </ui:CardControl.Header>
@@ -114,54 +119,124 @@
                          Unchecked="TestModeToggle_Unchecked" />
       </ui:CardControl>
 
-      <ui:CardExpander Style="{StaticResource SettingsExpanderStyle}"
-                       Icon="{ui:SymbolIcon Wrench24}">
-        <ui:CardExpander.Header>
+      <ui:CardControl x:Name="ArchiveCard"
+                      Style="{StaticResource SettingsCardStyle}"
+                      Icon="{ui:SymbolIcon FolderOpen20}"
+                      AllowDrop="True"
+                      Drop="ArchiveCard_Drop"
+                      DragOver="ArchiveCard_DragOver">
+        <ui:CardControl.Header>
           <StackPanel HorizontalAlignment="Left">
-            <TextBlock Text="Scenario controls" Style="{StaticResource SettingsCardTitleStyle}" />
-            <TextBlock Text="Trigger track, feed, fastest-lap, and classification states."
+            <TextBlock Text="Timing archive" Style="{StaticResource SettingsCardTitleStyle}" />
+            <TextBlock x:Name="ArchiveSummaryText"
+                       Text="Drop a Timing71 ZIP export or HAR capture here, or browse for one."
                        Style="{StaticResource SettingsCardDescriptionStyle}" />
           </StackPanel>
-        </ui:CardExpander.Header>
-        <StackPanel x:Name="ScenarioControlsPanel">
-          <TextBlock Text="Track and feed controls (select an active state again to clear it)"
-                     Margin="2,4" />
-          <WrapPanel>
+        </ui:CardControl.Header>
+        <StackPanel Orientation="Horizontal">
+          <ui:Button Content="Choose archive…"
+                     Icon="{ui:SymbolIcon DocumentSearch20}"
+                     Click="ChooseArchiveButton_Click" />
+          <ui:Button x:Name="ReturnToLiveButton"
+                     Content="Return to live"
+                     Margin="8,0,0,0"
+                     IsEnabled="False"
+                     Click="ReturnToLiveButton_Click" />
+        </StackPanel>
+      </ui:CardControl>
+
+      <TextBlock Text="Scenario" Style="{StaticResource SettingsSectionTitleStyle}" />
+      <TextBlock x:Name="ScenarioHintText"
+                 Text="Enable the deterministic scenario to drive track, feed, and classification states."
+                 Style="{StaticResource SettingsSectionDescriptionStyle}" />
+
+      <StackPanel x:Name="ScenarioControlsPanel" IsEnabled="False">
+        <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Flag24}">
+          <ui:CardControl.Header>
+            <StackPanel HorizontalAlignment="Left">
+              <TextBlock Text="Track state" Style="{StaticResource SettingsCardTitleStyle}" />
+              <TextBlock Text="One condition is active at a time."
+                         Style="{StaticResource SettingsCardDescriptionStyle}" />
+            </StackPanel>
+          </ui:CardControl.Header>
+          <WrapPanel HorizontalAlignment="Right" MaxWidth="360">
             <WrapPanel.Resources>
-              <Style TargetType="ToggleButton">
-                <Setter Property="Margin" Value="2" />
-                <Setter Property="Padding" Value="8,4" />
-                <Setter Property="MinWidth" Value="78" />
-                <Setter Property="IsThreeState" Value="False" />
-              </Style>
+              <Style TargetType="ToggleButton" BasedOn="{StaticResource SettingsSegmentedButtonStyle}" />
             </WrapPanel.Resources>
+            <ToggleButton x:Name="GreenButton" Content="Green" Tag="{x:Static core:ScenarioCommand.Green}" Click="ScenarioCommandButton_Click" />
             <ToggleButton x:Name="YellowButton" Content="Yellow" Tag="{x:Static core:ScenarioCommand.Yellow}" Click="ScenarioCommandButton_Click" />
-            <ToggleButton x:Name="DoubleYellowButton" Content="DoubleYellow" Tag="{x:Static core:ScenarioCommand.DoubleYellow}" Click="ScenarioCommandButton_Click" />
-            <ToggleButton x:Name="SafetyCarButton" Content="SafetyCar" Tag="{x:Static core:ScenarioCommand.SafetyCar}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="DoubleYellowButton" Content="Double yellow" Tag="{x:Static core:ScenarioCommand.DoubleYellow}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="SafetyCarButton" Content="Safety car" Tag="{x:Static core:ScenarioCommand.SafetyCar}" Click="ScenarioCommandButton_Click" />
             <ToggleButton x:Name="VirtualSafetyCarButton" Content="VSC" Tag="{x:Static core:ScenarioCommand.VirtualSafetyCar}" Click="ScenarioCommandButton_Click" />
             <ToggleButton x:Name="VirtualSafetyCarEndingButton" Content="VSC ending" Tag="{x:Static core:ScenarioCommand.VirtualSafetyCarEnding}" Click="ScenarioCommandButton_Click" />
-            <ToggleButton x:Name="GreenButton" Content="Green" Tag="{x:Static core:ScenarioCommand.Green}" Click="ScenarioCommandButton_Click" />
-            <ToggleButton x:Name="FastestLapButton" Content="FastestLap" Tag="{x:Static core:ScenarioCommand.FastestLap}" Click="ScenarioCommandButton_Click" />
-            <ToggleButton x:Name="RedFlagButton" Content="RedFlag" Tag="{x:Static core:ScenarioCommand.RedFlag}" Click="ScenarioCommandButton_Click" />
-            <ToggleButton x:Name="ChequeredButton" Content="Chequered" Tag="{x:Static core:ScenarioCommand.Chequered}" Click="ScenarioCommandButton_Click" />
-            <ToggleButton x:Name="DisconnectButton" Content="Disconnect" Tag="{x:Static core:ScenarioCommand.Disconnect}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="RedFlagButton" Content="Red flag" Tag="{x:Static core:ScenarioCommand.RedFlag}" Click="ScenarioCommandButton_Click" />
+          </WrapPanel>
+        </ui:CardControl>
+
+        <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon PlugConnected24}">
+          <ui:CardControl.Header>
+            <StackPanel HorizontalAlignment="Left">
+              <TextBlock Text="Feed state" Style="{StaticResource SettingsCardTitleStyle}" />
+              <TextBlock Text="Drive the connection badge and the stale-data guard."
+                         Style="{StaticResource SettingsCardDescriptionStyle}" />
+            </StackPanel>
+          </ui:CardControl.Header>
+          <WrapPanel HorizontalAlignment="Right">
+            <WrapPanel.Resources>
+              <Style TargetType="ToggleButton" BasedOn="{StaticResource SettingsSegmentedButtonStyle}" />
+            </WrapPanel.Resources>
+            <ToggleButton x:Name="ReconnectButton" Content="Connected" Tag="{x:Static core:ScenarioCommand.Reconnect}" Click="ScenarioCommandButton_Click" />
             <ToggleButton x:Name="StaleButton" Content="Stale" Tag="{x:Static core:ScenarioCommand.Stale}" Click="ScenarioCommandButton_Click" />
-            <ToggleButton x:Name="ReconnectButton" Content="Reconnect" Tag="{x:Static core:ScenarioCommand.Reconnect}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="DisconnectButton" Content="Disconnected" Tag="{x:Static core:ScenarioCommand.Disconnect}" Click="ScenarioCommandButton_Click" />
           </WrapPanel>
-          <TextBlock Text="Top five (CODE:GAP; use — for a missing gap)"
-                     Margin="2,16,2,4" />
-          <WrapPanel>
-            <TextBox x:Name="TopFiveTextBox"
-                     Text="NOR:LEAD,PIA:+0.8,LEC:+1.5,VER:+2.0,RUS:+2.8"
-                     MinWidth="430" />
-            <ui:Button Content="Apply"
-                       MinWidth="70"
-                       Margin="2"
-                       Padding="8,4"
-                       Click="ApplyTopFiveButton_Click" />
+        </ui:CardControl>
+
+        <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Timer24}">
+          <ui:CardControl.Header>
+            <StackPanel HorizontalAlignment="Left">
+              <TextBlock Text="Session events" Style="{StaticResource SettingsCardTitleStyle}" />
+              <TextBlock Text="Fastest lap fires once; the chequered flag ends the session."
+                         Style="{StaticResource SettingsCardDescriptionStyle}" />
+            </StackPanel>
+          </ui:CardControl.Header>
+          <WrapPanel HorizontalAlignment="Right">
+            <WrapPanel.Resources>
+              <Style TargetType="ToggleButton" BasedOn="{StaticResource SettingsSegmentedButtonStyle}" />
+            </WrapPanel.Resources>
+            <ToggleButton x:Name="FastestLapButton" Content="Fastest lap" Tag="{x:Static core:ScenarioCommand.FastestLap}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="ChequeredButton" Content="Chequered" Tag="{x:Static core:ScenarioCommand.Chequered}" Click="ScenarioCommandButton_Click" />
           </WrapPanel>
-        </StackPanel>
-      </ui:CardExpander>
+        </ui:CardControl>
+
+        <ui:CardExpander Style="{StaticResource SettingsExpanderStyle}" Icon="{ui:SymbolIcon PeopleList24}">
+          <ui:CardExpander.Header>
+            <StackPanel HorizontalAlignment="Left">
+              <TextBlock Text="Classification" Style="{StaticResource SettingsCardTitleStyle}" />
+              <TextBlock Text="Override the top five entries shown by the widget and flyout."
+                         Style="{StaticResource SettingsCardDescriptionStyle}" />
+            </StackPanel>
+          </ui:CardExpander.Header>
+          <StackPanel>
+            <TextBlock Text="One CODE:GAP pair per entry, comma separated. Use — for a missing gap."
+                       Margin="0,0,0,8"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBox x:Name="TopFiveTextBox"
+                       Text="NOR:LEAD,PIA:+0.8,LEC:+1.5,VER:+2.0,RUS:+2.8"
+                       FontFamily="Consolas"
+                       VerticalContentAlignment="Center" />
+              <ui:Button Grid.Column="1"
+                         Content="Apply"
+                         Margin="8,0,0,0"
+                         Click="ApplyTopFiveButton_Click" />
+            </Grid>
+          </StackPanel>
+        </ui:CardExpander>
+      </StackPanel>
 
       <TextBlock Text="Diagnostics" Style="{StaticResource SettingsSectionTitleStyle}" />
       <ui:CardControl Style="{StaticResource SettingsCardStyle}"
