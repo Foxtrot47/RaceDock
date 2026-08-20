@@ -18,6 +18,20 @@ public enum TaskbarCompetitorLabel
     DriverNumber
 }
 
+/// <summary>
+/// A classification column whose position the user controls. Position and driver are pinned to the left of
+/// the flyout and are deliberately absent.
+/// </summary>
+public enum FlyoutColumn
+{
+    Gap,
+    Interval,
+    LapTime,
+    Tyre,
+    Category,
+    Status
+}
+
 public sealed record ChampionshipDisplaySettings
 {
     public int TaskbarCompetitorCount { get; init; } = 5;
@@ -46,9 +60,38 @@ public sealed record ChampionshipDisplaySettings
     public bool FlyoutShowTyre { get; init; } = true;
     public bool FlyoutShowCategoryOrLap { get; init; } = true;
     public bool FlyoutShowStatus { get; init; } = true;
+    public IReadOnlyList<FlyoutColumn> FlyoutColumnOrder { get; init; } = DefaultColumnOrder;
+
+    /// <summary>The order columns appear in before the user rearranges them.</summary>
+    public static readonly IReadOnlyList<FlyoutColumn> DefaultColumnOrder =
+    [
+        FlyoutColumn.Gap,
+        FlyoutColumn.Interval,
+        FlyoutColumn.LapTime,
+        FlyoutColumn.Tyre,
+        FlyoutColumn.Category,
+        FlyoutColumn.Status
+    ];
+
+    /// <summary>
+    /// Repairs a stored order so the flyout always receives every column exactly once. Hand-edited or
+    /// older settings files can repeat, omit, or name columns that no longer exist.
+    /// </summary>
+    private IReadOnlyList<FlyoutColumn> NormalizeColumnOrder()
+    {
+        var ordered = new List<FlyoutColumn>(DefaultColumnOrder.Count);
+        foreach (var column in FlyoutColumnOrder ?? [])
+            if (Enum.IsDefined(column) && !ordered.Contains(column))
+                ordered.Add(column);
+        foreach (var column in DefaultColumnOrder)
+            if (!ordered.Contains(column))
+                ordered.Add(column);
+        return ordered;
+    }
 
     public ChampionshipDisplaySettings Normalize() => this with
     {
+        FlyoutColumnOrder = NormalizeColumnOrder(),
         TaskbarCompetitorCount = Math.Clamp(TaskbarCompetitorCount, 1, 5),
         TaskbarCompetitorLabel = Enum.IsDefined(TaskbarCompetitorLabel)
             ? TaskbarCompetitorLabel

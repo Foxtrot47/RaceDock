@@ -53,6 +53,7 @@ internal sealed class ClassificationRow
     private readonly Border _logoHost;
     private readonly Grid _driverCopy;
     private readonly ScrollingTextBlock _driverName;
+    private IReadOnlyList<FlyoutColumn>? _columnOrder;
     private readonly TextBlock _fastest;
     private readonly ScrollingTextBlock _team;
     private readonly ScrollingTextBlock _gap;
@@ -130,6 +131,7 @@ internal sealed class ClassificationRow
         Grid.SetColumn(_driver, 1);
         _grid.Children.Add(_driver);
 
+        // Columns are assigned by ApplyColumnOrder; these indices are only the starting arrangement.
         _gap = Value(clock, 2);
         _interval = Value(clock, 3);
         _result = Value(clock, 4);
@@ -164,11 +166,35 @@ internal sealed class ClassificationRow
 
     public UIElement Element => _grid;
 
+    /// <summary>
+    /// Places the movable cells in the configured order. The order only changes when the user rearranges
+    /// the columns, so the common redraw path exits on the reference check without touching layout.
+    /// </summary>
+    private void ApplyColumnOrder(IReadOnlyList<FlyoutColumn> order)
+    {
+        if (ReferenceEquals(order, _columnOrder)) return;
+        _columnOrder = order;
+        for (var index = 0; index < order.Count; index++)
+        {
+            // Position and driver occupy the first two columns, so movable cells start at index 2.
+            var column = index + 2;
+            switch (order[index])
+            {
+                case FlyoutColumn.Gap: Grid.SetColumn(_gap, column); break;
+                case FlyoutColumn.Interval: Grid.SetColumn(_interval, column); break;
+                case FlyoutColumn.LapTime: Grid.SetColumn(_result, column); break;
+                case FlyoutColumn.Tyre: Grid.SetColumn(_tyreBadge, column); break;
+                case FlyoutColumn.Category: Grid.SetColumn(_category, column); break;
+                case FlyoutColumn.Status: Grid.SetColumn(_statusBadge, column); break;
+            }
+        }
+    }
 
     /// <summary>Applies the column geometry and which optional cells participate at all.</summary>
     public void ApplyDisplay(ChampionshipDisplaySettings display, IReadOnlyList<GridLength> columnWidths)
     {
         for (var index = 0; index < columnWidths.Count; index++) _grid.ColumnDefinitions[index].Width = columnWidths[index];
+        ApplyColumnOrder(display.FlyoutColumnOrder);
         _gap.Visibility = display.FlyoutShowGaps ? Visibility.Visible : Visibility.Collapsed;
         _interval.Visibility = display.FlyoutShowIntervals ? Visibility.Visible : Visibility.Collapsed;
         _result.Visibility = display.FlyoutShowLapTime ? Visibility.Visible : Visibility.Collapsed;

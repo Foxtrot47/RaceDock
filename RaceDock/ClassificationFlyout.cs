@@ -45,6 +45,7 @@ public sealed class ClassificationFlyout : Window
     private double _driverColumnWidth = MinimumDriverColumn;
     private int _driverSignature;
     private int _visibleRowCount;
+    private IReadOnlyList<FlyoutColumn>? _headerOrder;
 
     /// <summary>Root padding and border, added to the column total to get the window width.</summary>
     private const double ChromeWidth = 26;
@@ -289,6 +290,7 @@ public sealed class ClassificationFlyout : Window
         _tyreHeader.Visibility = _display.FlyoutShowTyre ? Visibility.Visible : Visibility.Collapsed;
         _categoryHeader.Visibility = _display.FlyoutShowCategoryOrLap ? Visibility.Visible : Visibility.Collapsed;
         _statusHeader.Visibility = _display.FlyoutShowStatus ? Visibility.Visible : Visibility.Collapsed;
+        ApplyHeaderOrder();
         ApplyColumnWidths(_columnHeader);
         // Every column keeps its full width, so the window grows to fit rather than truncating values.
         // Once the classification scrolls, the scrollbar needs its own space or it would clip the last column.
@@ -429,18 +431,54 @@ public sealed class ClassificationFlyout : Window
         for (var index = 0; index < widths.Count; index++) grid.ColumnDefinitions[index].Width = widths[index];
     }
 
+    /// <summary>Moves the header labels to match the configured order, skipped unless the order changed.</summary>
+    private void ApplyHeaderOrder()
+    {
+        var order = _display.FlyoutColumnOrder;
+        if (ReferenceEquals(order, _headerOrder)) return;
+        _headerOrder = order;
+        for (var index = 0; index < order.Count; index++) Grid.SetColumn(HeaderFor(order[index]), index + 2);
+    }
 
-    private IReadOnlyList<GridLength> ColumnWidths() =>
-    [
-        new GridLength(42),
-        new GridLength(_driverColumnWidth),
-        _display.FlyoutShowGaps ? new GridLength(78) : new GridLength(0),
-        _display.FlyoutShowIntervals ? new GridLength(78) : new GridLength(0),
-        _display.FlyoutShowLapTime ? new GridLength(78) : new GridLength(0),
-        _display.FlyoutShowTyre ? new GridLength(60) : new GridLength(0),
-        _display.FlyoutShowCategoryOrLap ? new GridLength(58) : new GridLength(0),
-        _display.FlyoutShowStatus ? new GridLength(64) : new GridLength(0)
-    ];
+    private IReadOnlyList<GridLength> ColumnWidths()
+    {
+        var widths = new List<GridLength>(2 + _display.FlyoutColumnOrder.Count)
+        {
+            new(42),
+            new(_driverColumnWidth)
+        };
+        foreach (var column in _display.FlyoutColumnOrder)
+            widths.Add(IsColumnVisible(column) ? new GridLength(ColumnWidth(column)) : new GridLength(0));
+        return widths;
+    }
+
+    private bool IsColumnVisible(FlyoutColumn column) => column switch
+    {
+        FlyoutColumn.Gap => _display.FlyoutShowGaps,
+        FlyoutColumn.Interval => _display.FlyoutShowIntervals,
+        FlyoutColumn.LapTime => _display.FlyoutShowLapTime,
+        FlyoutColumn.Tyre => _display.FlyoutShowTyre,
+        FlyoutColumn.Category => _display.FlyoutShowCategoryOrLap,
+        _ => _display.FlyoutShowStatus
+    };
+
+    private static double ColumnWidth(FlyoutColumn column) => column switch
+    {
+        FlyoutColumn.Gap or FlyoutColumn.Interval or FlyoutColumn.LapTime => 78,
+        FlyoutColumn.Tyre => 60,
+        FlyoutColumn.Category => 58,
+        _ => 64
+    };
+
+    private ScrollingTextBlock HeaderFor(FlyoutColumn column) => column switch
+    {
+        FlyoutColumn.Gap => _gapHeader,
+        FlyoutColumn.Interval => _intervalHeader,
+        FlyoutColumn.LapTime => _lapTimeHeader,
+        FlyoutColumn.Tyre => _tyreHeader,
+        FlyoutColumn.Category => _categoryHeader,
+        _ => _statusHeader
+    };
 
     private ScrollingTextBlock AddHeaderLabel(Grid grid, string text, int column, TextAlignment alignment = TextAlignment.Left)
     {
