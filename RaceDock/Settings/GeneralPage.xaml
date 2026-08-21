@@ -4,64 +4,87 @@
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:core="clr-namespace:RaceDock.Core;assembly=RaceDock.Core"
       Foreground="{DynamicResource TextFillColorPrimaryBrush}">
-  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <StackPanel Style="{StaticResource SettingsPagePanelStyle}">
-      <TextBlock Text="General" Style="{StaticResource SettingsPageTitleStyle}" />
-      <TextBlock Text="Configure app-wide behavior shared by every championship."
-                 Style="{StaticResource SettingsPageDescriptionStyle}" />
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Style="{StaticResource SettingsPagePanelStyle}">
+            <TextBlock Text="General" Style="{StaticResource SettingsPageTitleStyle}" Margin="0,0,0,20" />
+            <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon ShareScreenStart24}">
+                <ui:CardControl.Header>
+                    <TextBlock Text="Start RaceDock when I sign in" Style="{StaticResource SettingsCardTitleStyle}" />
+                </ui:CardControl.Header>
+                <ui:ToggleSwitch IsChecked="{Binding AutoStartOnWindowsBoot, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+            </ui:CardControl>
+            <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Flash24}">
+                <ui:CardControl.Header>
+                    <TextBlock Text="Enable Animations" Style="{StaticResource SettingsCardTitleStyle}" />
+                </ui:CardControl.Header>
+                <ui:ToggleSwitch IsChecked="{Binding InterfaceAnimations, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+            </ui:CardControl>
+            <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Color24}">
+                <ui:CardControl.Header>
+                    <TextBlock Text="Enable Mica" Style="{StaticResource SettingsCardTitleStyle}" />
+                </ui:CardControl.Header>
+                <ui:ToggleSwitch IsChecked="{Binding FlyoutAcrylicBlur, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+            </ui:CardControl>
+            <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon PaintBrush24}" IsEnabled="{Binding FlyoutAcrylicBlur}">
+                <ui:CardControl.Header>
+                    <TextBlock Text="Mica Blur Opacity" Style="{StaticResource SettingsCardTitleStyle}" />
+                </ui:CardControl.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Slider Minimum="30" Maximum="95" Value="{Binding FlyoutBlurTint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SettingsSliderStyle}" />
+                    <TextBlock Text="{Binding FlyoutBlurTint, StringFormat={}{0}%}" Style="{StaticResource SettingsValueStyle}" />
+                </StackPanel>
+            </ui:CardControl>
+            <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon ArrowMove24}">
+                <ui:CardControl.Header>
+                    <TextBlock Text="Taskbar Widget position" Style="{StaticResource SettingsCardTitleStyle}" />
+                </ui:CardControl.Header>
+                <ComboBox SelectedValue="{Binding WidgetPosition, Mode=TwoWay}" SelectedValuePath="Tag" Style="{StaticResource SettingsComboBoxStyle}">
+                    <ComboBoxItem Content="Left of Start" Tag="{x:Static core:TaskbarWidgetPosition.LeftOfStart}" />
+                    <ComboBoxItem Content="Right of Start" Tag="{x:Static core:TaskbarWidgetPosition.RightOfStart}" />
+                </ComboBox>
+            </ui:CardControl>
+            <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Timer24}">
+                <ui:CardControl.Header>
+                    <StackPanel HorizontalAlignment="Left">
+                        <TextBlock Text="Live Championship Display Rotation" Style="{StaticResource SettingsCardTitleStyle}" />
+                        <TextBlock Text="When several enabled championships are live, rotate between them at this interval" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                    </StackPanel>
+                </ui:CardControl.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Slider Minimum="2" Maximum="30" Value="{Binding RotationSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SettingsSliderStyle}" />
+                    <TextBlock Text="{Binding RotationSeconds, StringFormat={}{0} s}" Style="{StaticResource SettingsValueStyle}" />
+                </StackPanel>
+            </ui:CardControl>
+            <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon History24}" Margin="0,0,0,14">
+                <ui:CardControl.Header>
+                    <StackPanel HorizontalAlignment="Left">
+                        <TextBlock Text="Stale Data Timeout" Style="{StaticResource SettingsCardTitleStyle}" />
+                        <TextBlock Text="Keep the latest classification on the taskbar between sessions" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                    </StackPanel>
+                </ui:CardControl.Header>
+                <StackPanel Orientation="Horizontal">
+                    <Slider Minimum="5" Maximum="30" Value="{Binding CompletedSessionRetentionMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SettingsSliderStyle}" />
+                    <TextBlock Text="{Binding CompletedSessionRetentionMinutes, StringFormat={}{0} min}" Style="{StaticResource SettingsValueStyle}" />
+                </StackPanel>
+            </ui:CardControl>
 
-      <TextBlock Text="Windows startup" Style="{StaticResource SettingsSectionTitleStyle}" />
-      <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon ShareScreenStart24}">
-        <ui:CardControl.Header><StackPanel HorizontalAlignment="Left"><TextBlock Text="Start RaceDock when I sign in" Style="{StaticResource SettingsCardTitleStyle}" /><TextBlock Text="Launch RaceDock automatically from its current location after signing in to Windows." Style="{StaticResource SettingsCardDescriptionStyle}" /></StackPanel></ui:CardControl.Header>
-        <ui:ToggleSwitch IsChecked="{Binding AutoStartOnWindowsBoot, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
-      </ui:CardControl>
+            <TextBlock Text="Advanced" Style="{StaticResource SettingsSectionTitleStyle}" />
+            <ui:CardAction Tag="Testing" Margin="0,0,0,14" Padding="16,14" IsChevronVisible="True" Click="SettingsCard_Click">
+                <ui:CardAction.Icon>
+                    <ui:SymbolIcon Symbol="Bug24" />
+                </ui:CardAction.Icon>
+                <StackPanel HorizontalAlignment="Left">
+                    <TextBlock Text="Testing" Style="{StaticResource SettingsCardTitleStyle}" />
+                    <TextBlock Text="Replay recorded sessions and drive the widget without a live timing feed." Style="{StaticResource SettingsCardDescriptionStyle}" />
+                </StackPanel>
+            </ui:CardAction>
 
-      <TextBlock Text="Motion" Style="{StaticResource SettingsSectionTitleStyle}" />
-      <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Flash24}">
-        <ui:CardControl.Header><StackPanel HorizontalAlignment="Left"><TextBlock Text="Animate the interface" Style="{StaticResource SettingsCardTitleStyle}" /><TextBlock Text="Ease the classification into view and light the widget under the pointer." Style="{StaticResource SettingsCardDescriptionStyle}" /></StackPanel></ui:CardControl.Header>
-        <ui:ToggleSwitch IsChecked="{Binding InterfaceAnimations, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
-      </ui:CardControl>
-
-      <TextBlock Text="Classification surface" Style="{StaticResource SettingsSectionTitleStyle}" />
-      <TextBlock Text="Experimental. Windows composites the blur itself, so the result varies with your Windows build, graphics driver and transparency settings." Style="{StaticResource SettingsSectionDescriptionStyle}" />
-      <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Color24}">
-        <ui:CardControl.Header><StackPanel HorizontalAlignment="Left"><TextBlock Text="Blur the desktop behind the classification" Style="{StaticResource SettingsCardTitleStyle}" /><TextBlock Text="Frost whatever sits behind the classification instead of covering it with a solid panel." Style="{StaticResource SettingsCardDescriptionStyle}" /></StackPanel></ui:CardControl.Header>
-        <ui:ToggleSwitch IsChecked="{Binding FlyoutAcrylicBlur, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
-      </ui:CardControl>
-      <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon PaintBrush24}" IsEnabled="{Binding FlyoutAcrylicBlur}">
-        <ui:CardControl.Header><StackPanel HorizontalAlignment="Left"><TextBlock Text="Surface tint" Style="{StaticResource SettingsCardTitleStyle}" /><TextBlock Text="How heavily the blur is tinted. Lower lets more of the desktop through; higher approaches a solid panel." Style="{StaticResource SettingsCardDescriptionStyle}" /></StackPanel></ui:CardControl.Header>
-        <StackPanel Orientation="Horizontal"><Slider Minimum="30" Maximum="95" Value="{Binding FlyoutBlurTint, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SettingsSliderStyle}" /><TextBlock Text="{Binding FlyoutBlurTint, StringFormat={}{0}%}" Style="{StaticResource SettingsValueStyle}" /></StackPanel>
-      </ui:CardControl>
-
-      <TextBlock Text="Taskbar placement" Style="{StaticResource SettingsSectionTitleStyle}" />
-      <TextBlock Text="Placement applies to the widget for every championship." Style="{StaticResource SettingsSectionDescriptionStyle}" />
-      <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon ArrowMove24}">
-        <ui:CardControl.Header><StackPanel HorizontalAlignment="Left"><TextBlock Text="Widget position" Style="{StaticResource SettingsCardTitleStyle}" /><TextBlock Text="Place the widget immediately beside the Windows Start area." Style="{StaticResource SettingsCardDescriptionStyle}" /></StackPanel></ui:CardControl.Header>
-        <ComboBox SelectedValue="{Binding WidgetPosition, Mode=TwoWay}" SelectedValuePath="Tag" Style="{StaticResource SettingsComboBoxStyle}"><ComboBoxItem Content="Left of Start" Tag="{x:Static core:TaskbarWidgetPosition.LeftOfStart}" /><ComboBoxItem Content="Right of Start" Tag="{x:Static core:TaskbarWidgetPosition.RightOfStart}" /></ComboBox>
-      </ui:CardControl>
-
-      <TextBlock Text="Live-session rotation" Style="{StaticResource SettingsSectionTitleStyle}" />
-      <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Timer24}">
-        <ui:CardControl.Header><StackPanel HorizontalAlignment="Left"><TextBlock Text="Seconds per championship" Style="{StaticResource SettingsCardTitleStyle}" /><TextBlock Text="When several enabled championships are live, rotate between them at this interval." Style="{StaticResource SettingsCardDescriptionStyle}" /></StackPanel></ui:CardControl.Header>
-        <StackPanel Orientation="Horizontal"><Slider Minimum="2" Maximum="30" Value="{Binding RotationSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SettingsSliderStyle}" /><TextBlock Text="{Binding RotationSeconds, StringFormat={}{0} s}" Style="{StaticResource SettingsValueStyle}" /></StackPanel>
-      </ui:CardControl>
-
-      <TextBlock Text="Completed sessions" Style="{StaticResource SettingsSectionTitleStyle}" />
-      <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon History24}" Margin="0,0,0,14">
-        <ui:CardControl.Header><StackPanel HorizontalAlignment="Left"><TextBlock Text="Keep final classification visible" Style="{StaticResource SettingsCardTitleStyle}" /><TextBlock Text="Keep the latest classification on the taskbar between sessions. A new live session replaces it immediately." Style="{StaticResource SettingsCardDescriptionStyle}" /></StackPanel></ui:CardControl.Header>
-        <StackPanel Orientation="Horizontal"><Slider Minimum="5" Maximum="30" Value="{Binding CompletedSessionRetentionMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SettingsSliderStyle}" /><TextBlock Text="{Binding CompletedSessionRetentionMinutes, StringFormat={}{0} min}" Style="{StaticResource SettingsValueStyle}" /></StackPanel>
-      </ui:CardControl>
-
-      <TextBlock Text="Advanced" Style="{StaticResource SettingsSectionTitleStyle}" />
-      <ui:CardAction Tag="Testing" Margin="0,0,0,14" Padding="16,14" IsChevronVisible="True" Click="SettingsCard_Click">
-        <ui:CardAction.Icon><ui:SymbolIcon Symbol="Bug24" /></ui:CardAction.Icon>
-        <StackPanel HorizontalAlignment="Left"><TextBlock Text="Testing" Style="{StaticResource SettingsCardTitleStyle}" /><TextBlock Text="Replay recorded sessions and drive the widget without a live timing feed." Style="{StaticResource SettingsCardDescriptionStyle}" /></StackPanel>
-      </ui:CardAction>
-
-      <ui:CardControl Style="{StaticResource SettingsResetCardStyle}" Icon="{ui:SymbolIcon ArrowReset24}">
-        <ui:CardControl.Header><TextBlock Text="Reset to defaults" Style="{StaticResource SettingsCardTitleStyle}" /></ui:CardControl.Header>
-        <ui:Button Style="{StaticResource SettingsResetButtonStyle}" Click="ResetButton_Click" />
-      </ui:CardControl>
-    </StackPanel>
-  </ScrollViewer>
+            <ui:CardControl Style="{StaticResource SettingsResetCardStyle}" Icon="{ui:SymbolIcon ArrowReset24}">
+                <ui:CardControl.Header>
+                    <TextBlock Text="Reset to defaults" Style="{StaticResource SettingsCardTitleStyle}" />
+                </ui:CardControl.Header>
+                <ui:Button Style="{StaticResource SettingsResetButtonStyle}" Click="ResetButton_Click" />
+            </ui:CardControl>
+        </StackPanel>
+    </ScrollViewer>
 </Page>
