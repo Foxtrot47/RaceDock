@@ -38,7 +38,7 @@ public sealed class AppController : IAsyncDisposable
     {
         _dispatcher = dispatcher; _alerts = new(_clock); _processor = new(_clock, _alerts); _settings = _settingsStore.Load();
         try { WindowsStartupRegistration.Apply(_settings.AutoStartOnWindowsBoot); }
-        catch (Exception ex) { Log($"Windows startup registration failed: {ex.Message}"); }
+        catch (Exception ex) { AppLog.Error("Startup", "Windows startup registration failed.", ex); }
         _alerts.VisibleAlertChanged += alert => _dispatcher.BeginInvoke(() => _taskbar?.SetAlert(alert));
         _renderTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => RenderPending(), dispatcher);
         _healthTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) =>
@@ -208,7 +208,7 @@ public sealed class AppController : IAsyncDisposable
         Log($"WRC stage transition: {code} ({name}) stage {id} -> {status}");
     }
     private void OnConnection(ConnectionState state) { StatusChanged?.Invoke(state); Log($"Connection: {state}"); }
-    private void OnFailure(FeedFailure failure) => Log($"Feed failure: {failure.Message}");
+    private void OnFailure(FeedFailure failure) => AppLog.Warning("Feed", failure.Message, failure.Exception);
     private void RenderPending()
     {
         var snapshot = Interlocked.Exchange(ref _pending, null); if (snapshot is null) return;
@@ -271,8 +271,8 @@ public sealed class AppController : IAsyncDisposable
 
     public void OpenLogs()
     {
-        var dir = Path.Combine(AppContext.BaseDirectory, "Logs"); Directory.CreateDirectory(dir);
-        Process.Start(new ProcessStartInfo("explorer.exe", dir) { UseShellExecute = true });
+        Directory.CreateDirectory(AppLog.Folder);
+        Process.Start(new ProcessStartInfo("explorer.exe", AppLog.Folder) { UseShellExecute = true });
     }
     public string StartFeedDump(string folder)
     {
@@ -287,10 +287,7 @@ public sealed class AppController : IAsyncDisposable
         Log($"Feed dump stopped: {FeedDump.Folder}");
         FeedDump.Stop();
     }
-    private static void Log(string message)
-    {
-        try { var dir = Path.Combine(AppContext.BaseDirectory, "Logs"); Directory.CreateDirectory(dir); File.AppendAllText(Path.Combine(dir, "app.log"), $"{DateTimeOffset.Now:O} {message}{Environment.NewLine}"); } catch { }
-    }
+    private static void Log(string message) => AppLog.Info("AppController", message);
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;

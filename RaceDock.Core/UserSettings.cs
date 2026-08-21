@@ -332,9 +332,7 @@ public sealed class UserSettingsStore(string? path = null)
         WriteIndented = true,
         Converters = { new JsonStringEnumConverter() }
     };
-    public string Path { get; } = path ?? System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "RaceDock", "settings.json");
+    public string Path { get; } = path ?? AppPaths.Settings;
 
     public UserSettings Load()
     {

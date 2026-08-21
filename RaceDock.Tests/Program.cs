@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 using System.IO.Compression;
 using System.Text.Json.Nodes;
 using RaceDock.Core;
@@ -43,6 +43,8 @@ var tests = new (string Name, Action Run)[]
     ("the experimental flyout blur stays off until asked for", FlyoutBlurSettings),
     ("a feed dump records payloads verbatim per source", FeedDumpCapture),
     ("an indexed array patch keeps the fields it leaves out", IndexedArrayPatchMerge),
+    ("the application log records structured rotating entries", AppLogStructuredRecords),
+    ("a failing application log never throws into its caller", AppLogNeverThrows),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
     ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
@@ -1106,6 +1108,77 @@ static void SessionLapTimeMode()
     // Rally stages carry their own stage time and are never reclassified as last-lap sessions.
     Equal(LapTimeMode.BestLap, Mode("SS1", Championship.WorldRallyChampionship));
     Equal(LapTimeMode.BestLap, Mode("Race", Championship.WorldRallyChampionship));
+}
+
+static void AppLogStructuredRecords()
+{
+    var folder = Path.Combine(Path.GetTempPath(), $"racedock-log-{Guid.NewGuid():N}");
+    try
+    {
+        AppLog.UseFolder(folder);
+        AppLog.Info("Feed", "Connected.", new { Championship = "Formula1", Competitors = 20 });
+        AppLog.Error("Feed", "Parse failed.", new InvalidDataException("bad frame"));
+        AppLog.Close();
+
+        var lines = File.ReadAllLines(Path.Combine(folder, "app.ndjson"));
+        Equal(2, lines.Length);
+
+        var first = JsonNode.Parse(lines[0])!.AsObject();
+        Equal("Info", JsonSupport.String(first["Level"]));
+        Equal("Feed", JsonSupport.String(first["Source"]));
+        Equal("Connected.", JsonSupport.String(first["Message"]));
+        Equal("Formula1", JsonSupport.String(first["Data"]!["Championship"]));
+        Equal(20, JsonSupport.Int(first["Data"]!["Competitors"]));
+
+        // An error keeps the exception detail, which the old string log discarded.
+        var second = JsonNode.Parse(lines[1])!.AsObject();
+        Equal("Error", JsonSupport.String(second["Level"]));
+        True(JsonSupport.String(second["Exception"])!.Contains("bad frame"));
+
+        // Rotation keeps the newest file current and never exceeds the retained count.
+        for (var index = 0; index < 24_000; index++) AppLog.Info("Bulk", new string('x', 240));
+        AppLog.Info("Marker", "after rotation");
+        AppLog.Close();
+
+        True(File.Exists(Path.Combine(folder, "app.ndjson.1")));
+        False(File.Exists(Path.Combine(folder, "app.ndjson.3")));
+        True(File.ReadAllText(Path.Combine(folder, "app.ndjson")).Contains("after rotation"));
+    }
+    finally
+    {
+        AppLog.UseFolder(AppPaths.Logs);
+        if (Directory.Exists(folder)) Directory.Delete(folder, true);
+    }
+}
+
+static void AppLogNeverThrows()
+{
+    var file = Path.Combine(Path.GetTempPath(), $"racedock-log-{Guid.NewGuid():N}.txt");
+    try
+    {
+        // A file where the folder must be: every write fails, and none of them may escape.
+        File.WriteAllText(file, "occupied");
+        AppLog.UseFolder(file);
+        AppLog.Info("Feed", "first");
+        AppLog.Error("Feed", "second", new InvalidOperationException("ignored"));
+        AppLog.Close();
+
+        // Recovery is automatic once a usable folder exists again.
+        var folder = Path.Combine(Path.GetTempPath(), $"racedock-log-{Guid.NewGuid():N}");
+        try
+        {
+            AppLog.UseFolder(folder);
+            AppLog.Info("Feed", "third");
+            AppLog.Close();
+            True(File.ReadAllText(Path.Combine(folder, "app.ndjson")).Contains("third"));
+        }
+        finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+    }
+    finally
+    {
+        AppLog.UseFolder(AppPaths.Logs);
+        if (File.Exists(file)) File.Delete(file);
+    }
 }
 
 static void ChampionshipLabels()
