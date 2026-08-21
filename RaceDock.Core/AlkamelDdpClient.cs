@@ -16,7 +16,7 @@ internal interface IAlkamelDdpClient : IAsyncDisposable
 }
 
 /// <summary>Minimal SockJS and Meteor DDP transport for Al Kamel timing streams.</summary>
-internal sealed class AlkamelDdpClient(Uri socketBase) : IAlkamelDdpClient
+internal sealed class AlkamelDdpClient(Uri socketBase, string source) : IAlkamelDdpClient
 {
     private const int MaximumMessageBytes = 2 * 1024 * 1024;
     private readonly Queue<JsonObject> _pending = [];
@@ -113,7 +113,9 @@ internal sealed class AlkamelDdpClient(Uri socketBase) : IAlkamelDdpClient
             if (message.Length > MaximumMessageBytes)
                 throw new InvalidDataException("Al Kamel SockJS message exceeded the supported size.");
         } while (!result.EndOfMessage);
-        return Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length);
+        var text = Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length);
+        FeedDump.Record(source, text);
+        return text;
     }
 
     public async ValueTask DisposeAsync()

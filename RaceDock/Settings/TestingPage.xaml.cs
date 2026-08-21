@@ -9,6 +9,7 @@ using Wpf.Ui.Controls;
 using DataFormats = System.Windows.DataFormats;
 using DragDropEffects = System.Windows.DragDropEffects;
 using DragEventArgs = System.Windows.DragEventArgs;
+using OpenFolderDialog = Microsoft.Win32.OpenFolderDialog;
 using Page = System.Windows.Controls.Page;
 
 namespace RaceDock.App.Settings;
@@ -30,12 +31,14 @@ public sealed partial class TestingPage : Page
 
     private readonly AppController _controller;
     private readonly Dictionary<ScenarioCommand, ToggleButton> _commandButtons;
+    private readonly string _dumpIdleText;
     private bool _syncingControls = true;
 
     public TestingPage(AppController controller)
     {
         _controller = controller;
         InitializeComponent();
+        _dumpIdleText = FeedDumpPathText.Text;
         _commandButtons = new Dictionary<ScenarioCommand, ToggleButton>
         {
             [ScenarioCommand.Yellow] = YellowButton,
@@ -306,26 +309,22 @@ public sealed partial class TestingPage : Page
         }
     }
 
-    private void ApplyTopFiveButton_Click(object sender, RoutedEventArgs e)
+    private void FeedDumpToggle_Checked(object sender, RoutedEventArgs e)
     {
-        if (!TryScenario(out var scenario)) return;
-        var values = TopFiveTextBox.Text
-            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Take(5)
-            .Select(value =>
-            {
-                var pair = value.Split(':', 2);
-                return new ManualStanding(pair[0], pair.Length == 2 && pair[1] != "—" ? pair[1] : null);
-            })
-            .ToList();
-        scenario.SetTopFive(values);
+        var dialog = new OpenFolderDialog { Title = "Choose where to write the feed dump" };
+        if (dialog.ShowDialog() != true)
+        {
+            FeedDumpToggle.IsChecked = false;
+            return;
+        }
+        FeedDumpPathText.Text = $"Writing to {_controller.StartFeedDump(dialog.FolderName)}";
     }
 
-    private void DiagnosticRecordingToggle_Checked(object sender, RoutedEventArgs e) =>
-        _controller.SetDiagnosticRecording(true);
-
-    private void DiagnosticRecordingToggle_Unchecked(object sender, RoutedEventArgs e) =>
-        _controller.SetDiagnosticRecording(false);
+    private void FeedDumpToggle_Unchecked(object sender, RoutedEventArgs e)
+    {
+        _controller.StopFeedDump();
+        FeedDumpPathText.Text = _dumpIdleText;
+    }
 
     private void SyncScenarioState(TimingSnapshot snapshot)
     {

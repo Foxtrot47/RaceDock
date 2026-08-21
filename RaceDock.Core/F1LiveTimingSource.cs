@@ -7,7 +7,7 @@ using System.Text.Json.Nodes;
 
 namespace RaceDock.Core;
 
-public sealed class F1LiveTimingSource(TimingStateProcessor processor, IClock clock, string? logDirectory = null) : ILiveTimingSource
+public sealed class F1LiveTimingSource(TimingStateProcessor processor, IClock clock) : ILiveTimingSource
 {
     private const string WsUrl = "wss://livetiming.formula1.com/signalrcore";
     private const char RecordSeparator = '\u001e';
@@ -17,7 +17,6 @@ public sealed class F1LiveTimingSource(TimingStateProcessor processor, IClock cl
     private TimeSpan? _remainingAtUpdate;
     private DateTimeOffset _clockUpdatedAt;
     private bool _clockExtrapolating;
-    public bool DiagnosticRecordingEnabled { get; set; }
     public event Action<TimingSnapshot>? SnapshotReceived;
     public event Action<TimingDelta>? DeltaReceived;
     public event Action<ConnectionState>? ConnectionChanged;
@@ -106,7 +105,7 @@ public sealed class F1LiveTimingSource(TimingStateProcessor processor, IClock cl
             var text = await ReceiveTextAsync(ct);
             if (text is null) return;
             if (string.IsNullOrWhiteSpace(text)) continue;
-            await RecordFrameAsync(text, ct);
+            FeedDump.Record("formula1", text);
             ProcessMessage(text);
         }
     }
@@ -137,15 +136,6 @@ public sealed class F1LiveTimingSource(TimingStateProcessor processor, IClock cl
             DeltaReceived?.Invoke(delta);
             processor.ProcessDelta(topic, node, delta.Timestamp);
         }
-    }
-
-    private async Task RecordFrameAsync(string text, CancellationToken ct)
-    {
-        if (!DiagnosticRecordingEnabled || logDirectory is null) return;
-        Directory.CreateDirectory(logDirectory);
-        var path = Path.Combine(logDirectory, "diagnostic-feed.ndjson");
-        if (File.Exists(path) && new FileInfo(path).Length >= 2 * 1024 * 1024) return;
-        await File.AppendAllTextAsync(path, JsonSerializer.Serialize(new { timestamp = clock.UtcNow, frame = text }) + Environment.NewLine, ct);
     }
 
     private void ForwardSnapshot(TimingSnapshot value) => SnapshotReceived?.Invoke(value with { TimeRemaining = CurrentTimeRemaining() });

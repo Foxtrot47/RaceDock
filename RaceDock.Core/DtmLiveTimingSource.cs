@@ -31,6 +31,7 @@ internal sealed class DtmApiClient : IDtmApiClient
     {
         var date = Uri.EscapeDataString(now.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
         var text = await _http.GetStringAsync($"meta/sessions?dateTime={date}&forward=true&seriesIds=14", cancellationToken);
+        FeedDump.Record("dtm", text);
         return JsonNode.Parse(text) as JsonArray ?? throw new InvalidDataException("DTM session discovery returned invalid JSON.");
     }
 
@@ -39,6 +40,7 @@ internal sealed class DtmApiClient : IDtmApiClient
         var text = await _http.GetStringAsync(
             $"api/v2/public/live/session/{sessionId}/bootstrap?includeViewers=false&includeUnclassifiedRanks=false",
             cancellationToken);
+        FeedDump.Record("dtm", text);
         return JsonNode.Parse(text) as JsonObject ?? throw new InvalidDataException("DTM live timing returned invalid JSON.");
     }
 

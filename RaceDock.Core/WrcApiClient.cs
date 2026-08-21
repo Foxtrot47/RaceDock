@@ -159,8 +159,9 @@ internal sealed class WrcApiClient : IDisposable
     {
         using var response = await SendAsync(path, ct);
         response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        var node = await JsonNode.ParseAsync(stream, cancellationToken: ct) ?? throw new InvalidOperationException($"WRC endpoint {path} returned empty JSON.");
+        var text = await response.Content.ReadAsStringAsync(ct);
+        FeedDump.Record("wrc", text);
+        var node = JsonNode.Parse(text) ?? throw new InvalidOperationException($"WRC endpoint {path} returned empty JSON.");
         return node as T ?? throw new InvalidOperationException($"WRC endpoint {path} returned an unexpected JSON shape.");
     }
 
@@ -170,8 +171,9 @@ internal sealed class WrcApiClient : IDisposable
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NoContent) return null;
         response.EnsureSuccessStatusCode();
         if (response.Content.Headers.ContentLength == 0) return null;
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        return await JsonNode.ParseAsync(stream, cancellationToken: ct) as JsonArray
+        var text = await response.Content.ReadAsStringAsync(ct);
+        FeedDump.Record("wrc", text);
+        return JsonNode.Parse(text) as JsonArray
             ?? throw new InvalidOperationException($"WRC endpoint {path} returned an unexpected JSON shape.");
     }
 

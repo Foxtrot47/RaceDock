@@ -41,6 +41,7 @@ var tests = new (string Name, Action Run)[]
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
     ("hidden championships stay disabled and out of sight", ChampionshipVisibility),
     ("the experimental flyout blur stays off until asked for", FlyoutBlurSettings),
+    ("a feed dump records payloads verbatim per source", FeedDumpCapture),
     ("an indexed array patch keeps the fields it leaves out", IndexedArrayPatchMerge),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
@@ -1107,39 +1108,6 @@ static void SessionLapTimeMode()
     Equal(LapTimeMode.BestLap, Mode("Race", Championship.WorldRallyChampionship));
 }
 
-static void IndexedArrayPatchMerge()
-{
-    // The timing feeds patch arrays by index, sending only the fields that changed.
-    var state = (JsonObject)JsonNode.Parse("""
-        {"Lines":{"63":{"Stints":[
-            {"Compound":"MEDIUM","TotalLaps":9},
-            {"Compound":"SOFT","TotalLaps":1}]}}}
-        """)!;
-    JsonSupport.DeepMerge(state, (JsonObject)JsonNode.Parse("""
-        {"Lines":{"63":{"Stints":{"1":{"TotalLaps":4,"LapTime":"1:11.567"}}}}}
-        """)!);
-
-    var stints = (JsonArray)state["Lines"]!["63"]!["Stints"]!;
-    Equal(2, stints.Count);
-    Equal("MEDIUM", JsonSupport.String(stints[0]!["Compound"]));
-    Equal("SOFT", JsonSupport.String(stints[1]!["Compound"]));
-    Equal(4, JsonSupport.Int(stints[1]!["TotalLaps"]));
-    Equal("1:11.567", JsonSupport.String(stints[1]!["LapTime"]));
-
-    // A patch that grows the array still lands at the requested position.
-    JsonSupport.DeepMerge(state, (JsonObject)JsonNode.Parse("""
-        {"Lines":{"63":{"Stints":{"2":{"Compound":"HARD"}}}}}
-        """)!);
-    Equal(3, stints.Count);
-    Equal("HARD", JsonSupport.String(stints[2]!["Compound"]));
-
-    // An object with non-index keys is a value, not a patch, so it still replaces.
-    JsonSupport.DeepMerge(state, (JsonObject)JsonNode.Parse("""
-        {"Lines":{"63":{"Stints":{"Compound":"WET"}}}}
-        """)!);
-    Equal("WET", JsonSupport.String(state["Lines"]!["63"]!["Stints"]!["Compound"]));
-}
-
 static void ChampionshipLabels()
 {
     Equal(4, (int)Championship.WorldRallyChampionship);
@@ -1189,6 +1157,82 @@ static void ChampionshipLabels()
         Championship = Championship.MotoGp,
         Circuit = "MotoGP Silverstone Circuit"
     }));
+}
+
+static void IndexedArrayPatchMerge()
+{
+    // The timing feeds patch arrays by index, sending only the fields that changed.
+    var state = (JsonObject)JsonNode.Parse("""
+        {"Lines":{"63":{"Stints":[
+            {"Compound":"MEDIUM","TotalLaps":9},
+            {"Compound":"SOFT","TotalLaps":1}]}}}
+        """)!;
+    JsonSupport.DeepMerge(state, (JsonObject)JsonNode.Parse("""
+        {"Lines":{"63":{"Stints":{"1":{"TotalLaps":4,"LapTime":"1:11.567"}}}}}
+        """)!);
+
+    var stints = (JsonArray)state["Lines"]!["63"]!["Stints"]!;
+    Equal(2, stints.Count);
+    Equal("MEDIUM", JsonSupport.String(stints[0]!["Compound"]));
+    Equal("SOFT", JsonSupport.String(stints[1]!["Compound"]));
+    Equal(4, JsonSupport.Int(stints[1]!["TotalLaps"]));
+    Equal("1:11.567", JsonSupport.String(stints[1]!["LapTime"]));
+
+    // A patch that grows the array still lands at the requested position.
+    JsonSupport.DeepMerge(state, (JsonObject)JsonNode.Parse("""
+        {"Lines":{"63":{"Stints":{"2":{"Compound":"HARD"}}}}}
+        """)!);
+    Equal(3, stints.Count);
+    Equal("HARD", JsonSupport.String(stints[2]!["Compound"]));
+
+    // An object with non-index keys is a value, not a patch, so it still replaces.
+    JsonSupport.DeepMerge(state, (JsonObject)JsonNode.Parse("""
+        {"Lines":{"63":{"Stints":{"Compound":"WET"}}}}
+        """)!);
+    Equal("WET", JsonSupport.String(state["Lines"]!["63"]!["Stints"]!["Compound"]));
+}
+
+static void FeedDumpCapture()
+{
+    var body = """
+        {"head":{"session_status_id":"L","session_name":"Race","event_name":"Test GP"},"rider":{}}
+        """;
+    var root = Path.Combine(Path.GetTempPath(), $"racedock-dump-{Guid.NewGuid():N}");
+    var clock = new FakeClock(new DateTimeOffset(2026, 8, 7, 14, 0, 0, TimeSpan.Zero));
+    try
+    {
+        // A source polling with no dump running writes nothing at all.
+        var idleDelay = new BlockingDelay();
+        using var idleHttp = new HttpClient(new StaticJsonHandler(body));
+        var idle = new MotoGpLiveTimingSource(idleHttp, clock, idleDelay, new AlertArbiter(clock),
+            TimeSpan.FromHours(1), targetChampionship: Championship.Moto2);
+        idle.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        True(idleDelay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+        idle.StopAsync().GetAwaiter().GetResult();
+        False(Directory.Exists(root));
+
+        var folder = FeedDump.Start(root);
+        var delay = new BlockingDelay();
+        using var http = new HttpClient(new StaticJsonHandler(body));
+        var source = new MotoGpLiveTimingSource(http, clock, delay, new AlertArbiter(clock),
+            TimeSpan.FromHours(1), targetChampionship: Championship.Moto2);
+        source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+        True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+        source.StopAsync().GetAwaiter().GetResult();
+
+        // The file is named for the source and holds the payload exactly as the feed sent it.
+        using var open = new FileStream(Path.Combine(folder, "moto2.ndjson"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        var line = new StreamReader(open).ReadLine()!;
+        Equal(body, System.Text.Json.JsonSerializer.Deserialize<FeedDumpEntry>(line).Payload);
+
+        FeedDump.Stop();
+        Equal(null, FeedDump.Folder);
+    }
+    finally
+    {
+        FeedDump.Stop();
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+    }
 }
 
 static void FlyoutBlurSettings()

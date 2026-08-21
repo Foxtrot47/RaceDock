@@ -141,7 +141,9 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
                 message.Write(buffer, 0, result.Count);
             } while (!result.EndOfMessage);
             if (message.Length == 0) continue;
-            ProcessMessage(Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length));
+            var text = Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length);
+            FeedDump.Record(series.ToLowerInvariant(), text);
+            ProcessMessage(text);
         }
     }
 

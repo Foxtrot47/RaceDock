@@ -208,34 +208,6 @@
           </WrapPanel>
         </ui:CardControl>
 
-        <ui:CardExpander Style="{StaticResource SettingsExpanderStyle}" Icon="{ui:SymbolIcon PeopleList24}">
-          <ui:CardExpander.Header>
-            <StackPanel HorizontalAlignment="Left">
-              <TextBlock Text="Classification" Style="{StaticResource SettingsCardTitleStyle}" />
-              <TextBlock Text="Override the top five entries shown by the widget and flyout."
-                         Style="{StaticResource SettingsCardDescriptionStyle}" />
-            </StackPanel>
-          </ui:CardExpander.Header>
-          <StackPanel>
-            <TextBlock Text="One CODE:GAP pair per entry, comma separated. Use — for a missing gap."
-                       Margin="0,0,0,8"
-                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-              </Grid.ColumnDefinitions>
-              <TextBox x:Name="TopFiveTextBox"
-                       Text="NOR:LEAD,PIA:+0.8,LEC:+1.5,VER:+2.0,RUS:+2.8"
-                       FontFamily="Consolas"
-                       VerticalContentAlignment="Center" />
-              <ui:Button Grid.Column="1"
-                         Content="Apply"
-                         Margin="8,0,0,0"
-                         Click="ApplyTopFiveButton_Click" />
-            </Grid>
-          </StackPanel>
-        </ui:CardExpander>
       </StackPanel>
 
       <TextBlock Text="Diagnostics" Style="{StaticResource SettingsSectionTitleStyle}" />
@@ -244,15 +216,16 @@
                       Margin="0,0,0,14">
         <ui:CardControl.Header>
           <StackPanel HorizontalAlignment="Left">
-            <TextBlock Text="Record raw Formula 1 feed" Style="{StaticResource SettingsCardTitleStyle}" />
-            <TextBlock Text="Recording is bounded to 2 MiB and excludes credentials. Restart the live feed after changing it."
+            <TextBlock Text="Dump raw feed data" Style="{StaticResource SettingsCardTitleStyle}" />
+            <TextBlock x:Name="FeedDumpPathText"
+                       Text="Every enabled live stream is written verbatim, one file per feed, until you switch this off. A dump can carry session tokens, so read one before you share it."
                        Style="{StaticResource SettingsCardDescriptionStyle}" />
           </StackPanel>
         </ui:CardControl.Header>
-        <ui:ToggleSwitch x:Name="DiagnosticRecordingToggle"
+        <ui:ToggleSwitch x:Name="FeedDumpToggle"
                          Style="{StaticResource SettingsToggleStyle}"
-                         Checked="DiagnosticRecordingToggle_Checked"
-                         Unchecked="DiagnosticRecordingToggle_Unchecked" />
+                         Checked="FeedDumpToggle_Checked"
+                         Unchecked="FeedDumpToggle_Unchecked" />
       </ui:CardControl>
     </StackPanel>
   </ScrollViewer>

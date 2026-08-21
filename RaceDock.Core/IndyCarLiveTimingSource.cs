@@ -43,6 +43,7 @@ internal sealed class IndyCarApiClient : IIndyCarApiClient
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         var text = await response.Content.ReadAsStringAsync(cancellationToken);
+        FeedDump.Record("indycar", text);
         var payload = JsonNode.Parse(text) as JsonObject ??
             throw new InvalidDataException("INDYCAR live timing returned invalid JSON.");
         return new(payload, response.Content.Headers.LastModified);

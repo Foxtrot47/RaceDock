@@ -24,7 +24,6 @@ public sealed class AppController : IAsyncDisposable
     private SettingsWindow? _settingsWindow;
     private readonly CancellationTokenSource _lifetime = new();
     private UserSettings _settings;
-    private bool _diagnosticRecording;
     private bool _snapshotLogged;
     private string? _wrcTransitionKey;
     private bool _disposed;
@@ -96,10 +95,8 @@ public sealed class AppController : IAsyncDisposable
 
     private ILiveTimingSource CreateLiveSource()
     {
-        var logs = Path.Combine(AppContext.BaseDirectory, "Logs");
-        Directory.CreateDirectory(logs);
         var factories = new List<Func<ILiveTimingSource>>();
-        if (_settings.EnableFormula1) factories.Add(() => new F1LiveTimingSource(_processor, _clock, logs) { DiagnosticRecordingEnabled = _diagnosticRecording });
+        if (_settings.EnableFormula1) factories.Add(() => new F1LiveTimingSource(_processor, _clock));
         if (_settings.EnableFormula2) factories.Add(() => new F2LiveTimingSource(_clock, _alerts));
         if (_settings.EnableFormula3) factories.Add(() => new F2LiveTimingSource(_clock, _alerts, "F3"));
         if (_settings.EnableMotoGp) factories.Add(() => new MotoGpLiveTimingSource(_clock, _alerts, Championship.MotoGp));
@@ -277,7 +274,19 @@ public sealed class AppController : IAsyncDisposable
         var dir = Path.Combine(AppContext.BaseDirectory, "Logs"); Directory.CreateDirectory(dir);
         Process.Start(new ProcessStartInfo("explorer.exe", dir) { UseShellExecute = true });
     }
-    public void SetDiagnosticRecording(bool enabled) { _diagnosticRecording = enabled; Log($"Diagnostic recording: {enabled}. A currently active connection applies this after feed restart."); }
+    public string StartFeedDump(string folder)
+    {
+        var path = FeedDump.Start(folder);
+        Log($"Feed dump started: {path}");
+        return path;
+    }
+
+    public void StopFeedDump()
+    {
+        if (FeedDump.Folder is null) return;
+        Log($"Feed dump stopped: {FeedDump.Folder}");
+        FeedDump.Stop();
+    }
     private static void Log(string message)
     {
         try { var dir = Path.Combine(AppContext.BaseDirectory, "Logs"); Directory.CreateDirectory(dir); File.AppendAllText(Path.Combine(dir, "app.log"), $"{DateTimeOffset.Now:O} {message}{Environment.NewLine}"); } catch { }

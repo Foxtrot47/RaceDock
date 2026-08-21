@@ -62,7 +62,9 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
             {
                 if (_connection != ConnectionState.Connected) ChangeConnection(ConnectionState.Connecting);
                 var cacheBuster = _clock.UtcNow.ToUnixTimeMilliseconds();
-                var payload = await _http.GetFromJsonAsync<JsonObject>($"{Endpoint}?{cacheBuster}", ct)
+                var text = await _http.GetStringAsync($"{Endpoint}?{cacheBuster}", ct);
+                FeedDump.Record((_targetChampionship ?? Championship.MotoGp).ToString().ToLowerInvariant(), text);
+                var payload = JsonNode.Parse(text) as JsonObject
                     ?? throw new InvalidOperationException("MotoGP live timing returned no payload.");
                 ChangeConnection(ConnectionState.Connected);
                 ProcessPayload(payload);

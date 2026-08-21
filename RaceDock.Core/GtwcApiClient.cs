@@ -45,8 +45,9 @@ internal sealed class GtwcApiClient : IDisposable
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        var root = await JsonNode.ParseAsync(stream, cancellationToken: ct) as JsonObject
+        var text = await response.Content.ReadAsStringAsync(ct);
+        FeedDump.Record("gtwc", text);
+        var root = JsonNode.Parse(text) as JsonObject
             ?? throw new InvalidOperationException($"GTWC endpoint {key} returned an unexpected JSON shape.");
         var full = root["content"]?["full"] as JsonObject
             ?? throw new InvalidOperationException($"GTWC endpoint {key} did not contain a full snapshot.");

@@ -50,7 +50,7 @@ public abstract class AlkamelLiveTimingSourceFacade : ILiveTimingSource
 public sealed class ImsaLiveTimingSource : AlkamelLiveTimingSourceFacade
 {
     public ImsaLiveTimingSource(IClock clock, IAlertArbiter alerts)
-        : this(() => new AlkamelDdpClient(AlkamelFeedDefinition.Imsa.SocketBase), clock,
+        : this(() => new AlkamelDdpClient(AlkamelFeedDefinition.Imsa.SocketBase, "imsa"), clock,
             new SystemAsyncDelay(), alerts, AlkamelTimingOptions.Default) { }
 
     internal ImsaLiveTimingSource(
@@ -65,7 +65,7 @@ public sealed class ImsaLiveTimingSource : AlkamelLiveTimingSourceFacade
 public sealed class FormulaELiveTimingSource : AlkamelLiveTimingSourceFacade
 {
     public FormulaELiveTimingSource(IClock clock, IAlertArbiter alerts)
-        : this(() => new AlkamelDdpClient(AlkamelFeedDefinition.FormulaE.SocketBase), clock,
+        : this(() => new AlkamelDdpClient(AlkamelFeedDefinition.FormulaE.SocketBase, "formulae"), clock,
             new SystemAsyncDelay(), alerts, AlkamelTimingOptions.Default) { }
 
     internal FormulaELiveTimingSource(
