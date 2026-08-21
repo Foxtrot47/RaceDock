@@ -78,7 +78,6 @@ public interface ITimingPlaybackSource : ILiveTimingSource
 public interface ITimingScenarioSource : ITimingPlaybackSource
 {
     void Trigger(ScenarioCommand command);
-    void SetTopFive(IReadOnlyList<ManualStanding> standings);
 }
 
 public interface ITimingArchiveSource : ITimingPlaybackSource
@@ -89,8 +88,6 @@ public interface ITimingArchiveSource : ITimingPlaybackSource
     int FrameIndex { get; }
     int FrameCount { get; }
 }
-
-public sealed record ManualStanding(string Code, string? GapToLeader);
 
 public enum ScenarioCommand { Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, Green, FastestLap, RedFlag, Chequered, Disconnect, Stale, Reconnect }
 

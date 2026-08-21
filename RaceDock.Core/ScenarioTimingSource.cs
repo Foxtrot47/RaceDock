@@ -52,17 +52,6 @@ public sealed class ScenarioTimingSource(TimingStateProcessor processor, IClock 
     public void Restart() { IsPaused = true; _step = 0; processor.ClearAlerts(); processor.ProcessInitial(CreateInitial()); _advance.Release(); }
     public void Step() { IsPaused = true; ApplyStep(_step++ % 12); }
     public void Trigger(ScenarioCommand command) => ApplyCommand(command);
-    public void SetTopFive(IReadOnlyList<ManualStanding> standings)
-    {
-        var ids = new[] { "4", "81", "16", "1", "63" }; var drivers = new JsonObject(); var lines = new JsonObject();
-        for (var i = 0; i < Math.Min(5, standings.Count); i++)
-        {
-            drivers[ids[i]] = new JsonObject { ["Tla"] = standings[i].Code.ToUpperInvariant() };
-            lines[ids[i]] = new JsonObject { ["Position"] = i + 1, ["GapToLeader"] = i == 0 ? "LEAD" : standings[i].GapToLeader };
-        }
-        Feed("DriverList", drivers); Feed("TimingData", new JsonObject { ["Lines"] = lines });
-    }
-
     private async Task RunAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)

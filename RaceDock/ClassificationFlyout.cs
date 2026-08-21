@@ -5,6 +5,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using RaceDock.Core;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace RaceDock.App;
 
@@ -23,8 +25,7 @@ public sealed class ClassificationFlyout : Window
     private readonly ScrollingTextClock _scrollClock = new();
     private readonly ScrollingTextBlock _title = new();
     private readonly ScrollingTextBlock _sessionDetails = new();
-    private readonly TextBlock _connectionText = new();
-    private readonly Border _connectionBadge = new();
+    private readonly SymbolIcon _connectionGlyph = new();
     private readonly TextBlock _trackText = new();
     private readonly Border _trackBadge = new();
     private Grid _sessionHeader = null!;
@@ -400,10 +401,11 @@ public sealed class ClassificationFlyout : Window
             VerticalAlignment = VerticalAlignment.Center
         };
         ConfigureBadge(_trackBadge, _trackText);
-        ConfigureBadge(_connectionBadge, _connectionText);
+        _connectionGlyph.FontSize = 15;
+        _connectionGlyph.VerticalAlignment = VerticalAlignment.Center;
         _trackBadge.Margin = new Thickness(0, 0, 6, 0);
         _badges.Children.Add(_trackBadge);
-        _badges.Children.Add(_connectionBadge);
+        _badges.Children.Add(_connectionGlyph);
         Grid.SetColumn(_badges, 1);
         header.Children.Add(_badges);
         return header;
@@ -424,24 +426,36 @@ public sealed class ClassificationFlyout : Window
         return header;
     }
 
+    /// <summary>Shows a connection problem as a single tinted glyph. A healthy feed earns no badge.</summary>
     private void UpdateConnectionBadge(ConnectionState state)
     {
-        _connectionText.Text = state.ToString().ToUpperInvariant();
-        _connectionBadge.Background = state switch
+        if (state is ConnectionState.Connected)
         {
-            ConnectionState.Connected => BrushFrom(30, 138, 88, 0.28),
-            ConnectionState.Connecting => BrushFrom(33, 132, 188, 0.28),
-            ConnectionState.Stale => BrushFrom(207, 133, 24, 0.35),
-            ConnectionState.Faulted => BrushFrom(199, 45, 70, 0.35),
-            _ => BrushFrom(92, 96, 106, 0.3)
+            _connectionGlyph.Visibility = Visibility.Collapsed;
+            return;
+        }
+        _connectionGlyph.Visibility = Visibility.Visible;
+        (_connectionGlyph.Symbol, var tint) = state switch
+        {
+            ConnectionState.Connecting => (SymbolRegular.ArrowSync20, Color.FromRgb(96, 165, 224)),
+            ConnectionState.Stale => (SymbolRegular.Warning24, Color.FromRgb(232, 174, 58)),
+            ConnectionState.Faulted => (SymbolRegular.ErrorCircle24, Color.FromRgb(226, 82, 104)),
+            _ => (SymbolRegular.PlugDisconnected24, Color.FromRgb(158, 163, 173))
         };
+        _connectionGlyph.Foreground = new SolidColorBrush(tint);
+        _connectionGlyph.ToolTip = state.ToString();
     }
 
     private void UpdateTrackBadge(TrackCondition condition)
     {
+        if (condition is TrackCondition.AllClear)
+        {
+            _trackBadge.Visibility = Visibility.Collapsed;
+            return;
+        }
+        _trackBadge.Visibility = Visibility.Visible;
         (_trackText.Text, _trackBadge.Background) = condition switch
         {
-            TrackCondition.AllClear => ("GREEN", BrushFrom(30, 138, 88, 0.28)),
             TrackCondition.Yellow => ("YELLOW", BrushFrom(218, 164, 22, 0.36)),
             TrackCondition.DoubleYellow => ("DOUBLE YELLOW", BrushFrom(218, 164, 22, 0.36)),
             TrackCondition.SafetyCar => ("SAFETY CAR", BrushFrom(210, 119, 25, 0.38)),

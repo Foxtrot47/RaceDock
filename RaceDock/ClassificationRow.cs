@@ -201,7 +201,7 @@ internal sealed class ClassificationRow
         _gap.Visibility = display.FlyoutShowGaps ? Visibility.Visible : Visibility.Collapsed;
         _interval.Visibility = display.FlyoutShowIntervals ? Visibility.Visible : Visibility.Collapsed;
         _result.Visibility = display.FlyoutShowLapTime ? Visibility.Visible : Visibility.Collapsed;
-        _tyreBadge.Visibility = display.FlyoutShowTyre ? Visibility.Visible : Visibility.Collapsed;
+        _tyreBadge.Visibility = display.FlyoutShowTyre && _tyreText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         _category.Visibility = display.FlyoutShowCategoryOrLap ? Visibility.Visible : Visibility.Collapsed;
         _statusBadge.Visibility = display.FlyoutShowStatus ? Visibility.Visible : Visibility.Collapsed;
         _team.Visibility = display.FlyoutShowTeamNames ? Visibility.Visible : Visibility.Collapsed;
@@ -271,7 +271,14 @@ internal sealed class ClassificationRow
 
     private void UpdateTyre(string? tyre)
     {
-        var normalized = string.IsNullOrWhiteSpace(tyre) ? "—" : tyre.Trim().ToUpperInvariant();
+        var normalized = tyre?.Trim().ToUpperInvariant();
+        // A feed that sends no compound, or sends its own "UNKNOWN", has nothing to put in a badge.
+        if (string.IsNullOrEmpty(normalized) || normalized == "UNKNOWN")
+        {
+            _tyreText.Text = "";
+            _tyreBadge.Visibility = Visibility.Collapsed;
+            return;
+        }
         var (background, foreground) = normalized switch
         {
             "SOFT" or "S" or "O" => (TyreBrushes.Soft, Brushes.White),
@@ -284,6 +291,7 @@ internal sealed class ClassificationRow
         _tyreText.Text = normalized;
         _tyreText.Foreground = foreground;
         _tyreBadge.Background = background;
+        _tyreBadge.Visibility = Visibility.Visible;
     }
 
     private void UpdateStatus(CompetitorStanding standing)
