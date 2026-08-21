@@ -137,13 +137,16 @@ internal sealed record ChampionshipSettingsPresentation
         "Team names",
         "Show each crew's registered team.",
         "Show vehicle manufacturer marks beside crews.",
-        "Stage time",
-        "Show each crew's elapsed stage time.",
+        "Tyres",
+        "Show each crew's tyre choice.",
         "Rally class",
         "Show each crew's WRC category.",
         "Show running, retired, and classified crew status.") with
         {
-            ShowTeamSetting = false
+            ShowTeamSetting = false,
+            ShowResultSetting = false,
+            LapTimeTitle = "Stage time",
+            LapTimeDescription = "Show each crew's elapsed stage time."
         };
 
     private static ChampionshipSettingsPresentation Endurance(string championship) => Common(
