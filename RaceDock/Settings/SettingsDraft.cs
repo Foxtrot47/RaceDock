@@ -169,6 +169,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private bool _enableDtm;
     private bool _enableIndyCar;
     private bool _autoStartOnWindowsBoot;
+    private bool _interfaceAnimations;
     private int _rotationSeconds;
     private int _completedSessionRetentionMinutes;
     private TaskbarWidgetPosition _widgetPosition;
@@ -240,6 +241,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     public bool EnableDtm { get => _enableDtm; set => SetStream(Championship.Dtm, ref _enableDtm, value); }
     public bool EnableIndyCar { get => _enableIndyCar; set => SetStream(Championship.IndyCar, ref _enableIndyCar, value); }
     public bool AutoStartOnWindowsBoot { get => _autoStartOnWindowsBoot; set => Set(ref _autoStartOnWindowsBoot, value); }
+    public bool InterfaceAnimations { get => _interfaceAnimations; set => Set(ref _interfaceAnimations, value); }
     public int RotationSeconds { get => _rotationSeconds; set => Set(ref _rotationSeconds, value); }
     public int CompletedSessionRetentionMinutes { get => _completedSessionRetentionMinutes; set => Set(ref _completedSessionRetentionMinutes, value); }
     public TaskbarWidgetPosition WidgetPosition { get => _widgetPosition; set => Set(ref _widgetPosition, value); }
@@ -439,6 +441,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         EnableDtm = normalized.EnableDtm;
         EnableIndyCar = normalized.EnableIndyCar;
         AutoStartOnWindowsBoot = normalized.AutoStartOnWindowsBoot;
+        InterfaceAnimations = normalized.InterfaceAnimations;
         RotationSeconds = normalized.RotationSeconds;
         CompletedSessionRetentionMinutes = normalized.CompletedSessionRetentionMinutes;
         WidgetPosition = normalized.WidgetPosition;
@@ -455,6 +458,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     {
         var defaults = new UserSettings();
         AutoStartOnWindowsBoot = defaults.AutoStartOnWindowsBoot;
+        InterfaceAnimations = defaults.InterfaceAnimations;
         RotationSeconds = defaults.RotationSeconds;
         CompletedSessionRetentionMinutes = defaults.CompletedSessionRetentionMinutes;
         WidgetPosition = defaults.WidgetPosition;
@@ -503,6 +507,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             ShowPositionColors = formula1.FlyoutShowPositionColors,
             UseManufacturerLogos = formula1.FlyoutUseManufacturerLogos,
             AutoStartOnWindowsBoot = AutoStartOnWindowsBoot,
+            InterfaceAnimations = InterfaceAnimations,
             WidgetPosition = WidgetPosition,
             ChampionshipDisplay = _profiles.Normalize()
         }.Normalize();

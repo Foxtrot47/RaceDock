@@ -43,12 +43,15 @@ public sealed class ClassificationFlyout : Window
     private ChampionshipDisplaySettings _display;
     private TimingSnapshot? _snapshot;
     private double _driverColumnWidth = MinimumDriverColumn;
+    private readonly TranslateTransform _slide = new();
     private int _driverSignature;
     private int _visibleRowCount;
     private IReadOnlyList<FlyoutColumn>? _headerOrder;
 
     /// <summary>Root padding and border, added to the column total to get the window width.</summary>
     private const double ChromeWidth = 26;
+    /// <summary>Transparent border reserved around the panel for the slide and the drop shadow.</summary>
+    private const double Slack = SurfaceMotion.SlideDistance;
     private const double MinimumDriverColumn = 150;
     private const double MaximumDriverColumn = 260;
     /// <summary>The driver grid's own left and right margins.</summary>
@@ -72,11 +75,11 @@ public sealed class ClassificationFlyout : Window
         _sessionDetails.Clock = _scrollClock;
         // Width follows the visible columns and the widest name in the field; height follows the row
         // count until it reaches the cap, after which the classification scrolls.
-        Width = MinimumDriverColumn + ChromeWidth;
+        Width = MinimumDriverColumn + ChromeWidth + (Slack * 2);
         SizeToContent = SizeToContent.Height;
         MaxHeight = Math.Min(
             Math.Round(SystemParameters.WorkArea.Height * 0.7),
-            ChromeHeight + (MaximumVisibleRows * RowHeight));
+            ChromeHeight + (MaximumVisibleRows * RowHeight)) + (Slack * 2);
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
@@ -96,6 +99,10 @@ public sealed class ClassificationFlyout : Window
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(12, 10, 12, 10),
             BorderThickness = new Thickness(1),
+            // Transparent slack around the panel. It gives the opening slide somewhere to travel
+            // without the window edge clipping it, and lets the drop shadow below render at all.
+            Margin = new Thickness(Slack),
+            RenderTransform = _slide,
             Effect = new DropShadowEffect
             {
                 BlurRadius = 18,
@@ -138,7 +145,13 @@ public sealed class ClassificationFlyout : Window
         _closeTimer.Tick += (_, _) =>
         {
             _closeTimer.Stop();
-            Hide();
+            // The fade can finish after the pointer has come back. Hiding then would be wrong, and
+            // leaving the window faded out would strand it invisible, so put it back instead.
+            SurfaceMotion.PlayClose(this, _slide, () =>
+            {
+                if (!_closeTimer.IsEnabled && !IsMouseOver) Hide();
+                else CancelClose();
+            });
         };
         MouseEnter += (_, _) =>
         {
@@ -286,7 +299,15 @@ public sealed class ClassificationFlyout : Window
         // Every column keeps its full width, so the window grows to fit rather than truncating values.
         // Once the classification scrolls, the scrollbar needs its own space or it would clip the last column.
         var scrollbar = _visibleRowCount > MaximumVisibleRows ? SystemParameters.VerticalScrollBarWidth : 0;
-        Width = ColumnWidths().Sum(column => column.Value) + ChromeWidth + scrollbar;
+        Width = ColumnWidths().Sum(column => column.Value) + ChromeWidth + scrollbar + (Slack * 2);
+    }
+
+    /// <summary>Shows the flyout and plays it into place.</summary>
+    public void Reveal()
+    {
+        CancelClose();
+        Show();
+        SurfaceMotion.PlayOpen(this, _slide);
     }
 
     public void ScheduleClose()
@@ -295,7 +316,11 @@ public sealed class ClassificationFlyout : Window
         _closeTimer.Start();
     }
 
-    public void CancelClose() => _closeTimer.Stop();
+    public void CancelClose()
+    {
+        _closeTimer.Stop();
+        SurfaceMotion.CancelClose(this, _slide);
+    }
 
     private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Championship == Championship.WorldRallyChampionship || snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
     private static bool IsEnduranceSnapshot(TimingSnapshot snapshot) => snapshot.Championship is Championship.GtWorldChallengeEurope or Championship.Imsa;

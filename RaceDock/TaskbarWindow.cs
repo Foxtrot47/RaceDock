@@ -13,6 +13,7 @@ namespace RaceDock.App;
 public sealed class TaskbarWindow : Window
 {
     private readonly Grid _root = new();
+    private readonly Border _hoverSurface;
     private readonly ColumnDefinition _contextColumn = new() { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 100 };
     private readonly UniformGrid _strip = new() { Rows = 1, Columns = 5, Margin = new(2) };
     private readonly Grid _raceContext = new() { Margin = new(6, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
@@ -75,7 +76,11 @@ public sealed class TaskbarWindow : Window
         Grid.SetRow(_eventHeader, 0); Grid.SetRow(_lapText, 1);
         _raceContext.Children.Add(_eventHeader); _raceContext.Children.Add(_lapText);
         Grid.SetColumn(_raceContext, 0); Grid.SetColumn(_strip, 1);
-        _root.Children.Add(_raceContext); _root.Children.Add(_strip); Content = _root;
+        _root.Children.Add(_raceContext); _root.Children.Add(_strip);
+        // The widget lights as one surface, the way a taskbar button does.
+        _hoverSurface = new Border { Child = _root, CornerRadius = new CornerRadius(6), SnapsToDevicePixels = true };
+        SurfaceMotion.AttachHover(_hoverSurface);
+        Content = _hoverSurface;
         _host = new(this); SourceInitialized += (_, _) => _host.Attach();
         Loaded += (_, _) => _host.Reattach();
         _host.PositionChanged += visible => { if (!visible) _flyout.Hide(); else if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
@@ -90,6 +95,7 @@ public sealed class TaskbarWindow : Window
     public void ApplySettings(UserSettings settings)
     {
         _settings = settings.Normalize();
+        SurfaceMotion.Enabled = _settings.InterfaceAnimations;
         _host.ApplyPosition(_settings.WidgetPosition);
         ApplyDisplay(_snapshot?.Championship ?? Championship.Formula1);
         _flyout.ApplySettings(_settings);
@@ -280,7 +286,7 @@ public sealed class TaskbarWindow : Window
 
     private void ShowFlyout()
     {
-        if (_snapshot is null) return; _flyout.CancelClose(); _flyout.Show(); _flyout.UpdateLayout(); _host.PositionFlyout(_flyout);
+        if (_snapshot is null) return; _flyout.Reveal(); _flyout.UpdateLayout(); _host.PositionFlyout(_flyout);
     }
     protected override void OnClosed(EventArgs e) { _reattach.Stop(); _flyout.Close(); base.OnClosed(e); }
 }

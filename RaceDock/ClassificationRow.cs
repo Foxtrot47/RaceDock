@@ -47,6 +47,7 @@ internal sealed class ClassificationRow
     private static readonly SolidColorBrush TyreDarkText = Frozen(Color.FromRgb(35, 35, 35));
 
     private readonly Grid _grid;
+    private readonly Border _container;
     private readonly Border _positionCard;
     private readonly TextBlock _positionText;
     private readonly Grid _driver;
@@ -71,6 +72,8 @@ internal sealed class ClassificationRow
     {
         _grid = new Grid { MinHeight = 38 };
         for (var index = 0; index < 8; index++) _grid.ColumnDefinitions.Add(new ColumnDefinition());
+        _container = new Border { Child = _grid, CornerRadius = new CornerRadius(6) };
+        SurfaceMotion.AttachHover(_container, highlightTopEdge: false);
 
         _positionText = new TextBlock
         {
@@ -164,7 +167,7 @@ internal sealed class ClassificationRow
         _grid.Children.Add(_statusBadge);
     }
 
-    public UIElement Element => _grid;
+    public UIElement Element => _container;
 
     /// <summary>
     /// Places the movable cells in the configured order. The order only changes when the user rearranges

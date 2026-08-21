@@ -1427,6 +1427,12 @@ static void UserSettingsPersistence()
         var legacyGlobal = new UserSettings { UseManufacturerLogos = true }.Normalize();
         True(legacyGlobal.DisplayFor(Championship.Formula1).TaskbarUseManufacturerLogos);
         True(legacyGlobal.DisplayFor(Championship.Formula1).FlyoutUseManufacturerLogos);
+
+        // Motion is on out of the box, and switching it off has to survive a round trip to disk.
+        True(fresh.InterfaceAnimations);
+        var quiet = System.Text.Json.JsonSerializer.Deserialize<UserSettings>(
+            System.Text.Json.JsonSerializer.Serialize(new UserSettings { InterfaceAnimations = false }))!.Normalize();
+        False(quiet.InterfaceAnimations);
     }
     finally
     {

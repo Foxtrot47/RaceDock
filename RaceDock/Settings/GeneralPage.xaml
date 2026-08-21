@@ -16,6 +16,12 @@
         <ui:ToggleSwitch IsChecked="{Binding AutoStartOnWindowsBoot, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
       </ui:CardControl>
 
+      <TextBlock Text="Motion" Style="{StaticResource SettingsSectionTitleStyle}" />
+      <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Flash24}">
+        <ui:CardControl.Header><StackPanel HorizontalAlignment="Left"><TextBlock Text="Animate the interface" Style="{StaticResource SettingsCardTitleStyle}" /><TextBlock Text="Ease the classification into view and light the widget under the pointer." Style="{StaticResource SettingsCardDescriptionStyle}" /></StackPanel></ui:CardControl.Header>
+        <ui:ToggleSwitch IsChecked="{Binding InterfaceAnimations, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+      </ui:CardControl>
+
       <TextBlock Text="Taskbar placement" Style="{StaticResource SettingsSectionTitleStyle}" />
       <TextBlock Text="Placement applies to the widget for every championship." Style="{StaticResource SettingsSectionDescriptionStyle}" />
       <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon ArrowMove24}">

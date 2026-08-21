@@ -241,6 +241,10 @@ public sealed record UserSettings
     public bool ShowPositionColors { get; init; } = true;
     public bool UseManufacturerLogos { get; init; }
     public bool AutoStartOnWindowsBoot { get; init; } = true;
+
+    /// <summary>Eases the flyout open and lights the widget under the pointer. Off returns every
+    /// transition to an immediate state change.</summary>
+    public bool InterfaceAnimations { get; init; } = true;
     public TaskbarWidgetPosition WidgetPosition { get; init; } = TaskbarWidgetPosition.LeftOfStart;
     public ChampionshipDisplayProfiles? ChampionshipDisplay { get; init; }
 

@@ -62,8 +62,12 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
         var width = flyoutRect.Right - flyoutRect.Left; var height = flyoutRect.Bottom - flyoutRect.Top;
         var x = widget.Left + ((widget.Right - widget.Left) - width) / 2;
         x = Math.Clamp(x, taskbar.Left + 8, Math.Max(taskbar.Left + 8, taskbar.Right - width - 8));
+        // The flyout carries transparent slack around its panel, so the gap is measured to the
+        // painted edge rather than to the window edge.
+        var scale = flyout.ActualHeight > 0 ? height / flyout.ActualHeight : 1.0;
+        var slack = (int)Math.Round(SurfaceMotion.SlideDistance * scale);
         var taskbarIsAtTop = taskbar.Top <= 0;
-        var y = taskbarIsAtTop ? taskbar.Bottom + 8 : taskbar.Top - height - 8;
+        var y = taskbarIsAtTop ? taskbar.Bottom + 8 - slack : taskbar.Top - height - 8 + slack;
         SetWindowPos(flyoutHwnd, IntPtr.Zero, x, y, width, height, SwpNoZOrder | SwpNoActivate | SwpShowWindow);
     }
 
