@@ -271,8 +271,8 @@ internal sealed class ClassificationRow
         var normalized = string.IsNullOrWhiteSpace(tyre) ? "—" : tyre.Trim().ToUpperInvariant();
         var (background, foreground) = normalized switch
         {
-            "SOFT" or "S" => (TyreBrushes.Soft, Brushes.White),
-            "MEDIUM" or "M" => (TyreBrushes.Medium, TyreDarkText),
+            "SOFT" or "S" or "O" => (TyreBrushes.Soft, Brushes.White),
+            "MEDIUM" or "M" or "P" => (TyreBrushes.Medium, TyreDarkText),
             "HARD" or "H" => (TyreBrushes.Hard, TyreDarkText),
             "INTERMEDIATE" or "I" => (TyreBrushes.Intermediate, Brushes.White),
             "WET" or "W" => (TyreBrushes.Wet, Brushes.White),
