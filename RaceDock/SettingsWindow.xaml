@@ -141,11 +141,6 @@
                         <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/imsa.png" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="Testing" Tag="Testing" Click="NavigationItem_Click">
-                    <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Bug24" Style="{StaticResource NavigationGlyphStyle}" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
                 <!--  Everything lives in the menu list: the footer list is pinned and cannot scroll, so items there become unreachable in a short window.  -->
                 <ui:NavigationViewItem Content="More championships"
                                Tag="MoreChampionships"

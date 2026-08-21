@@ -52,6 +52,12 @@
         <StackPanel Orientation="Horizontal"><Slider Minimum="5" Maximum="30" Value="{Binding CompletedSessionRetentionMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SettingsSliderStyle}" /><TextBlock Text="{Binding CompletedSessionRetentionMinutes, StringFormat={}{0} min}" Style="{StaticResource SettingsValueStyle}" /></StackPanel>
       </ui:CardControl>
 
+      <TextBlock Text="Advanced" Style="{StaticResource SettingsSectionTitleStyle}" />
+      <ui:CardAction Tag="Testing" Margin="0,0,0,14" Padding="16,14" IsChevronVisible="True" Click="SettingsCard_Click">
+        <ui:CardAction.Icon><ui:SymbolIcon Symbol="Bug24" /></ui:CardAction.Icon>
+        <StackPanel HorizontalAlignment="Left"><TextBlock Text="Testing" Style="{StaticResource SettingsCardTitleStyle}" /><TextBlock Text="Replay recorded sessions and drive the widget without a live timing feed." Style="{StaticResource SettingsCardDescriptionStyle}" /></StackPanel>
+      </ui:CardAction>
+
       <ui:CardControl Style="{StaticResource SettingsResetCardStyle}" Icon="{ui:SymbolIcon ArrowReset24}">
         <ui:CardControl.Header><TextBlock Text="Reset to defaults" Style="{StaticResource SettingsCardTitleStyle}" /></ui:CardControl.Header>
         <ui:Button Style="{StaticResource SettingsResetButtonStyle}" Click="ResetButton_Click" />

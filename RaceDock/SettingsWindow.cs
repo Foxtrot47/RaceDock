@@ -43,8 +43,10 @@ public sealed partial class SettingsWindow : FluentWindow
         var dashboard = new DashboardPage();
         dashboard.NavigateRequested += NavigateTo;
         _testingPage = new TestingPage(controller);
+        var general = new GeneralPage();
+        general.NavigateRequested += NavigateTo;
         AddPage("Dashboard", dashboard);
-        AddPage("General", new GeneralPage());
+        AddPage("General", general);
         AddPage("Championship", new ChampionshipPage());
         AddPage("Testing", _testingPage);
         AddPage("MoreChampionships", new MoreChampionshipsPage());
@@ -123,12 +125,18 @@ public sealed partial class SettingsWindow : FluentWindow
         var item = RootNavigation.MenuItems.OfType<NavigationViewItem>()
             .Concat(RootNavigation.FooterMenuItems.OfType<NavigationViewItem>())
             .FirstOrDefault(candidate => Equals(candidate.Tag, pageKey));
-        if (item is not null) ShowPage(item);
+        ShowPage(pageKey, item);
     }
 
     private void ShowPage(NavigationViewItem item)
     {
-        if (item.Tag is not string key) return;
+        if (item.Tag is string key) ShowPage(key, item);
+    }
+
+    /// <summary>Shows a page and highlights <paramref name="item"/>. Pages reached from a card
+    /// rather than the pane have no item, and leave the pane with nothing highlighted.</summary>
+    private void ShowPage(string key, NavigationViewItem? item)
+    {
         if (TryChampionship(key, out var championship))
         {
             _draft.SelectedChampionship = championship;
