@@ -314,7 +314,6 @@ public sealed record UserSettings
             HiddenChampionships = hidden,
             RotationSeconds = Math.Clamp(RotationSeconds, 2, 30),
             CompletedSessionRetentionMinutes = Math.Clamp(CompletedSessionRetentionMinutes, 5, 30),
-            // Below the floor the classification stops being readable over a busy desktop.
             FlyoutBlurTint = Math.Clamp(FlyoutBlurTint, 30, 95),
             DriverCount = Math.Clamp(DriverCount, 1, 5),
             WidgetPosition = Enum.IsDefined(WidgetPosition) ? WidgetPosition : TaskbarWidgetPosition.LeftOfStart,

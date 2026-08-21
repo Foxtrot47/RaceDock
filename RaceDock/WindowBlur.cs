@@ -1,4 +1,3 @@
-using System;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -13,8 +12,7 @@ namespace RaceDock.App;
 /// <remarks>
 /// This uses the accent-policy route rather than the modern DWM system backdrop. The flyout is
 /// deliberately never activated, and a DWM backdrop renders as a flat fill on a window carrying
-/// WS_EX_NOACTIVATE, so it cannot show anything behind. Accent blur has no such restriction and
-/// works on the layered window the flyout already needs for its slide.
+/// WS_EX_NOACTIVATE, so it cannot show anything behind. Accent blur has no such restriction.
 /// </remarks>
 internal static class WindowBlur
 {
@@ -56,7 +54,7 @@ internal static class WindowBlur
         if (!TransparencyEnabled()) return false;
 
         var tint = Resolve("SolidBackgroundFillColorBase", FallbackDark);
-        var alpha = (uint)Math.Clamp(tintPercent * 255 / 100, 0, 255);
+        var alpha = (uint)(tintPercent * 255 / 100);
         var accent = new AccentPolicy
         {
             AccentState = AccentEnableAcrylicBlurBehind,
@@ -68,7 +66,6 @@ internal static class WindowBlur
 
     private static bool Send(IntPtr hwnd, AccentPolicy accent)
     {
-
         var size = Marshal.SizeOf(accent);
         var buffer = Marshal.AllocHGlobal(size);
         try
@@ -94,7 +91,8 @@ internal static class WindowBlur
         {
             using var key = Registry.CurrentUser.OpenSubKey(
                 @"SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize");
-            return key?.GetValue("EnableTransparency") is not int enabled || enabled != 0;
+            if (key?.GetValue("EnableTransparency") is int enabled) return enabled != 0;
+            return true;
         }
         catch (Exception)
         {

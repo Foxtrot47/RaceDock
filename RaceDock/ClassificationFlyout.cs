@@ -42,7 +42,6 @@ public sealed class ClassificationFlyout : Window
     private ChampionshipDisplaySettings _display;
     private TimingSnapshot? _snapshot;
     private double _driverColumnWidth = MinimumDriverColumn;
-    /// <summary>Carries the opening offset. The window is moved to match, so this drives no visual.</summary>
     private readonly TranslateTransform _slide = new();
     private readonly Border _panel;
     private bool _blurred;
@@ -173,14 +172,11 @@ public sealed class ClassificationFlyout : Window
     }
 
     /// <summary>
-    /// Matches the window surface to the settings. Safe to call before the handle exists, because
-    /// <see cref="OnSourceInitialized"/> runs it again once there is a window to act on.
+    /// Matches the window surface to the settings. Before the handle exists this settles on the
+    /// opaque fallback, and <see cref="OnSourceInitialized"/> runs it again once there is a window.
     /// </summary>
     private void ApplySurface()
     {
-        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-        if (hwnd == IntPtr.Zero) return;
-
         _blurred = _settings.FlyoutAcrylicBlur && WindowBlur.TryApply(this, _settings.FlyoutBlurTint);
         if (!_blurred) WindowBlur.Disable(this);
 
