@@ -6,12 +6,33 @@ namespace RaceDock.Core;
 
 public static class JsonSupport
 {
+    // Bounds how far a malformed patch can grow an array.
+    private const int MaximumIndexedLength = 4096;
+
     public static void DeepMerge(JsonObject destination, JsonObject? source)
     {
         if (source is null) return;
         foreach (var pair in source)
             if (destination[pair.Key] is JsonObject d && pair.Value is JsonObject s) DeepMerge(d, s);
+            else if (destination[pair.Key] is JsonArray a && pair.Value is JsonObject indexed && IsIndexPatch(indexed))
+                MergeIndexed(a, indexed);
             else destination[pair.Key] = pair.Value?.DeepClone();
+    }
+
+    /// <summary>The timing feeds patch an array by sending an object keyed by position.</summary>
+    private static bool IsIndexPatch(JsonObject source) =>
+        source.Count > 0 && source.All(pair => int.TryParse(pair.Key, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) && index >= 0);
+
+    private static void MergeIndexed(JsonArray destination, JsonObject source)
+    {
+        foreach (var pair in source)
+        {
+            var index = int.Parse(pair.Key, NumberStyles.Integer, CultureInfo.InvariantCulture);
+            if (index >= MaximumIndexedLength) continue;
+            while (destination.Count <= index) destination.Add(new JsonObject());
+            if (destination[index] is JsonObject existing && pair.Value is JsonObject patch) DeepMerge(existing, patch);
+            else destination[index] = pair.Value?.DeepClone();
+        }
     }
 
     public static string? String(JsonNode? node)

@@ -41,6 +41,7 @@ var tests = new (string Name, Action Run)[]
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
     ("hidden championships stay disabled and out of sight", ChampionshipVisibility),
     ("the experimental flyout blur stays off until asked for", FlyoutBlurSettings),
+    ("an indexed array patch keeps the fields it leaves out", IndexedArrayPatchMerge),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
     ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
@@ -1104,6 +1105,39 @@ static void SessionLapTimeMode()
     // Rally stages carry their own stage time and are never reclassified as last-lap sessions.
     Equal(LapTimeMode.BestLap, Mode("SS1", Championship.WorldRallyChampionship));
     Equal(LapTimeMode.BestLap, Mode("Race", Championship.WorldRallyChampionship));
+}
+
+static void IndexedArrayPatchMerge()
+{
+    // The timing feeds patch arrays by index, sending only the fields that changed.
+    var state = (JsonObject)JsonNode.Parse("""
+        {"Lines":{"63":{"Stints":[
+            {"Compound":"MEDIUM","TotalLaps":9},
+            {"Compound":"SOFT","TotalLaps":1}]}}}
+        """)!;
+    JsonSupport.DeepMerge(state, (JsonObject)JsonNode.Parse("""
+        {"Lines":{"63":{"Stints":{"1":{"TotalLaps":4,"LapTime":"1:11.567"}}}}}
+        """)!);
+
+    var stints = (JsonArray)state["Lines"]!["63"]!["Stints"]!;
+    Equal(2, stints.Count);
+    Equal("MEDIUM", JsonSupport.String(stints[0]!["Compound"]));
+    Equal("SOFT", JsonSupport.String(stints[1]!["Compound"]));
+    Equal(4, JsonSupport.Int(stints[1]!["TotalLaps"]));
+    Equal("1:11.567", JsonSupport.String(stints[1]!["LapTime"]));
+
+    // A patch that grows the array still lands at the requested position.
+    JsonSupport.DeepMerge(state, (JsonObject)JsonNode.Parse("""
+        {"Lines":{"63":{"Stints":{"2":{"Compound":"HARD"}}}}}
+        """)!);
+    Equal(3, stints.Count);
+    Equal("HARD", JsonSupport.String(stints[2]!["Compound"]));
+
+    // An object with non-index keys is a value, not a patch, so it still replaces.
+    JsonSupport.DeepMerge(state, (JsonObject)JsonNode.Parse("""
+        {"Lines":{"63":{"Stints":{"Compound":"WET"}}}}
+        """)!);
+    Equal("WET", JsonSupport.String(state["Lines"]!["63"]!["Stints"]!["Compound"]));
 }
 
 static void ChampionshipLabels()
