@@ -45,6 +45,7 @@ var tests = new (string Name, Action Run)[]
     ("an indexed array patch keeps the fields it leaves out", IndexedArrayPatchMerge),
     ("the application log records structured rotating entries", AppLogStructuredRecords),
     ("a failing application log never throws into its caller", AppLogNeverThrows),
+    ("a fatal session is announced once on the next launch", CrashMarkerAnnouncesOnce),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
     ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
@@ -1178,6 +1179,33 @@ static void AppLogNeverThrows()
     {
         AppLog.UseFolder(AppPaths.Logs);
         if (File.Exists(file)) File.Delete(file);
+    }
+}
+
+static void CrashMarkerAnnouncesOnce()
+{
+    var folder = Path.Combine(Path.GetTempPath(), $"racedock-crash-{Guid.NewGuid():N}");
+    try
+    {
+        CrashMarker.UseFolder(folder);
+        // A session that never crashed says nothing.
+        Equal(null, CrashMarker.Consume());
+
+        CrashMarker.Set("Object reference not set to an instance of an object.");
+        Equal("Object reference not set to an instance of an object.", CrashMarker.Consume());
+
+        // Consuming clears it, so the notice cannot repeat on every later launch.
+        Equal(null, CrashMarker.Consume());
+
+        // The last crash wins rather than accumulating.
+        CrashMarker.Set("first");
+        CrashMarker.Set("second");
+        Equal("second", CrashMarker.Consume());
+    }
+    finally
+    {
+        CrashMarker.UseFolder(AppPaths.Root);
+        if (Directory.Exists(folder)) Directory.Delete(folder, true);
     }
 }
 
