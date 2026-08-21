@@ -25,7 +25,6 @@ internal sealed class TaskbarCell
     ];
 
     private static readonly Brush[] ColoredCardBrushes = [.. CardColors.Select(colors => FrozenGradient(colors.Start, colors.End))];
-    private static readonly Brush NeutralCardBrush = FrozenGradient(Color.FromRgb(52, 55, 63), Color.FromRgb(83, 88, 100));
 
     private readonly Border _container;
     private readonly Grid _layout;
@@ -41,7 +40,7 @@ internal sealed class TaskbarCell
     public TaskbarCell()
     {
         _layout = new Grid();
-        _layout.ColumnDefinitions.Add(new ColumnDefinition());
+        _layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
         _layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         _positionText = new TextBlock
@@ -82,7 +81,7 @@ internal sealed class TaskbarCell
         _driver.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");
         _gap = new TextBlock { FontSize = 11, MinHeight = 11, TextTrimming = TextTrimming.CharacterEllipsis };
         _gap.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        _details = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        _details = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 0, 0) };
         _details.Children.Add(_driver);
         _details.Children.Add(_gap);
         Grid.SetColumn(_details, 1);
@@ -102,14 +101,11 @@ internal sealed class TaskbarCell
     public void Update(CompetitorStanding standing, Championship championship, ChampionshipDisplaySettings display,
         string driverText)
     {
-        ApplyLayout(display);
         _details.Visibility = Visibility.Visible;
         _driver.Text = driverText;
         _driver.ToolTip = standing.Name;
         _gap.Text = standing.Position == 1 ? "LEAD" : standing.GapToLeader ?? "—";
-        _gap.Visibility = display.TaskbarShowGaps ? Visibility.Visible : Visibility.Collapsed;
 
-        if (!display.TaskbarShowPositionMarker) return;
         var logoKey = display.TaskbarUseManufacturerLogos ? $"{championship}|{standing.Manufacturer}|{standing.Team}" : "";
         if (logoKey != _logoKey)
         {
@@ -121,35 +117,24 @@ internal sealed class TaskbarCell
         }
         if (!ReferenceEquals(_markerHost.Child, _positionCard)) return;
         _positionText.Text = standing.Position.ToString();
-        _positionCard.Background = CardBrush(standing.Position, display);
+        _positionCard.Background = CardBrush(standing.Position);
         _positionCard.Opacity = 1;
     }
 
     /// <summary>Renders the placeholder used for positions the feed has not filled yet.</summary>
-    public void UpdateEmpty(int position, ChampionshipDisplaySettings display)
+    public void UpdateEmpty(int position)
     {
-        ApplyLayout(display);
         _details.Visibility = Visibility.Collapsed;
         _driver.ToolTip = null;
-        if (!display.TaskbarShowPositionMarker) return;
         _logoKey = "";
         _markerHost.Child = _positionCard;
         _positionText.Text = "—";
-        _positionCard.Background = CardBrush(position, display);
+        _positionCard.Background = CardBrush(position);
         _positionCard.Opacity = .45;
     }
 
-    private void ApplyLayout(ChampionshipDisplaySettings display)
-    {
-        _layout.ColumnDefinitions[0].Width = display.TaskbarShowPositionMarker ? new GridLength(30) : new GridLength(0);
-        _markerHost.Visibility = display.TaskbarShowPositionMarker ? Visibility.Visible : Visibility.Collapsed;
-        _details.Margin = new Thickness(display.TaskbarShowPositionMarker ? 5 : 2, 0, 0, 0);
-    }
-
-    private static Brush CardBrush(int position, ChampionshipDisplaySettings display) =>
-        display.TaskbarShowPositionColors
-            ? ColoredCardBrushes[Math.Clamp(position, 1, ColoredCardBrushes.Length) - 1]
-            : NeutralCardBrush;
+    private static Brush CardBrush(int position) =>
+        ColoredCardBrushes[Math.Clamp(position, 1, ColoredCardBrushes.Length) - 1];
 
     private static LinearGradientBrush FrozenGradient(Color start, Color end)
     {

@@ -1362,15 +1362,12 @@ static void UserSettingsPersistence()
         var formula1Display = new ChampionshipDisplaySettings
         {
             TaskbarCompetitorCount = 2,
-            TaskbarCompetitorLabel = TaskbarCompetitorLabel.FullName,
             FlyoutCompetitorCount = 18
         };
         var motoGpDisplay = new ChampionshipDisplaySettings
         {
             TaskbarCompetitorCount = 4,
-            TaskbarCompetitorLabel = TaskbarCompetitorLabel.DriverNumber,
-            TaskbarShowGaps = false,
-            TaskbarUseManufacturerLogos = true,
+            TaskbarUseManufacturerLogos = false,
             FlyoutCompetitorCount = 12,
             FlyoutShowIntervals = false,
             FlyoutUseManufacturerLogos = true
@@ -1391,8 +1388,8 @@ static void UserSettingsPersistence()
         Equal(TaskbarWidgetPosition.RightOfStart, configured.WidgetPosition);
         Equal(2, configured.DisplayFor(Championship.Formula1).TaskbarCompetitorCount);
         Equal(4, configured.DisplayFor(Championship.MotoGp).TaskbarCompetitorCount);
-        Equal(TaskbarCompetitorLabel.DriverNumber, configured.DisplayFor(Championship.MotoGp).TaskbarCompetitorLabel);
-        False(configured.DisplayFor(Championship.MotoGp).TaskbarShowGaps);
+        False(configured.DisplayFor(Championship.MotoGp).TaskbarUseManufacturerLogos);
+        True(configured.DisplayFor(Championship.Formula1).TaskbarUseManufacturerLogos);
         False(configured.DisplayFor(Championship.MotoGp).FlyoutShowIntervals);
         True(configured.DisplayFor(Championship.MotoGp).FlyoutUseManufacturerLogos);
 
@@ -1416,12 +1413,20 @@ static void UserSettingsPersistence()
         var invalid = (new ChampionshipDisplaySettings
         {
             TaskbarCompetitorCount = 99,
-            TaskbarCompetitorLabel = (TaskbarCompetitorLabel)99,
             FlyoutCompetitorCount = 1
         }).Normalize();
         Equal(5, invalid.TaskbarCompetitorCount);
-        Equal(TaskbarCompetitorLabel.Code, invalid.TaskbarCompetitorLabel);
         Equal(5, invalid.FlyoutCompetitorCount);
+
+        // A first run draws manufacturer marks on the widget, while the retired global flag only
+        // still speaks for the flyout.
+        var fresh = new UserSettings().Normalize();
+        True(fresh.DisplayFor(Championship.Formula1).TaskbarUseManufacturerLogos);
+        False(fresh.DisplayFor(Championship.Formula1).FlyoutUseManufacturerLogos);
+        False(fresh.DisplayFor(Championship.Formula2).TaskbarUseManufacturerLogos);
+        var legacyGlobal = new UserSettings { UseManufacturerLogos = true }.Normalize();
+        True(legacyGlobal.DisplayFor(Championship.Formula1).TaskbarUseManufacturerLogos);
+        True(legacyGlobal.DisplayFor(Championship.Formula1).FlyoutUseManufacturerLogos);
     }
     finally
     {

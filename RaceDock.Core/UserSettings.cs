@@ -11,13 +11,6 @@ public enum TaskbarWidgetPosition
     RightOfStart
 }
 
-public enum TaskbarCompetitorLabel
-{
-    Code,
-    FullName,
-    DriverNumber
-}
-
 /// <summary>
 /// A classification column whose position the user controls. Position and driver are pinned to the left of
 /// the flyout and are deliberately absent.
@@ -35,20 +28,9 @@ public enum FlyoutColumn
 public sealed record ChampionshipDisplaySettings
 {
     public int TaskbarCompetitorCount { get; init; } = 5;
-    public TaskbarCompetitorLabel TaskbarCompetitorLabel { get; init; } = TaskbarCompetitorLabel.Code;
-    public bool TaskbarShowEventHeader { get; init; } = true;
-    public bool TaskbarShowSessionProgress { get; init; } = true;
-    public bool TaskbarShowGaps { get; init; } = true;
-    public bool TaskbarShowPositionMarker { get; init; } = true;
-    public bool TaskbarShowPositionColors { get; init; } = true;
-    public bool TaskbarUseManufacturerLogos { get; init; }
-    public bool TaskbarShowFlagAlerts { get; init; } = true;
+    public bool TaskbarUseManufacturerLogos { get; init; } = true;
 
     public int FlyoutCompetitorCount { get; init; } = 20;
-    public bool FlyoutShowEventHeader { get; init; } = true;
-    public bool FlyoutShowSessionDetails { get; init; } = true;
-    public bool FlyoutShowTrackStatus { get; init; } = true;
-    public bool FlyoutShowConnectionStatus { get; init; } = true;
     public bool FlyoutShowTeamNames { get; init; } = true;
     public bool FlyoutUseManufacturerLogos { get; init; }
     public bool FlyoutShowPositionColors { get; init; } = true;
@@ -93,9 +75,6 @@ public sealed record ChampionshipDisplaySettings
     {
         FlyoutColumnOrder = NormalizeColumnOrder(),
         TaskbarCompetitorCount = Math.Clamp(TaskbarCompetitorCount, 1, 5),
-        TaskbarCompetitorLabel = Enum.IsDefined(TaskbarCompetitorLabel)
-            ? TaskbarCompetitorLabel
-            : TaskbarCompetitorLabel.Code,
         FlyoutCompetitorCount = Math.Clamp(FlyoutCompetitorCount, 5, 40)
     };
 
@@ -125,12 +104,8 @@ public sealed record ChampionshipDisplaySettings
     internal static ChampionshipDisplaySettings FromLegacy(UserSettings settings) => new()
     {
         TaskbarCompetitorCount = settings.DriverCount,
-        TaskbarShowEventHeader = settings.ShowEventHeader,
-        TaskbarShowSessionProgress = settings.ShowSessionProgress,
-        TaskbarShowGaps = settings.ShowGaps,
-        TaskbarShowPositionColors = settings.ShowPositionColors,
-        TaskbarUseManufacturerLogos = settings.UseManufacturerLogos,
-        TaskbarShowFlagAlerts = settings.ShowFlagAlerts,
+        // The widget draws manufacturer marks by default, so the retired global flag only carries
+        // over to the flyout, where marks stay off until they are asked for.
         FlyoutUseManufacturerLogos = settings.UseManufacturerLogos,
         FlyoutShowPositionColors = settings.ShowPositionColors
     };
@@ -263,12 +238,8 @@ public sealed record UserSettings
     public int RotationSeconds { get; init; } = 5;
     public int CompletedSessionRetentionMinutes { get; init; } = 5;
     public int DriverCount { get; init; } = 5;
-    public bool ShowEventHeader { get; init; } = true;
-    public bool ShowSessionProgress { get; init; } = true;
-    public bool ShowGaps { get; init; } = true;
     public bool ShowPositionColors { get; init; } = true;
     public bool UseManufacturerLogos { get; init; }
-    public bool ShowFlagAlerts { get; init; } = true;
     public bool AutoStartOnWindowsBoot { get; init; } = true;
     public TaskbarWidgetPosition WidgetPosition { get; init; } = TaskbarWidgetPosition.LeftOfStart;
     public ChampionshipDisplayProfiles? ChampionshipDisplay { get; init; }

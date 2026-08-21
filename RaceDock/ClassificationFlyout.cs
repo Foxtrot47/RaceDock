@@ -275,15 +275,6 @@ public sealed class ClassificationFlyout : Window
 
     private void ApplyDisplay()
     {
-        _title.Visibility = _display.FlyoutShowEventHeader ? Visibility.Visible : Visibility.Collapsed;
-        _sessionDetails.Visibility = _display.FlyoutShowSessionDetails ? Visibility.Visible : Visibility.Collapsed;
-        _trackBadge.Visibility = _display.FlyoutShowTrackStatus ? Visibility.Visible : Visibility.Collapsed;
-        _connectionBadge.Visibility = _display.FlyoutShowConnectionStatus ? Visibility.Visible : Visibility.Collapsed;
-        _badges.Visibility = _display.FlyoutShowTrackStatus || _display.FlyoutShowConnectionStatus
-            ? Visibility.Visible : Visibility.Collapsed;
-        _sessionHeader.Visibility = _display.FlyoutShowEventHeader || _display.FlyoutShowSessionDetails ||
-            _display.FlyoutShowTrackStatus || _display.FlyoutShowConnectionStatus
-            ? Visibility.Visible : Visibility.Collapsed;
         _gapHeader.Visibility = _display.FlyoutShowGaps ? Visibility.Visible : Visibility.Collapsed;
         _intervalHeader.Visibility = _display.FlyoutShowIntervals ? Visibility.Visible : Visibility.Collapsed;
         _lapTimeHeader.Visibility = _display.FlyoutShowLapTime ? Visibility.Visible : Visibility.Collapsed;

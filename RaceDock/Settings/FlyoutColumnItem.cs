@@ -14,6 +14,7 @@ internal sealed class FlyoutColumnItem : INotifyPropertyChanged
     private readonly SettingsDraft _draft;
     private bool _canMoveUp;
     private bool _canMoveDown;
+    private int _position;
 
     internal FlyoutColumnItem(SettingsDraft draft, FlyoutColumn column, string title, string description, bool isSupported)
     {
@@ -44,6 +45,18 @@ internal sealed class FlyoutColumnItem : INotifyPropertyChanged
 
     public bool CanMoveUp { get => _canMoveUp; internal set => Set(ref _canMoveUp, value); }
     public bool CanMoveDown { get => _canMoveDown; internal set => Set(ref _canMoveDown, value); }
+
+    /// <summary>Where the column lands among the ones on show, so the list never numbers around a hidden row.</summary>
+    public int Position
+    {
+        get => _position;
+        internal set
+        {
+            if (_position == value) return;
+            _position = value;
+            OnPropertyChanged();
+        }
+    }
 
     /// <summary>Names the move buttons for screen readers, which otherwise announce a bare arrow.</summary>
     public string MoveUpName => $"Move {Title} up";

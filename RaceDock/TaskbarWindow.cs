@@ -13,7 +13,7 @@ namespace RaceDock.App;
 public sealed class TaskbarWindow : Window
 {
     private readonly Grid _root = new();
-    private readonly ColumnDefinition _contextColumn = new() { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 150 };
+    private readonly ColumnDefinition _contextColumn = new() { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 100 };
     private readonly UniformGrid _strip = new() { Rows = 1, Columns = 5, Margin = new(2) };
     private readonly Grid _raceContext = new() { Margin = new(6, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
     private readonly ScrollingTextBlock _raceText = new() { FontSize = 10.5, FontWeight = FontWeights.SemiBold };
@@ -101,12 +101,6 @@ public sealed class TaskbarWindow : Window
     {
         _display = _settings.DisplayFor(championship);
         _strip.Columns = _display.TaskbarCompetitorCount;
-        _eventHeader.Visibility = _display.TaskbarShowEventHeader ? Visibility.Visible : Visibility.Collapsed;
-        _lapText.Visibility = _display.TaskbarShowSessionProgress ? Visibility.Visible : Visibility.Collapsed;
-        _raceContext.Visibility = _display.TaskbarShowEventHeader || _display.TaskbarShowSessionProgress ? Visibility.Visible : Visibility.Collapsed;
-        _contextColumn.Width = _raceContext.Visibility == Visibility.Visible ? GridLength.Auto : new GridLength(0);
-        _contextColumn.MinWidth = _raceContext.Visibility == Visibility.Visible ? 72 : 0;
-        _contextColumn.MaxWidth = _raceContext.Visibility == Visibility.Visible ? 100 : 0;
     }
 
     public void UpdateSnapshot(TimingSnapshot snapshot)
@@ -222,7 +216,7 @@ public sealed class TaskbarWindow : Window
     {
         AlertKind? transient = _currentAlert?.Kind == AlertKind.Chequered ? AlertKind.Chequered : null;
         var kind = _snapshot is null ? null : TaskbarFlagDisplay.Resolve(_snapshot.TrackCondition, transient);
-        var show = _display.TaskbarShowFlagAlerts && kind is not null && _snapshot is not null && !IsRallySnapshot(_snapshot);
+        var show = kind is not null && _snapshot is not null && !IsRallySnapshot(_snapshot);
         _alert.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         if (!show || kind is null) return;
         _secondFlagShape.Visibility = kind == AlertKind.DoubleYellow ? Visibility.Visible : Visibility.Collapsed;
@@ -279,17 +273,10 @@ public sealed class TaskbarWindow : Window
         for (var index = 0; index < count; index++)
         {
             if (index < standings.Count)
-                _cells[index].Update(standings[index], snapshot.Championship, _display, TaskbarCompetitorText(standings[index]));
-            else _cells[index].UpdateEmpty(index + 1, _display);
+                _cells[index].Update(standings[index], snapshot.Championship, _display, standings[index].Code);
+            else _cells[index].UpdateEmpty(index + 1);
         }
     }
-
-    private string TaskbarCompetitorText(CompetitorStanding standing) => _display.TaskbarCompetitorLabel switch
-    {
-        TaskbarCompetitorLabel.FullName when !string.IsNullOrWhiteSpace(standing.Name) => standing.Name,
-        TaskbarCompetitorLabel.DriverNumber when !string.IsNullOrWhiteSpace(standing.DriverId) => standing.DriverId,
-        _ => standing.Code
-    };
 
     private void ShowFlyout()
     {

@@ -346,14 +346,63 @@
   </Style>
 
   <!--  Settings apply as they change, so each page ends with its own way back to the defaults.  -->
+  <!--
+    A championship configures two independent surfaces with near-identical option names, so the page shows
+    one surface at a time behind a segmented switch rather than repeating "Event name" twice in one scroll.
+  -->
+  <!-- Groups options within a surface: quieter than a section title so the surface heading stays dominant. -->
+  <Style x:Key="SettingsSubsectionTitleStyle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Margin" Value="2,16,0,6" />
+    <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+  </Style>
+
+  <!--
+    The column order is one ordered list, not six unrelated settings, so the rows share a single container
+    and drop their descriptions to tooltips to keep the whole arrangement visible at once.
+  -->
+  <Style x:Key="SettingsColumnListStyle" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="4" />
+  </Style>
+
+  <Style x:Key="SettingsColumnRowStyle" TargetType="Border">
+    <Setter Property="Height" Value="40" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Padding" Value="12,0,6,0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <Style x:Key="SettingsColumnPositionStyle" TargetType="TextBlock">
+    <Setter Property="Width" Value="22" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+  </Style>
+
+  <Style x:Key="SettingsColumnTitleStyle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+  </Style>
+
   <!-- Square icon-only buttons that move a classification column up or down the order. -->
   <Style x:Key="SettingsColumnMoveButtonStyle"
          TargetType="ui:Button"
          BasedOn="{StaticResource {x:Type ui:Button}}">
-    <Setter Property="Width" Value="36" />
-    <Setter Property="Height" Value="32" />
+    <Setter Property="Width" Value="34" />
+    <Setter Property="Height" Value="30" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="Margin" Value="0,0,8,0" />
+    <Setter Property="Margin" Value="0,0,6,0" />
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
   </Style>

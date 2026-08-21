@@ -174,19 +174,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private TaskbarWidgetPosition _widgetPosition;
     private Championship _selectedChampionship;
     private int _taskbarCompetitorCount;
-    private TaskbarCompetitorLabel _taskbarCompetitorLabel;
-    private bool _taskbarShowEventHeader;
-    private bool _taskbarShowSessionProgress;
-    private bool _taskbarShowGaps;
-    private bool _taskbarShowPositionMarker;
-    private bool _taskbarShowPositionColors;
     private bool _taskbarUseManufacturerLogos;
-    private bool _taskbarShowFlagAlerts;
     private int _flyoutCompetitorCount;
-    private bool _flyoutShowEventHeader;
-    private bool _flyoutShowSessionDetails;
-    private bool _flyoutShowTrackStatus;
-    private bool _flyoutShowConnectionStatus;
     private bool _flyoutShowTeamNames;
     private bool _flyoutUseManufacturerLogos;
     private bool _flyoutShowPositionColors;
@@ -341,20 +330,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     }
 
     public int TaskbarCompetitorCount { get => _taskbarCompetitorCount; set => Set(ref _taskbarCompetitorCount, value); }
-    public TaskbarCompetitorLabel TaskbarCompetitorLabel { get => _taskbarCompetitorLabel; set => Set(ref _taskbarCompetitorLabel, value); }
-    public bool TaskbarShowEventHeader { get => _taskbarShowEventHeader; set => Set(ref _taskbarShowEventHeader, value); }
-    public bool TaskbarShowSessionProgress { get => _taskbarShowSessionProgress; set => Set(ref _taskbarShowSessionProgress, value); }
-    public bool TaskbarShowGaps { get => _taskbarShowGaps; set => Set(ref _taskbarShowGaps, value); }
-    public bool TaskbarShowPositionMarker { get => _taskbarShowPositionMarker; set => Set(ref _taskbarShowPositionMarker, value); }
-    public bool TaskbarShowPositionColors { get => _taskbarShowPositionColors; set => Set(ref _taskbarShowPositionColors, value); }
     public bool TaskbarUseManufacturerLogos { get => _taskbarUseManufacturerLogos; set => Set(ref _taskbarUseManufacturerLogos, value); }
-    public bool TaskbarShowFlagAlerts { get => _taskbarShowFlagAlerts; set => Set(ref _taskbarShowFlagAlerts, value); }
 
     public int FlyoutCompetitorCount { get => _flyoutCompetitorCount; set => Set(ref _flyoutCompetitorCount, value); }
-    public bool FlyoutShowEventHeader { get => _flyoutShowEventHeader; set => Set(ref _flyoutShowEventHeader, value); }
-    public bool FlyoutShowSessionDetails { get => _flyoutShowSessionDetails; set => Set(ref _flyoutShowSessionDetails, value); }
-    public bool FlyoutShowTrackStatus { get => _flyoutShowTrackStatus; set => Set(ref _flyoutShowTrackStatus, value); }
-    public bool FlyoutShowConnectionStatus { get => _flyoutShowConnectionStatus; set => Set(ref _flyoutShowConnectionStatus, value); }
     public bool FlyoutShowTeamNames { get => _flyoutShowTeamNames; set => Set(ref _flyoutShowTeamNames, value); }
     public bool FlyoutUseManufacturerLogos { get => _flyoutUseManufacturerLogos; set => Set(ref _flyoutUseManufacturerLogos, value); }
     public bool FlyoutShowPositionColors { get => _flyoutShowPositionColors; set => Set(ref _flyoutShowPositionColors, value); }
@@ -426,7 +404,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         _ => new(this, column, "Status", presentation.StatusDescription, true)
     };
 
-    /// <summary>Greys out the move buttons at the ends of the list, counting only the columns the page shows.</summary>
+    /// <summary>Numbers the list and greys out the move buttons at its ends, counting only the columns the page shows.</summary>
     private void UpdateColumnMoveState()
     {
         var supported = _flyoutColumns.Where(item => item.IsSupported).ToList();
@@ -435,6 +413,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             item.CanMoveUp = supported.Count > 0 && !ReferenceEquals(item, supported[0]);
             item.CanMoveDown = supported.Count > 0 && !ReferenceEquals(item, supported[^1]);
         }
+        for (var position = 0; position < supported.Count; position++)
+            supported[position].Position = position + 1;
     }
 
     public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 ||
@@ -520,12 +500,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             RotationSeconds = RotationSeconds,
             CompletedSessionRetentionMinutes = CompletedSessionRetentionMinutes,
             DriverCount = formula1.TaskbarCompetitorCount,
-            ShowEventHeader = formula1.TaskbarShowEventHeader,
-            ShowSessionProgress = formula1.TaskbarShowSessionProgress,
-            ShowGaps = formula1.TaskbarShowGaps,
-            ShowPositionColors = formula1.TaskbarShowPositionColors,
-            UseManufacturerLogos = formula1.TaskbarUseManufacturerLogos,
-            ShowFlagAlerts = formula1.TaskbarShowFlagAlerts,
+            ShowPositionColors = formula1.FlyoutShowPositionColors,
+            UseManufacturerLogos = formula1.FlyoutUseManufacturerLogos,
             AutoStartOnWindowsBoot = AutoStartOnWindowsBoot,
             WidgetPosition = WidgetPosition,
             ChampionshipDisplay = _profiles.Normalize()
@@ -535,19 +511,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private void LoadProfile(ChampionshipDisplaySettings display)
     {
         TaskbarCompetitorCount = display.TaskbarCompetitorCount;
-        TaskbarCompetitorLabel = display.TaskbarCompetitorLabel;
-        TaskbarShowEventHeader = display.TaskbarShowEventHeader;
-        TaskbarShowSessionProgress = display.TaskbarShowSessionProgress;
-        TaskbarShowGaps = display.TaskbarShowGaps;
-        TaskbarShowPositionMarker = display.TaskbarShowPositionMarker;
-        TaskbarShowPositionColors = display.TaskbarShowPositionColors;
         TaskbarUseManufacturerLogos = display.TaskbarUseManufacturerLogos;
-        TaskbarShowFlagAlerts = display.TaskbarShowFlagAlerts;
         FlyoutCompetitorCount = display.FlyoutCompetitorCount;
-        FlyoutShowEventHeader = display.FlyoutShowEventHeader;
-        FlyoutShowSessionDetails = display.FlyoutShowSessionDetails;
-        FlyoutShowTrackStatus = display.FlyoutShowTrackStatus;
-        FlyoutShowConnectionStatus = display.FlyoutShowConnectionStatus;
         FlyoutShowTeamNames = display.FlyoutShowTeamNames;
         FlyoutUseManufacturerLogos = display.FlyoutUseManufacturerLogos;
         FlyoutShowPositionColors = display.FlyoutShowPositionColors;
@@ -565,19 +530,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         var display = new ChampionshipDisplaySettings
         {
             TaskbarCompetitorCount = TaskbarCompetitorCount,
-            TaskbarCompetitorLabel = TaskbarCompetitorLabel,
-            TaskbarShowEventHeader = TaskbarShowEventHeader,
-            TaskbarShowSessionProgress = TaskbarShowSessionProgress,
-            TaskbarShowGaps = TaskbarShowGaps,
-            TaskbarShowPositionMarker = TaskbarShowPositionMarker,
-            TaskbarShowPositionColors = TaskbarShowPositionColors,
             TaskbarUseManufacturerLogos = TaskbarUseManufacturerLogos,
-            TaskbarShowFlagAlerts = TaskbarShowFlagAlerts,
             FlyoutCompetitorCount = FlyoutCompetitorCount,
-            FlyoutShowEventHeader = FlyoutShowEventHeader,
-            FlyoutShowSessionDetails = FlyoutShowSessionDetails,
-            FlyoutShowTrackStatus = FlyoutShowTrackStatus,
-            FlyoutShowConnectionStatus = FlyoutShowConnectionStatus,
             FlyoutShowTeamNames = FlyoutShowTeamNames,
             FlyoutUseManufacturerLogos = FlyoutUseManufacturerLogos,
             FlyoutShowPositionColors = FlyoutShowPositionColors,
