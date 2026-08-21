@@ -33,7 +33,7 @@ internal sealed class TaskbarCell
     private readonly TextBlock _positionText;
     private readonly StackPanel _details;
     private readonly TextBlock _driver;
-    private readonly TextBlock _gap;
+    private readonly TextBlock _interval;
 
     private string _logoKey = "";
 
@@ -79,11 +79,11 @@ internal sealed class TaskbarCell
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         _driver.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-        _gap = new TextBlock { FontSize = 11, MinHeight = 11, TextTrimming = TextTrimming.CharacterEllipsis };
-        _gap.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        _interval = new TextBlock { FontSize = 11, MinHeight = 11, TextTrimming = TextTrimming.CharacterEllipsis };
+        _interval.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         _details = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 0, 0) };
         _details.Children.Add(_driver);
-        _details.Children.Add(_gap);
+        _details.Children.Add(_interval);
         Grid.SetColumn(_details, 1);
         _layout.Children.Add(_details);
 
@@ -104,7 +104,7 @@ internal sealed class TaskbarCell
         _details.Visibility = Visibility.Visible;
         _driver.Text = driverText;
         _driver.ToolTip = standing.Name;
-        _gap.Text = standing.Position == 1 ? "LEAD" : standing.GapToLeader ?? "—";
+        _interval.Text = standing.Position == 1 ? "LEAD" : standing.IntervalToPositionAhead ?? "—";
 
         var logoKey = display.TaskbarUseManufacturerLogos ? $"{championship}|{standing.Manufacturer}|{standing.Team}" : "";
         if (logoKey != _logoKey)
