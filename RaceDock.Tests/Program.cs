@@ -40,6 +40,7 @@ var tests = new (string Name, Action Run)[]
     ("stored classification column orders are repaired", FlyoutColumnOrderNormalization),
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
     ("hidden championships stay disabled and out of sight", ChampionshipVisibility),
+    ("the experimental flyout blur stays off until asked for", FlyoutBlurSettings),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
     ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
@@ -1154,6 +1155,22 @@ static void ChampionshipLabels()
         Championship = Championship.MotoGp,
         Circuit = "MotoGP Silverstone Circuit"
     }));
+}
+
+static void FlyoutBlurSettings()
+{
+    // The blur is experimental, so a settings file that has never heard of it must not turn it on.
+    var defaults = new UserSettings().Normalize();
+    False(defaults.FlyoutAcrylicBlur);
+    Equal(70, defaults.FlyoutBlurTint);
+
+    True(new UserSettings { FlyoutAcrylicBlur = true }.Normalize().FlyoutAcrylicBlur);
+
+    // The tint is clamped either side: too low stops the classification being readable over a busy
+    // desktop, and beyond the ceiling there is no blur left to see.
+    Equal(30, new UserSettings { FlyoutBlurTint = 0 }.Normalize().FlyoutBlurTint);
+    Equal(95, new UserSettings { FlyoutBlurTint = 400 }.Normalize().FlyoutBlurTint);
+    Equal(45, new UserSettings { FlyoutBlurTint = 45 }.Normalize().FlyoutBlurTint);
 }
 
 static void ChampionshipVisibility()

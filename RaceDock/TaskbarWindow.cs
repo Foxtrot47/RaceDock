@@ -88,6 +88,7 @@ public sealed class TaskbarWindow : Window
         _flyout.PointerEntered += (_, _) => _flyout.CancelClose();
         // The flyout resizes when columns are toggled or the field changes, so it has to be re-centred.
         _flyout.SizeChanged += (_, _) => { if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
+        _flyout.SlideTo = offset => _host.PositionFlyout(_flyout, offset);
         _reattach = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => _host.Reattach(), Dispatcher); _reattach.Start();
         ApplySettings(_settings);
     }
@@ -286,7 +287,8 @@ public sealed class TaskbarWindow : Window
 
     private void ShowFlyout()
     {
-        if (_snapshot is null) return; _flyout.Reveal(); _flyout.UpdateLayout(); _host.PositionFlyout(_flyout);
+        // Sized and placed before the reveal, so the slide starts from the correct resting point.
+        if (_snapshot is null) return; _flyout.Show(); _flyout.UpdateLayout(); _host.PositionFlyout(_flyout); _flyout.Reveal();
     }
     protected override void OnClosed(EventArgs e) { _reattach.Stop(); _flyout.Close(); base.OnClosed(e); }
 }

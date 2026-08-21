@@ -245,6 +245,15 @@ public sealed record UserSettings
     /// <summary>Eases the flyout open and lights the widget under the pointer. Off returns every
     /// transition to an immediate state change.</summary>
     public bool InterfaceAnimations { get; init; } = true;
+
+    /// <summary>Blurs the desktop behind the classification. Experimental, so it is off by default:
+    /// the effect is composited by Windows rather than drawn by the app, and behaves differently
+    /// across Windows builds and graphics drivers.</summary>
+    public bool FlyoutAcrylicBlur { get; init; }
+
+    /// <summary>How strongly the blurred surface is tinted, as a percentage. Lower lets more of the
+    /// desktop through; higher approaches a solid panel.</summary>
+    public int FlyoutBlurTint { get; init; } = 70;
     public TaskbarWidgetPosition WidgetPosition { get; init; } = TaskbarWidgetPosition.LeftOfStart;
     public ChampionshipDisplayProfiles? ChampionshipDisplay { get; init; }
 
@@ -305,6 +314,8 @@ public sealed record UserSettings
             HiddenChampionships = hidden,
             RotationSeconds = Math.Clamp(RotationSeconds, 2, 30),
             CompletedSessionRetentionMinutes = Math.Clamp(CompletedSessionRetentionMinutes, 5, 30),
+            // Below the floor the classification stops being readable over a busy desktop.
+            FlyoutBlurTint = Math.Clamp(FlyoutBlurTint, 30, 95),
             DriverCount = Math.Clamp(DriverCount, 1, 5),
             WidgetPosition = Enum.IsDefined(WidgetPosition) ? WidgetPosition : TaskbarWidgetPosition.LeftOfStart,
             ChampionshipDisplay = (ChampionshipDisplay ?? ChampionshipDisplayProfiles.Create(legacyDisplay)).Normalize()

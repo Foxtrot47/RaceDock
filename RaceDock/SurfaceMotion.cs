@@ -13,7 +13,7 @@ namespace RaceDock.App;
 /// </summary>
 internal static class SurfaceMotion
 {
-    /// <summary>Vertical travel of the flyout as it opens, and the transparent slack reserved for it.</summary>
+    /// <summary>Vertical travel of the flyout as it opens.</summary>
     internal const double SlideDistance = 20;
 
     private static readonly Duration Reveal = new(TimeSpan.FromMilliseconds(300));
@@ -80,8 +80,9 @@ internal static class SurfaceMotion
         });
     }
 
-    /// <summary>Fades and lifts a flyout into place. The slide happens inside the window, so the
-    /// caller's own positioning is left untouched.</summary>
+    /// <summary>Fades and lifts a flyout into place.</summary>
+    /// <param name="slide">Carries the travel. It drives no visual of its own; the caller watches
+    /// it and moves the window, so the blurred surface travels with the content.</param>
     public static void PlayOpen(Window window, TranslateTransform slide)
     {
         slide.BeginAnimation(TranslateTransform.YProperty, null);

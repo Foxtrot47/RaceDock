@@ -170,6 +170,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private bool _enableIndyCar;
     private bool _autoStartOnWindowsBoot;
     private bool _interfaceAnimations;
+    private bool _flyoutAcrylicBlur;
+    private int _flyoutBlurTint;
     private int _rotationSeconds;
     private int _completedSessionRetentionMinutes;
     private TaskbarWidgetPosition _widgetPosition;
@@ -242,6 +244,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     public bool EnableIndyCar { get => _enableIndyCar; set => SetStream(Championship.IndyCar, ref _enableIndyCar, value); }
     public bool AutoStartOnWindowsBoot { get => _autoStartOnWindowsBoot; set => Set(ref _autoStartOnWindowsBoot, value); }
     public bool InterfaceAnimations { get => _interfaceAnimations; set => Set(ref _interfaceAnimations, value); }
+    public bool FlyoutAcrylicBlur { get => _flyoutAcrylicBlur; set => Set(ref _flyoutAcrylicBlur, value); }
+    public int FlyoutBlurTint { get => _flyoutBlurTint; set => Set(ref _flyoutBlurTint, value); }
     public int RotationSeconds { get => _rotationSeconds; set => Set(ref _rotationSeconds, value); }
     public int CompletedSessionRetentionMinutes { get => _completedSessionRetentionMinutes; set => Set(ref _completedSessionRetentionMinutes, value); }
     public TaskbarWidgetPosition WidgetPosition { get => _widgetPosition; set => Set(ref _widgetPosition, value); }
@@ -442,6 +446,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         EnableIndyCar = normalized.EnableIndyCar;
         AutoStartOnWindowsBoot = normalized.AutoStartOnWindowsBoot;
         InterfaceAnimations = normalized.InterfaceAnimations;
+        FlyoutAcrylicBlur = normalized.FlyoutAcrylicBlur;
+        FlyoutBlurTint = normalized.FlyoutBlurTint;
         RotationSeconds = normalized.RotationSeconds;
         CompletedSessionRetentionMinutes = normalized.CompletedSessionRetentionMinutes;
         WidgetPosition = normalized.WidgetPosition;
@@ -459,6 +465,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         var defaults = new UserSettings();
         AutoStartOnWindowsBoot = defaults.AutoStartOnWindowsBoot;
         InterfaceAnimations = defaults.InterfaceAnimations;
+        FlyoutAcrylicBlur = defaults.FlyoutAcrylicBlur;
+        FlyoutBlurTint = defaults.FlyoutBlurTint;
         RotationSeconds = defaults.RotationSeconds;
         CompletedSessionRetentionMinutes = defaults.CompletedSessionRetentionMinutes;
         WidgetPosition = defaults.WidgetPosition;
@@ -508,6 +516,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             UseManufacturerLogos = formula1.FlyoutUseManufacturerLogos,
             AutoStartOnWindowsBoot = AutoStartOnWindowsBoot,
             InterfaceAnimations = InterfaceAnimations,
+            FlyoutAcrylicBlur = FlyoutAcrylicBlur,
+            FlyoutBlurTint = FlyoutBlurTint,
             WidgetPosition = WidgetPosition,
             ChampionshipDisplay = _profiles.Normalize()
         }.Normalize();

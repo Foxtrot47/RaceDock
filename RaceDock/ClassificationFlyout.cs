@@ -3,7 +3,6 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using RaceDock.Core;
 
@@ -43,15 +42,16 @@ public sealed class ClassificationFlyout : Window
     private ChampionshipDisplaySettings _display;
     private TimingSnapshot? _snapshot;
     private double _driverColumnWidth = MinimumDriverColumn;
+    /// <summary>Carries the opening offset. The window is moved to match, so this drives no visual.</summary>
     private readonly TranslateTransform _slide = new();
+    private readonly Border _panel;
+    private bool _blurred;
     private int _driverSignature;
     private int _visibleRowCount;
     private IReadOnlyList<FlyoutColumn>? _headerOrder;
 
     /// <summary>Root padding and border, added to the column total to get the window width.</summary>
     private const double ChromeWidth = 26;
-    /// <summary>Transparent border reserved around the panel for the slide and the drop shadow.</summary>
-    private const double Slack = SurfaceMotion.SlideDistance;
     private const double MinimumDriverColumn = 150;
     private const double MaximumDriverColumn = 260;
     /// <summary>The driver grid's own left and right margins.</summary>
@@ -75,17 +75,21 @@ public sealed class ClassificationFlyout : Window
         _sessionDetails.Clock = _scrollClock;
         // Width follows the visible columns and the widest name in the field; height follows the row
         // count until it reaches the cap, after which the classification scrolls.
-        Width = MinimumDriverColumn + ChromeWidth + (Slack * 2);
+        Width = MinimumDriverColumn + ChromeWidth;
         SizeToContent = SizeToContent.Height;
         MaxHeight = Math.Min(
             Math.Round(SystemParameters.WorkArea.Height * 0.7),
-            ChromeHeight + (MaximumVisibleRows * RowHeight)) + (Slack * 2);
+            ChromeHeight + (MaximumVisibleRows * RowHeight));
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         ShowActivated = false;
         Topmost = true;
-        AllowsTransparency = true;
+        // Deliberately not a layered window. WPF backs AllowsTransparency with UpdateLayeredWindow,
+        // which does not survive alongside the accent blur below: the surface keeps compositing
+        // while the content intermittently stops painting, leaving an empty pane. Transparency now
+        // comes from the composition target instead, and the rounded corners from DWM.
+        AllowsTransparency = false;
         Background = Brushes.Transparent;
         UseLayoutRounding = true;
         SnapsToDevicePixels = true;
@@ -96,23 +100,14 @@ public sealed class ClassificationFlyout : Window
 
         var root = new Border
         {
-            CornerRadius = new CornerRadius(12),
+            // Matches the radius DWM rounds the window to, so the stroke follows the blurred edge.
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 10),
-            BorderThickness = new Thickness(1),
-            // Transparent slack around the panel. It gives the opening slide somewhere to travel
-            // without the window edge clipping it, and lets the drop shadow below render at all.
-            Margin = new Thickness(Slack),
-            RenderTransform = _slide,
-            Effect = new DropShadowEffect
-            {
-                BlurRadius = 18,
-                ShadowDepth = 3,
-                Direction = 270,
-                Opacity = 0.28
-            }
+            BorderThickness = new Thickness(1)
         };
-        // Fluent flyouts use a solid layer surface. Transparency is limited to the
-        // rounded window corners; the panel itself must remain an opaque backdrop.
+        _panel = root;
+        // Opaque until the blur is confirmed. If the acrylic surface cannot be applied the panel
+        // keeps painting this, so the classification is never left unreadable over the desktop.
         root.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
         root.SetResourceReference(Border.BorderBrushProperty, "SurfaceStrokeColorFlyoutBrush");
 
@@ -159,6 +154,9 @@ public sealed class ClassificationFlyout : Window
             CancelClose();
         };
         MouseLeave += (_, _) => ScheduleClose();
+        // The blur covers the whole window, so a panel sliding inside it would leave the surface
+        // behind. The window itself is moved instead, and this publishes each step of that travel.
+        _slide.Changed += (_, _) => SlideTo?.Invoke(_slide.Y);
         IsVisibleChanged += (_, _) =>
         {
             if (!IsVisible) return;
@@ -171,13 +169,50 @@ public sealed class ClassificationFlyout : Window
     public void ApplySettings(UserSettings settings)
     {
         _settings = settings.Normalize();
+        ApplySurface();
     }
+
+    /// <summary>
+    /// Matches the window surface to the settings. Safe to call before the handle exists, because
+    /// <see cref="OnSourceInitialized"/> runs it again once there is a window to act on.
+    /// </summary>
+    private void ApplySurface()
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+
+        _blurred = _settings.FlyoutAcrylicBlur && WindowBlur.TryApply(this, _settings.FlyoutBlurTint);
+        if (!_blurred) WindowBlur.Disable(this);
+
+        // The blur sits behind the window, so it only shows once the panel stops painting over it.
+        if (_blurred) _panel.Background = Brushes.Transparent;
+        else _panel.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+    }
+
+    /// <summary>
+    /// Moves the window to <c>rest + offset</c> device-independent pixels, towards the taskbar.
+    /// Supplied by the owner, which is what knows where the flyout rests.
+    /// </summary>
+    public Action<double>? SlideTo { get; set; }
 
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         NativeNoActivate.Set(hwnd);
+
+        // Without a layered window the client area is cleared to an opaque colour unless the
+        // composition target is told otherwise, which would paint over the blur.
+        var source = System.Windows.Interop.HwndSource.FromHwnd(hwnd);
+        if (source?.CompositionTarget is not null)
+            source.CompositionTarget.BackgroundColor = Colors.Transparent;
+
+        // Corners are rounded by Windows now that the window is not layered. Where that is
+        // unsupported the panel must square off to match, or its curve would expose the window
+        // behind it at each corner.
+        if (!WindowBlur.TryRoundCorners(this)) _panel.CornerRadius = new CornerRadius(0);
+
+        ApplySurface();
     }
 
     public void UpdateSnapshot(TimingSnapshot snapshot)
@@ -299,7 +334,7 @@ public sealed class ClassificationFlyout : Window
         // Every column keeps its full width, so the window grows to fit rather than truncating values.
         // Once the classification scrolls, the scrollbar needs its own space or it would clip the last column.
         var scrollbar = _visibleRowCount > MaximumVisibleRows ? SystemParameters.VerticalScrollBarWidth : 0;
-        Width = ColumnWidths().Sum(column => column.Value) + ChromeWidth + scrollbar + (Slack * 2);
+        Width = ColumnWidths().Sum(column => column.Value) + ChromeWidth + scrollbar;
     }
 
     /// <summary>Shows the flyout and plays it into place.</summary>
