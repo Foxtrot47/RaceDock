@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using Wpf.Ui.Controls;
@@ -22,6 +23,6 @@ public sealed partial class DashboardPage : Page
 
     private void ViewUpdates_Click(object sender, RoutedEventArgs e)
     {
-        // TODO: Connect this action to the release/update service.
+        Process.Start(new ProcessStartInfo("https://github.com/Foxtrot47/RaceDock/releases") { UseShellExecute = true });
     }
 }

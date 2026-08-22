@@ -43,12 +43,12 @@
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
           <ui:SymbolIcon Symbol="CheckmarkCircle24"
                          Filled="True"
-                         Foreground="LimeGreen"
+                         Foreground="{DynamicResource SystemFillColorSuccessBrush}"
                          FontSize="24"
                          Margin="0,0,12,0" />
           <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="Up to date" FontWeight="SemiBold" />
-            <TextBlock Text="Update checking is not connected yet"
+            <TextBlock Text="Updates managed by Windows" FontWeight="SemiBold" />
+            <TextBlock Text="Use View updates for release notes"
                        FontSize="12"
                        Opacity="0.65" />
           </StackPanel>
