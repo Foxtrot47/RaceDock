@@ -10,7 +10,9 @@ namespace RaceDock.Core;
 public sealed class TimingArchiveReplaySource : ITimingArchiveSource
 {
     private readonly IClock _clock;
+    private readonly JsonObject _manifest;
     private readonly IReadOnlyList<ArchiveFrame> _frames;
+    private JsonObject? _state;
     private readonly SemaphoreSlim _wake = new(0, 1);
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly object _gate = new();
@@ -35,6 +37,7 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
         _clock = clock;
         ArchivePath = fullPath;
         ArchiveName = archive.Name;
+        _manifest = archive.Manifest;
         _frames = archive.Frames;
     }
 
@@ -82,7 +85,7 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
                 _paused = false;
                 _active = true;
                 ConnectionChanged?.Invoke(ConnectionState.Connected);
-                Publish(_frames[0]);
+                Publish(ReadFrame(0));
             }
             _worker = Task.Run(() => RunAsync(runToken), runToken);
         }
@@ -120,7 +123,7 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
             _nextFrame = 1;
             _generation++;
             _completed = false;
-            Publish(_frames[0]);
+            Publish(ReadFrame(0));
         }
         Signal();
     }
@@ -137,7 +140,7 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
                 _completed = true;
                 return;
             }
-            var frame = _frames[_nextFrame++];
+            var frame = ReadFrame(_nextFrame++);
             _generation++;
             _completed = _nextFrame >= _frames.Count;
             Publish(frame);
@@ -171,7 +174,7 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
                 lock (_gate)
                 {
                     if (generation != _generation || index != _nextFrame) continue;
-                    var frame = _frames[_nextFrame++];
+                    var frame = ReadFrame(_nextFrame++);
                     if (_nextFrame >= _frames.Count)
                     {
                         _completed = true;
@@ -210,7 +213,14 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
         return true;
     }
 
-    private void Publish(ArchiveFrame frame) => SnapshotReceived?.Invoke(frame.Snapshot with
+    private TimingSnapshot ReadFrame(int index)
+    {
+        var frame = _frames[index];
+        _state = TimingArchiveLoader.AdvanceState(_manifest, _state, frame, CancellationToken.None);
+        return TimingArchiveLoader.BuildSnapshot(_manifest, _state, frame.Timestamp);
+    }
+
+    private void Publish(TimingSnapshot snapshot) => SnapshotReceived?.Invoke(snapshot with
     {
         FreshnessTimestamp = _clock.UtcNow,
         ConnectionState = ConnectionState.Connected
@@ -266,7 +276,7 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
         finally { _lifecycle.Release(); }
     }
 
-    internal sealed record ArchiveFrame(DateTimeOffset Timestamp, TimingSnapshot Snapshot);
+    internal sealed record ArchiveFrame(DateTimeOffset Timestamp, byte[] Payload, string Source, bool IsIncrement);
 }
 
 internal static class TimingArchiveLoader
@@ -283,9 +293,8 @@ internal static class TimingArchiveLoader
     private const int MaxStateDepth = 32;
     private const int MaxPatchOperationsPerFrame = 10_000;
     private const int ComplexityCheckInterval = 32;
-    private const int MaxRetainedCompetitors = 250_000;
 
-    internal sealed record LoadedArchive(string Name, IReadOnlyList<TimingArchiveReplaySource.ArchiveFrame> Frames);
+    internal sealed record LoadedArchive(string Name, JsonObject Manifest, IReadOnlyList<TimingArchiveReplaySource.ArchiveFrame> Frames);
     private sealed record Payload(DateTimeOffset Timestamp, JsonObject Value, string Source, bool IsIncrement);
 
     public static LoadedArchive Load(string path, CancellationToken cancellationToken = default)
@@ -319,7 +328,7 @@ internal static class TimingArchiveLoader
         var manifest = ReadObject(manifestEntry.Open(), manifestEntry.FullName);
         ValidateManifest(manifest, recording: true);
 
-        var payloads = new List<Payload>();
+        var frames = new List<TimingArchiveReplaySource.ArchiveFrame>();
         var frameEntries = archive.Entries
             .Where(entry => entry.FullName.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
                 !entry.FullName.Equals("manifest.json", StringComparison.OrdinalIgnoreCase))
@@ -329,12 +338,12 @@ internal static class TimingArchiveLoader
         foreach (var item in frameEntries)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (payloads.Count >= MaxFrames) throw new InvalidDataException($"The archive exceeds the {MaxFrames:N0}-frame limit.");
-            var value = ReadObject(item.Entry.Open(), item.Entry.FullName);
+            if (frames.Count >= MaxFrames) throw new InvalidDataException($"The archive exceeds the {MaxFrames:N0}-frame limit.");
+            var payload = ReadBytes(item.Entry);
             var incremental = Path.GetFileNameWithoutExtension(item.Entry.Name).EndsWith('i');
-            payloads.Add(new(item.Timestamp, value, item.Entry.Name, incremental));
+            frames.Add(new(item.Timestamp, payload, item.Entry.Name, incremental));
         }
-        return Build(Path.GetFileName(path), manifest, payloads, cancellationToken);
+        return Build(Path.GetFileName(path), manifest, frames, cancellationToken);
     }
 
     private static LoadedArchive LoadHar(string path, CancellationToken cancellationToken)
@@ -345,7 +354,7 @@ internal static class TimingArchiveLoader
         var entries = root["log"]?["entries"] as JsonArray
             ?? throw new InvalidDataException("The HAR does not contain log.entries.");
         JsonObject? manifest = null;
-        var payloads = new List<Payload>();
+        var frames = new List<TimingArchiveReplaySource.ArchiveFrame>();
         var sequence = 0;
         foreach (var node in entries.OfType<JsonObject>())
         {
@@ -356,15 +365,15 @@ internal static class TimingArchiveLoader
                 if (IsManifest(candidate.Value)) manifest ??= (JsonObject)candidate.Value.DeepClone();
                 else if (IsState(candidate.Value))
                 {
-                    if (payloads.Count >= MaxFrames) throw new InvalidDataException($"The HAR exceeds the {MaxFrames:N0}-frame limit.");
-                    payloads.Add(candidate);
+                    if (frames.Count >= MaxFrames) throw new InvalidDataException($"The HAR exceeds the {MaxFrames:N0}-frame limit.");
+                    frames.Add(new(candidate.Timestamp, JsonSerializer.SerializeToUtf8Bytes(candidate.Value), candidate.Source, candidate.IsIncrement));
                 }
             }
         }
         if (manifest is null)
             throw new InvalidDataException("No Timing71 manifest was found in the HAR. HAR replay currently requires Timing71 manifest and state messages.");
         ValidateManifest(manifest, recording: false);
-        return Build(Path.GetFileName(path), manifest, payloads.OrderBy(payload => payload.Timestamp).ToList(), cancellationToken);
+        return Build(Path.GetFileName(path), manifest, frames.OrderBy(frame => frame.Timestamp).ToList(), cancellationToken);
     }
 
     private static IEnumerable<Payload> HarCandidates(JsonObject entry, DateTimeOffset entryTime)
@@ -429,32 +438,36 @@ internal static class TimingArchiveLoader
         return false;
     }
 
-    private static LoadedArchive Build(string fileName, JsonObject manifest, IReadOnlyList<Payload> payloads, CancellationToken cancellationToken)
+    private static LoadedArchive Build(string fileName, JsonObject manifest, IReadOnlyList<TimingArchiveReplaySource.ArchiveFrame> inputFrames, CancellationToken cancellationToken)
     {
-        if (payloads.Count == 0) throw new InvalidDataException("The archive contains no Timing71 state frames.");
+        if (inputFrames.Count == 0) throw new InvalidDataException("The archive contains no Timing71 state frames.");
         JsonObject? state = null;
-        var retainedCompetitors = 0;
         var frames = new List<TimingArchiveReplaySource.ArchiveFrame>();
-        foreach (var payload in payloads)
+        foreach (var frame in inputFrames)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!payload.IsIncrement)
-            {
-                state = (JsonObject)payload.Value.DeepClone();
-                EnsureStateComplexity(state);
-            }
-            else if (state is not null) ApplyIncrement(state, payload.Value, payload.Source, cancellationToken);
-            else continue;
-            var snapshot = BuildSnapshot(manifest, state, payload.Timestamp);
-            retainedCompetitors = checked(retainedCompetitors + snapshot.Competitors.Count);
-            if (retainedCompetitors > MaxRetainedCompetitors)
-                throw new InvalidDataException($"The archive exceeds the {MaxRetainedCompetitors:N0}-competitor snapshot limit.");
-            frames.Add(new(payload.Timestamp, snapshot));
+            if (state is null && frame.IsIncrement) continue;
+            state = AdvanceState(manifest, state, frame, cancellationToken);
+            frames.Add(frame);
         }
         if (frames.Count == 0) throw new InvalidDataException("The archive has no complete Timing71 state from which replay can start.");
         var title = Text(manifest["name"]) ?? fileName;
         var description = Text(manifest["description"]);
-        return new(string.IsNullOrWhiteSpace(description) ? title : $"{title} — {description}", frames);
+        return new(string.IsNullOrWhiteSpace(description) ? title : $"{title} — {description}", manifest, frames);
+    }
+
+    internal static JsonObject AdvanceState(JsonObject manifest, JsonObject? state, TimingArchiveReplaySource.ArchiveFrame frame, CancellationToken cancellationToken)
+    {
+        var value = ReadObject(frame.Payload, frame.Source);
+        if (!frame.IsIncrement)
+        {
+            state = value;
+            EnsureStateComplexity(state);
+        }
+        else if (state is not null) ApplyIncrement(state, value, frame.Source, cancellationToken);
+        else throw new InvalidDataException("An archive increment has no preceding full state.");
+        ValidateState(manifest, state);
+        return state;
     }
 
     private static void ApplyIncrement(JsonObject state, JsonObject increment, string source, CancellationToken cancellationToken)
@@ -568,6 +581,14 @@ internal static class TimingArchiveLoader
         else if (container is JsonObject obj && Text(segment) is { } key) obj.Remove(key);
     }
 
+    internal static void ValidateState(JsonObject manifest, JsonObject state)
+    {
+        var spec = manifest["colSpec"] as JsonArray ?? [];
+        if (spec.Count > MaxColumns) throw new InvalidDataException($"The manifest exceeds the {MaxColumns}-column limit.");
+        var rows = state["cars"] as JsonArray ?? [];
+        if (rows.Count > MaxCarsPerFrame) throw new InvalidDataException($"A frame exceeds the {MaxCarsPerFrame:N0}-car limit.");
+    }
+
     private static void EnsureStateComplexity(JsonNode root)
     {
         var pending = new Stack<(JsonNode Node, int Depth)>();
@@ -600,10 +621,10 @@ internal static class TimingArchiveLoader
         _ => null
     };
 
-    private static TimingSnapshot BuildSnapshot(JsonObject manifest, JsonObject state, DateTimeOffset timestamp)
+    internal static TimingSnapshot BuildSnapshot(JsonObject manifest, JsonObject state, DateTimeOffset timestamp)
     {
+        ValidateState(manifest, state);
         var spec = manifest["colSpec"] as JsonArray ?? [];
-        if (spec.Count > MaxColumns) throw new InvalidDataException($"The manifest exceeds the {MaxColumns}-column limit.");
         // Columns are addressable by their short header ("T") and by their description ("Tyre"),
         // because feeds abbreviate headers inconsistently across championships.
         var columns = spec.SelectMany((node, index) => ColumnNames(node)
@@ -611,7 +632,6 @@ internal static class TimingArchiveLoader
             .GroupBy(value => value.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First().Index, StringComparer.OrdinalIgnoreCase);
         var rows = state["cars"] as JsonArray ?? [];
-        if (rows.Count > MaxCarsPerFrame) throw new InvalidDataException($"A frame exceeds the {MaxCarsPerFrame:N0}-car limit.");
         var parsed = new List<(CompetitorStanding Standing, double Best)>();
         for (var position = 0; position < rows.Count; position++)
         {
@@ -812,9 +832,23 @@ internal static class TimingArchiveLoader
         return cars.All(node => node is JsonArray operation && Text(operation.ElementAtOrDefault(0)) is "change" or "add" or "remove");
     }
 
+    private static byte[] ReadBytes(ZipArchiveEntry entry)
+    {
+        var payload = new byte[checked((int)entry.Length)];
+        using var stream = entry.Open();
+        stream.ReadExactly(payload);
+        return payload;
+    }
+
     private static JsonObject ReadObject(Stream stream, string source)
     {
         try { return JsonNode.Parse(stream) as JsonObject ?? throw new InvalidDataException($"{source} does not contain a JSON object."); }
+        catch (JsonException ex) { throw new InvalidDataException($"{source} contains invalid JSON.", ex); }
+    }
+
+    private static JsonObject ReadObject(ReadOnlySpan<byte> payload, string source)
+    {
+        try { return JsonNode.Parse(payload) as JsonObject ?? throw new InvalidDataException($"{source} does not contain a JSON object."); }
         catch (JsonException ex) { throw new InvalidDataException($"{source} contains invalid JSON.", ex); }
     }
 
