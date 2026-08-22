@@ -326,8 +326,9 @@ public sealed record UserSettings
     }
 }
 
-public sealed class UserSettingsStore(string? path = null)
+public sealed class UserSettingsStore(string? path = null, string? legacyPath = null)
 {
+    private readonly string? _legacyPath = legacyPath;
     /// <summary>Raise it when a stored field needs migrating.</summary>
     public const int CurrentVersion = 1;
 
@@ -342,7 +343,7 @@ public sealed class UserSettingsStore(string? path = null)
     {
         try
         {
-            if (!File.Exists(Path)) return new UserSettings().Normalize();
+            if (!File.Exists(Path)) return TryImportLegacySettings() ?? new UserSettings().Normalize();
             var settings = JsonSerializer.Deserialize<UserSettings>(File.ReadAllText(Path), JsonOptions) ?? new UserSettings();
             if (settings.Version > CurrentVersion)
                 AppLog.Warning("Settings", $"Settings were written by a newer build (version {settings.Version}); unrecognised fields are ignored.");
@@ -358,6 +359,31 @@ public sealed class UserSettingsStore(string? path = null)
         {
             AppLog.Warning("Settings", "Settings could not be read; starting from defaults.", failure);
             return new UserSettings().Normalize();
+        }
+    }
+
+    private UserSettings? TryImportLegacySettings()
+    {
+        var legacyPath = _legacyPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "settings.json");
+        if (string.Equals(System.IO.Path.GetFullPath(legacyPath), System.IO.Path.GetFullPath(Path), StringComparison.OrdinalIgnoreCase) || !File.Exists(legacyPath)) return null;
+        try
+        {
+            var settings = JsonSerializer.Deserialize<UserSettings>(File.ReadAllText(legacyPath), JsonOptions);
+            if (settings is null) return null;
+            var normalized = settings.Normalize();
+            Save(normalized);
+            AppLog.Info("Settings", $"Imported settings from the previous installation at {legacyPath}.");
+            return normalized;
+        }
+        catch (JsonException exception)
+        {
+            AppLog.Error("Settings", "The previous installation settings could not be imported.", exception);
+            return null;
+        }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warning("Settings", "The previous installation settings could not be imported.", failure);
+            return null;
         }
     }
 

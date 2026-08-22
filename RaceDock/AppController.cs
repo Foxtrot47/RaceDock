@@ -13,7 +13,7 @@ public sealed class AppController : IAsyncDisposable
     private readonly SystemClock _clock = new();
     private readonly AlertArbiter _alerts;
     private readonly TimingStateProcessor _processor;
-    private readonly UserSettingsStore _settingsStore = new();
+    private readonly UserSettingsStore _settingsStore;
     private readonly DispatcherTimer _renderTimer;
     private readonly DispatcherTimer _healthTimer;
     private readonly SemaphoreSlim _sourceSwitch = new(1, 1);
@@ -36,7 +36,9 @@ public sealed class AppController : IAsyncDisposable
 
     public AppController(Dispatcher dispatcher)
     {
-        _dispatcher = dispatcher; _alerts = new(_clock); _processor = new(_clock, _alerts); _settings = _settingsStore.Load();
+        _dispatcher = dispatcher; _alerts = new(_clock); _processor = new(_clock, _alerts);
+        _settingsStore = new(legacyPath: WindowsStartupRegistration.LegacySettingsPath);
+        _settings = _settingsStore.Load();
         try { WindowsStartupRegistration.Apply(_settings.AutoStartOnWindowsBoot); }
         catch (Exception ex) { AppLog.Error("Startup", "Windows startup registration failed.", ex); }
         _alerts.VisibleAlertChanged += alert => _dispatcher.BeginInvoke(() => _taskbar?.SetAlert(alert));

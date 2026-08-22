@@ -42,7 +42,7 @@ RaceDock runs from the Windows notification area. Open **Settings** from the tra
 
 Settings are saved in `%LocalAppData%\RaceDock\settings.json`. Windows startup is enabled by default and can be disabled from the **General** settings tab. Keep the extracted app in a stable folder because the startup entry points to that copy of `RaceDock.exe`.
 
-Application logs are stored in the `Logs` folder beside the executable. The Formula 1 diagnostic recorder is optional, limited to 2 MiB, and excludes connection credentials.
+Application logs are stored in `%LocalAppData%\RaceDock\Logs`. The Formula 1 diagnostic recorder is optional, limited to 2 MiB, and excludes connection credentials.
 
 ### Replay recorded timing
 
@@ -72,9 +72,10 @@ You need Windows 10 version 1809 or newer and the .NET 10 SDK.
 dotnet build RaceDock.slnx -c Release
 dotnet run --project RaceDock.Tests -c Release
 dotnet publish RaceDock/RaceDock.csproj -c Release -p:PublishProfile=FolderProfile
+pwsh ./scripts/Build-Msix.ps1 -Configuration Release
 ```
 
-The publish profile creates a self-contained, compressed single-file build. Keep trimming disabled: trimming is not currently safe for the WPF and Windows Forms code paths used by the app.
+The publish profile creates a self-contained, compressed single-file build for unpackaged use. `Build-Msix.ps1` creates an unsigned MSIX with the reserved Microsoft Store identity and packaged startup task; the MSIX path intentionally disables single-file publishing because package files are read-only. Keep trimming disabled: trimming is not currently safe for the WPF and Windows Forms code paths used by the app.
 
 ## Contributing
 
