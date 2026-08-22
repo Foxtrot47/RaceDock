@@ -25,7 +25,7 @@ public partial class App : System.Windows.Application
         _controller = new AppController(Dispatcher);
         BuildTray();
         ReportPreviousCrash();
-        _controller.StatusChanged += status => Dispatcher.Invoke(() => { if (_tray is not null) { _tray.Text = $"RaceDock — {status}"; _tray.Icon = status is ConnectionState.Connected ? SystemIcons.Information : status is ConnectionState.Stale or ConnectionState.Faulted ? SystemIcons.Warning : SystemIcons.Application; } if (_statusItem is not null) _statusItem.Text = $"Connection: {status}"; });
+        _controller.StatusChanged += status => Dispatcher.Invoke(() => { if (_tray is not null) _tray.Text = $"RaceDock — {status}"; if (_statusItem is not null) _statusItem.Text = $"Connection: {status}"; });
         _ = StartFeedAsync();
     }
 
@@ -79,7 +79,7 @@ public partial class App : System.Windows.Application
         menu.Items.Add("View logs", null, (_, _) => _controller?.OpenLogs());
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add("Exit", null, async (_, _) => { if (_controller is not null) await _controller.DisposeAsync(); Shutdown(); });
-        _tray = new System.Windows.Forms.NotifyIcon { Icon = SystemIcons.Application, Text = "RaceDock", Visible = true, ContextMenuStrip = menu };
+        _tray = new System.Windows.Forms.NotifyIcon { Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!), Text = "RaceDock", Visible = true, ContextMenuStrip = menu };
         _tray.DoubleClick += (_, _) => _controller?.ShowSettings();
     }
 

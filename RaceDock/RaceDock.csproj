@@ -10,6 +10,13 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>RaceDock</AssemblyName>
+    <ApplicationIcon>Assets\AppIcon\racedock.ico</ApplicationIcon>
+    <AssemblyTitle>RaceDock</AssemblyTitle>
+    <Product>RaceDock</Product>
+    <Company>Foxtrot47</Company>
+    <Authors>Foxtrot47</Authors>
+    <Copyright>Copyright © 2026 Foxtrot47</Copyright>
+    <Description>Live motorsport timing in the Windows taskbar.</Description>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="..\RaceDock.Core\RaceDock.Core.csproj" /></ItemGroup>
   <ItemGroup><PackageReference Include="WPF-UI" Version="4.3.0" /></ItemGroup>
@@ -19,5 +26,7 @@
     <Resource Include="Assets\ManufacturerLogos\**\*.svg" />
     <Resource Include="Assets\ManufacturerLogos\**\*.webp" />
     <Resource Include="Assets\ChampionshipLogos\**\*.png" />
+    <Resource Include="Assets\AppIcon\racedock.svg" />
+    <Resource Include="Assets\AppIcon\racedock-*.png" />
   </ItemGroup>
 </Project>
