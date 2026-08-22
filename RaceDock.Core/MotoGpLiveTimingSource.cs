@@ -136,7 +136,16 @@ internal static class MotoGpTiming
     {
         var head = payload["head"] as JsonObject;
         var riders = payload["rider"] as JsonObject;
-        if (head is null || riders is null || riders.Count == 0) return null;
+        if (head is null)
+        {
+            FeedDrift.Record("MotoGP", "head", payload);
+            return null;
+        }
+        if (riders is null || riders.Count == 0)
+        {
+            FeedDrift.Record("MotoGP", "rider", payload);
+            return null;
+        }
 
         var standings = riders.Select(pair => BuildStanding(pair.Key, pair.Value as JsonObject))
             .Where(standing => standing is not null)
@@ -144,7 +153,11 @@ internal static class MotoGpTiming
             .OrderBy(value => value.Standing.Position)
             .ThenBy(value => value.Order)
             .ToList();
-        if (standings.Count == 0) return null;
+        if (standings.Count == 0)
+        {
+            FeedDrift.Record("MotoGP", "classified riders", payload);
+            return null;
+        }
 
         var fastest = standings.Where(value => value.LapTime.HasValue).Select(value => value.LapTime!.Value).DefaultIfEmpty(double.NaN).Min();
         var fastestIndex = double.IsNaN(fastest) ? -1 : standings.FindIndex(value => value.LapTime == fastest);

@@ -9,7 +9,11 @@ internal static class IndyCarTiming
 {
     public static TimingSnapshot BuildSnapshot(JsonObject payload, DateTimeOffset now, ConnectionState connection)
     {
-        var results = payload["timing_results"] as JsonObject ?? [];
+        if (payload["timing_results"] is not JsonObject results)
+        {
+            FeedDrift.Record("INDYCAR", "timing_results", payload);
+            results = [];
+        }
         var heartbeat = results["heartbeat"] as JsonObject ?? [];
         var items = results["Item"] as JsonArray;
         List<CompetitorStanding> standings = [];
