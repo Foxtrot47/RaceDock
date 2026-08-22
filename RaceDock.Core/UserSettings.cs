@@ -223,6 +223,7 @@ public sealed record UserSettings
         Championship.IndyCar
     ];
 
+    public int Version { get; init; }
     public bool EnableFormula1 { get; init; } = true;
     public bool EnableFormula2 { get; init; }
     public bool EnableFormula3 { get; init; }
@@ -327,6 +328,9 @@ public sealed record UserSettings
 
 public sealed class UserSettingsStore(string? path = null)
 {
+    /// <summary>Raise it when a stored field needs migrating.</summary>
+    public const int CurrentVersion = 1;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -339,11 +343,32 @@ public sealed class UserSettingsStore(string? path = null)
         try
         {
             if (!File.Exists(Path)) return new UserSettings().Normalize();
-            return (JsonSerializer.Deserialize<UserSettings>(File.ReadAllText(Path), JsonOptions) ?? new UserSettings()).Normalize();
+            var settings = JsonSerializer.Deserialize<UserSettings>(File.ReadAllText(Path), JsonOptions) ?? new UserSettings();
+            if (settings.Version > CurrentVersion)
+                AppLog.Warning("Settings", $"Settings were written by a newer build (version {settings.Version}); unrecognised fields are ignored.");
+            return settings.Normalize();
         }
-        catch (JsonException) { return new UserSettings().Normalize(); }
-        catch (IOException) { return new UserSettings().Normalize(); }
-        catch (UnauthorizedAccessException) { return new UserSettings().Normalize(); }
+        catch (JsonException exception)
+        {
+            var kept = Preserve();
+            AppLog.Error("Settings", "Settings are unreadable; starting from defaults.", exception, new { Preserved = kept });
+            return new UserSettings().Normalize();
+        }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Warning("Settings", "Settings could not be read; starting from defaults.", failure);
+            return new UserSettings().Normalize();
+        }
+    }
+
+    /// <summary>Moves the unreadable file aside and returns where it went, or null if it could not be kept.</summary>
+    private string? Preserve()
+    {
+        var name = System.IO.Path.GetFileNameWithoutExtension(Path);
+        var kept = System.IO.Path.Combine(
+            System.IO.Path.GetDirectoryName(Path) ?? "", $"{name}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}.json");
+        try { File.Move(Path, kept, true); return kept; }
+        catch (Exception failure) when (failure is IOException or UnauthorizedAccessException) { return null; }
     }
 
     public void Save(UserSettings settings)
@@ -351,7 +376,7 @@ public sealed class UserSettingsStore(string? path = null)
         var directory = System.IO.Path.GetDirectoryName(Path);
         if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
         var temporary = Path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(settings.Normalize(), JsonOptions));
+        File.WriteAllText(temporary, JsonSerializer.Serialize((settings with { Version = CurrentVersion }).Normalize(), JsonOptions));
         File.Move(temporary, Path, true);
     }
 }

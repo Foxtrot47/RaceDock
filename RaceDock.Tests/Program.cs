@@ -46,6 +46,7 @@ var tests = new (string Name, Action Run)[]
     ("the application log records structured rotating entries", AppLogStructuredRecords),
     ("a failing application log never throws into its caller", AppLogNeverThrows),
     ("a fatal session is announced once on the next launch", CrashMarkerAnnouncesOnce),
+    ("unreadable settings are kept aside rather than lost", SettingsVersioningAndRecovery),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
     ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
@@ -1205,6 +1206,44 @@ static void CrashMarkerAnnouncesOnce()
     finally
     {
         CrashMarker.UseFolder(AppPaths.Root);
+        if (Directory.Exists(folder)) Directory.Delete(folder, true);
+    }
+}
+
+static void SettingsVersioningAndRecovery()
+{
+    var folder = Path.Combine(Path.GetTempPath(), $"racedock-settings-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(folder);
+    var path = Path.Combine(folder, "settings.json");
+    try
+    {
+        // A file predating versioning keeps its values and is stamped on the next save.
+        File.WriteAllText(path, """{"RotationSeconds":9,"EnableWrc":false}""");
+        var store = new UserSettingsStore(path);
+        var legacy = store.Load();
+        Equal(0, legacy.Version);
+        Equal(9, legacy.RotationSeconds);
+        False(legacy.EnableWrc);
+
+        store.Save(legacy);
+        var stamped = store.Load();
+        Equal(UserSettingsStore.CurrentVersion, stamped.Version);
+        Equal(9, stamped.RotationSeconds);
+
+        // A file from a newer build is read, not reset: its known fields still apply.
+        File.WriteAllText(path, """{"Version":99,"RotationSeconds":7,"SomethingUnknown":true}""");
+        Equal(7, store.Load().RotationSeconds);
+
+        // A truncated file falls back to defaults and is moved aside, not deleted.
+        File.WriteAllText(path, """{"RotationSeconds":11,"Enab""");
+        Equal(5, store.Load().RotationSeconds);
+        var kept = Directory.GetFiles(folder, "settings.corrupt-*.json");
+        Equal(1, kept.Length);
+        True(File.ReadAllText(kept[0]).Contains("\"RotationSeconds\":11"));
+        False(File.Exists(path));
+    }
+    finally
+    {
         if (Directory.Exists(folder)) Directory.Delete(folder, true);
     }
 }
