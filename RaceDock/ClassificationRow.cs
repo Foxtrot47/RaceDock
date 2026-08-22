@@ -233,7 +233,7 @@ internal sealed class ClassificationRow
             _gap.FontWeight = standing.Position == 1 ? FontWeights.SemiBold : FontWeights.Normal;
         }
         if (display.FlyoutShowIntervals)
-            SetValue(_interval, standing.Position == 1 ? "—" : standing.IntervalToPositionAhead ?? "—");
+            SetValue(_interval, standing.Position == 1 ? "LEADER" : standing.IntervalToPositionAhead ?? "—");
 
         if (display.FlyoutShowLapTime) SetValue(_result, format.LapTime(standing) ?? "—");
         if (display.FlyoutShowTyre) UpdateTyre(standing.Tyre);

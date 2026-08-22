@@ -166,15 +166,34 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         var info = _topics.GetValueOrDefault("SessionInfo");
         var meeting = info?["Meeting"] as JsonObject;
         var lapCount = _topics.GetValueOrDefault("LapCount");
-        var statusText = LatestSessionStatus(_topics.GetValueOrDefault("SessionData")?["StatusSeries"])
+        var sessionData = _topics.GetValueOrDefault("SessionData");
+        var statusText = LatestSessionStatus(sessionData?["StatusSeries"])
             ?? JsonSupport.String(_topics.GetValueOrDefault("SessionStatus")?["Status"] ?? _topics.GetValueOrDefault("SessionStatus")?["Started"])
             ?? JsonSupport.String(info?["SessionStatus"]);
         var ended = alerts.Current?.Kind == AlertKind.Chequered || IsEndedSessionStatus(statusText);
         var lifecycle = standings.Count == 0 ? SessionLifecycle.OffSession : ended ? SessionLifecycle.Ended : SessionLifecycle.Live;
-        Publish(new(JsonSupport.String(meeting?["Name"]) ?? "F1", JsonSupport.String(info?["Name"]) ?? "Live Session",
+        Publish(new(JsonSupport.String(meeting?["Name"]) ?? "F1", SessionName(info, timing, sessionData),
             JsonSupport.String(meeting?["Circuit"]?["ShortName"]) ?? "", JsonSupport.Int(lapCount?["CurrentLap"]) ?? standings.FirstOrDefault()?.Lap ?? 0,
             JsonSupport.Int(lapCount?["TotalLaps"]), _track, standings, timestamp ?? clock.UtcNow, lifecycle, _connection, null, Championship.Formula1));
     }
+
+    private static string SessionName(JsonObject? info, JsonObject? timing, JsonObject? sessionData)
+    {
+        var name = JsonSupport.String(info?["Name"]) ?? "Live Session";
+        var qualifying = string.Equals(JsonSupport.String(info?["Type"]), "Qualifying", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("Qualifying", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("Shootout", StringComparison.OrdinalIgnoreCase);
+        if (!qualifying) return name;
+        var part = JsonSupport.Int(timing?["SessionPart"]) ?? LatestQualifyingPart(sessionData?["Series"]);
+        return part is >= 1 and <= 3 ? $"{name} {part}" : name;
+    }
+
+    private static int? LatestQualifyingPart(JsonNode? series) => series switch
+    {
+        JsonArray array => array.OfType<JsonObject>().Select(value => JsonSupport.Int(value["QualifyingPart"])).LastOrDefault(value => value is not null),
+        JsonObject obj => obj.Select(pair => JsonSupport.Int(pair.Value?["QualifyingPart"])).LastOrDefault(value => value is not null),
+        _ => null
+    };
 
     private static string? LatestSessionStatus(JsonNode? series) => series switch
     {
