@@ -45,8 +45,10 @@ var tests = new (string Name, Action Run)[]
     ("an indexed array patch keeps the fields it leaves out", IndexedArrayPatchMerge),
     ("the application log records structured rotating entries", AppLogStructuredRecords),
     ("a failing application log never throws into its caller", AppLogNeverThrows),
+    ("feed drift is logged once per source and field", FeedDriftDeduplication),
     ("a fatal session is announced once on the next launch", CrashMarkerAnnouncesOnce),
     ("unreadable settings are kept aside rather than lost", SettingsVersioningAndRecovery),
+    ("legacy settings import into the writable data folder", LegacySettingsImport),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
     ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
@@ -76,6 +78,7 @@ var tests = new (string Name, Action Run)[]
     ("F3 standings include roster teams", F3RosterTeams),
     ("F2 standings include roster teams", F2RosterTeams),
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
+    ("F1 qualifying follows the active session part", F1QualifyingParts),
     ("WRC stage timing preserves live API values", WrcStageTiming),
     ("ended feeds clear composite selection", EndedFeedsClearSelection),
     ("WRC final results settle a stale running stage", WrcFinalResultsEndStage),
@@ -381,6 +384,12 @@ static void TimingArchiveZipReplay()
         source.Step();
         Equal(completedLap, snapshot?.CurrentLap);
         Equal(2, source.FrameIndex);
+        source.Restart();
+        Equal(10, snapshot?.CurrentLap);
+        Equal(2, snapshot?.Competitors.Count);
+        Equal("25", snapshot?.Competitors[0].DriverId);
+        Equal("7", snapshot?.Competitors[1].DriverId);
+        Equal(1, source.FrameIndex);
         Task.WhenAll(Enumerable.Range(0, 8).Select(_ => source.DisposeAsync().AsTask())).GetAwaiter().GetResult();
         try
         {
@@ -783,6 +792,35 @@ static void F1PracticeTiming()
     Equal("SOFT", processor.Current.Competitors[1].Tyre);
 }
 
+static void F1QualifyingParts()
+{
+    var (_, _, processor) = Fixture();
+    var state = BaseState();
+    state["SessionInfo"]!["Name"] = "Qualifying";
+    state["SessionInfo"]!["Type"] = "Qualifying";
+    state["TimingData"]!["SessionPart"] = 1;
+    processor.ProcessInitial(state);
+    Equal("Qualifying 1", processor.Current.Session);
+
+    processor.ProcessDelta("TimingData", new JsonObject { ["SessionPart"] = 2 }, DateTimeOffset.UtcNow);
+    Equal("Qualifying 2", processor.Current.Session);
+    processor.ProcessDelta("TimingData", new JsonObject { ["SessionPart"] = 3 }, DateTimeOffset.UtcNow);
+    Equal("Qualifying 3", processor.Current.Session);
+
+    var (_, _, fallback) = Fixture();
+    state = BaseState();
+    state["SessionInfo"]!["Name"] = "Sprint Qualifying";
+    state["SessionInfo"]!["Type"] = "Qualifying";
+    state["SessionData"] = new JsonObject
+    {
+        ["Series"] = new JsonArray(
+            new JsonObject { ["QualifyingPart"] = 1 },
+            new JsonObject { ["QualifyingPart"] = 2 })
+    };
+    fallback.ProcessInitial(state);
+    Equal("Sprint Qualifying 2", fallback.Current.Session);
+}
+
 static void WrcStageTiming()
 {
     static WrcEntry Entry(int id, string code, int order) =>
@@ -1183,6 +1221,37 @@ static void AppLogNeverThrows()
     }
 }
 
+static void FeedDriftDeduplication()
+{
+    var folder = Path.Combine(Path.GetTempPath(), $"racedock-drift-{Guid.NewGuid():N}");
+    try
+    {
+        AppLog.UseFolder(folder);
+        FeedDrift.ResetForTests();
+        MotoGpTiming.BuildSnapshot(new JsonObject(), DateTimeOffset.UtcNow, ConnectionState.Connected);
+        MotoGpTiming.BuildSnapshot(new JsonObject(), DateTimeOffset.UtcNow, ConnectionState.Connected);
+        MotoGpTiming.BuildSnapshot(new JsonObject { ["head"] = new JsonObject(), ["rider"] = new JsonObject() }, DateTimeOffset.UtcNow, ConnectionState.Connected);
+        IndyCarTiming.BuildSnapshot(new JsonObject(), DateTimeOffset.UtcNow, ConnectionState.Connected);
+        IndyCarTiming.BuildSnapshot(new JsonObject(), DateTimeOffset.UtcNow, ConnectionState.Connected);
+        AppLog.Close();
+
+        var entries = File.ReadAllLines(Path.Combine(folder, "app.ndjson"))
+            .Select(line => JsonNode.Parse(line)!.AsObject())
+            .ToList();
+        Equal(3, entries.Count);
+        True(entries.Any(entry => JsonSupport.String(entry["Data"]?["Source"]) == "MotoGP"));
+        True(entries.Any(entry => JsonSupport.String(entry["Data"]?["Field"]) == "head"));
+        True(entries.Any(entry => JsonSupport.String(entry["Data"]?["Field"]) == "rider"));
+        True(entries.Any(entry => JsonSupport.String(entry["Data"]?["Source"]) == "INDYCAR"));
+    }
+    finally
+    {
+        FeedDrift.ResetForTests();
+        AppLog.UseFolder(AppPaths.Logs);
+        if (Directory.Exists(folder)) Directory.Delete(folder, true);
+    }
+}
+
 static void CrashMarkerAnnouncesOnce()
 {
     var folder = Path.Combine(Path.GetTempPath(), $"racedock-crash-{Guid.NewGuid():N}");
@@ -1241,6 +1310,28 @@ static void SettingsVersioningAndRecovery()
         Equal(1, kept.Length);
         True(File.ReadAllText(kept[0]).Contains("\"RotationSeconds\":11"));
         False(File.Exists(path));
+    }
+    finally
+    {
+        if (Directory.Exists(folder)) Directory.Delete(folder, true);
+    }
+}
+
+static void LegacySettingsImport()
+{
+    var folder = Path.Combine(Path.GetTempPath(), $"racedock-settings-import-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(folder);
+    var legacyPath = Path.Combine(folder, "old", "settings.json");
+    var targetPath = Path.Combine(folder, "new", "settings.json");
+    try
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(legacyPath)!);
+        File.WriteAllText(legacyPath, "{\"RotationSeconds\":13,\"EnableWrc\":false}");
+        var imported = new UserSettingsStore(targetPath, legacyPath).Load();
+        Equal(13, imported.RotationSeconds);
+        False(imported.EnableWrc);
+        True(File.Exists(targetPath));
+        True(File.ReadAllText(targetPath).Contains("\"Version\": 1", StringComparison.Ordinal));
     }
     finally
     {
