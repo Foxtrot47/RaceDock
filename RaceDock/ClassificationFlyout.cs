@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using RaceDock.Core;
+using Wpf.Ui.Appearance;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
@@ -164,6 +165,7 @@ public sealed class ClassificationFlyout : Window
             // Updates are skipped while hidden, so the retained snapshot is drawn on the way back in.
             RefreshFromSnapshot();
         };
+        ApplicationThemeManager.Changed += OnApplicationThemeChanged;
     }
 
     public void ApplySettings(UserSettings settings)
@@ -184,6 +186,12 @@ public sealed class ClassificationFlyout : Window
         // The blur sits behind the window, so it only shows once the panel stops painting over it.
         if (_blurred) _panel.Background = Brushes.Transparent;
         else _panel.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+    }
+
+    private void OnApplicationThemeChanged(ApplicationTheme theme, Color accent)
+    {
+        if (Dispatcher.CheckAccess()) ApplySurface();
+        else Dispatcher.BeginInvoke(ApplySurface);
     }
 
     /// <summary>
@@ -346,6 +354,12 @@ public sealed class ClassificationFlyout : Window
     {
         _closeTimer.Stop();
         _closeTimer.Start();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        ApplicationThemeManager.Changed -= OnApplicationThemeChanged;
+        base.OnClosed(e);
     }
 
     public void CancelClose()

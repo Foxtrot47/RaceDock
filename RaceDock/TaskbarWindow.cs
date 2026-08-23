@@ -7,6 +7,8 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using RaceDock.Core;
+using Wpf.Ui.Appearance;
+using WindowBackdropType = Wpf.Ui.Controls.WindowBackdropType;
 
 namespace RaceDock.App;
 
@@ -82,7 +84,11 @@ public sealed class TaskbarWindow : Window
         SurfaceMotion.AttachHover(_hoverSurface);
         Content = _hoverSurface;
         _host = new(this); SourceInitialized += (_, _) => _host.Attach();
-        Loaded += (_, _) => _host.Reattach();
+        Loaded += (_, _) =>
+        {
+            SystemThemeWatcher.Watch(this, WindowBackdropType.None);
+            _host.Reattach();
+        };
         _host.PositionChanged += visible => { if (!visible) _flyout.Hide(); else if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
         MouseLeftButtonUp += (_, _) => ShowFlyout(); MouseLeave += (_, _) => _flyout.ScheduleClose();
         _flyout.PointerEntered += (_, _) => _flyout.CancelClose();
@@ -290,5 +296,11 @@ public sealed class TaskbarWindow : Window
         // Sized and placed before the reveal, so the slide starts from the correct resting point.
         if (_snapshot is null) return; _flyout.Show(); _flyout.UpdateLayout(); _host.PositionFlyout(_flyout); _flyout.Reveal();
     }
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (IsLoaded) SystemThemeWatcher.UnWatch(this);
+        base.OnClosing(e);
+    }
+
     protected override void OnClosed(EventArgs e) { _reattach.Stop(); _flyout.Close(); base.OnClosed(e); }
 }

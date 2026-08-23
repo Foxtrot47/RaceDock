@@ -4,9 +4,11 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using RaceDock.App.Settings;
 using RaceDock.Core;
+using Wpf.Ui.Appearance;
 using FluentWindow = Wpf.Ui.Controls.FluentWindow;
 using InfoBadge = Wpf.Ui.Controls.InfoBadge;
 using NavigationViewItem = Wpf.Ui.Controls.NavigationViewItem;
+using WindowBackdropType = Wpf.Ui.Controls.WindowBackdropType;
 
 namespace RaceDock.App;
 
@@ -38,6 +40,7 @@ public sealed partial class SettingsWindow : FluentWindow
     {
         _apply = apply;
         InitializeComponent();
+        SystemThemeWatcher.Watch(this, WindowBackdropType.Mica);
         ErrorBar.IsOpen = false;
 
         var dashboard = new DashboardPage();
@@ -81,6 +84,7 @@ public sealed partial class SettingsWindow : FluentWindow
 
     public void ClosePermanently()
     {
+        if (IsLoaded) SystemThemeWatcher.UnWatch(this);
         _allowClose = true;
         Close();
     }
