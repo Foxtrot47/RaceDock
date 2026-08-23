@@ -1,6 +1,12 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+  <SolidColorBrush x:Key="RaceDockStatusLiveBrush" Color="#107C10" />
+  <SolidColorBrush x:Key="RaceDockStatusUpcomingBrush" Color="#9D5D00" />
+  <SolidColorBrush x:Key="RaceDockStatusRedFlagBrush" Color="#C42B1C" />
+  <SolidColorBrush x:Key="RaceDockStatusReplayBrush" Color="#0078D4" />
+  <SolidColorBrush x:Key="RaceDockStatusOnColorBrush" Color="White" />
+
   <Style x:Key="SettingsPagePanelStyle" TargetType="StackPanel">
     <Setter Property="MaxWidth" Value="1000" />
     <Setter Property="Margin" Value="16,16,16,64" />
@@ -65,13 +71,13 @@
     <Setter Property="Fill" Value="{DynamicResource TextFillColorTertiaryBrush}" />
     <Style.Triggers>
       <DataTrigger Binding="{Binding StatusKind}" Value="Live">
-        <Setter Property="Fill" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+        <Setter Property="Fill" Value="{StaticResource RaceDockStatusLiveBrush}" />
       </DataTrigger>
       <DataTrigger Binding="{Binding StatusKind}" Value="PreSession">
-        <Setter Property="Fill" Value="{DynamicResource SystemFillColorCautionBrush}" />
+        <Setter Property="Fill" Value="{StaticResource RaceDockStatusUpcomingBrush}" />
       </DataTrigger>
       <DataTrigger Binding="{Binding StatusKind}" Value="RedFlag">
-        <Setter Property="Fill" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        <Setter Property="Fill" Value="{StaticResource RaceDockStatusRedFlagBrush}" />
       </DataTrigger>
     </Style.Triggers>
   </Style>
@@ -80,8 +86,8 @@
     <Setter Property="Value" Value="{Binding StatusLabel}" />
     <Setter Property="FontSize" Value="10" />
     <Setter Property="FontWeight" Value="Bold" />
-    <Setter Property="Foreground" Value="White" />
-    <Setter Property="Background" Value="{DynamicResource SystemFillColorNeutralBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    <Setter Property="Background" Value="{DynamicResource SystemFillColorNeutralBackgroundBrush}" />
     <Setter Property="CornerRadius" Value="3" />
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="Visibility" Value="Collapsed" />
@@ -89,6 +95,8 @@
       <Setter.Value>
         <ControlTemplate TargetType="ui:InfoBadge">
           <Border Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
                   CornerRadius="{TemplateBinding CornerRadius}"
                   Padding="6,2">
             <StackPanel Orientation="Horizontal">
@@ -110,19 +118,23 @@
     <Style.Triggers>
       <DataTrigger Binding="{Binding StatusKind}" Value="Live">
         <Setter Property="Visibility" Value="Visible" />
-        <Setter Property="Background" Value="{DynamicResource SystemFillColorSuccessBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource RaceDockStatusOnColorBrush}" />
+        <Setter Property="Background" Value="{StaticResource RaceDockStatusLiveBrush}" />
       </DataTrigger>
       <DataTrigger Binding="{Binding StatusKind}" Value="PreSession">
         <Setter Property="Visibility" Value="Visible" />
-        <Setter Property="Background" Value="{DynamicResource SystemFillColorCautionBrush}" />
-        <Setter Property="Foreground" Value="#FF1B1B1B" />
+        <Setter Property="Foreground" Value="{StaticResource RaceDockStatusOnColorBrush}" />
+        <Setter Property="Background" Value="{StaticResource RaceDockStatusUpcomingBrush}" />
       </DataTrigger>
       <DataTrigger Binding="{Binding StatusKind}" Value="RedFlag">
         <Setter Property="Visibility" Value="Visible" />
-        <Setter Property="Background" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource RaceDockStatusOnColorBrush}" />
+        <Setter Property="Background" Value="{StaticResource RaceDockStatusRedFlagBrush}" />
       </DataTrigger>
       <DataTrigger Binding="{Binding StatusKind}" Value="Ended">
         <Setter Property="Visibility" Value="Visible" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
       </DataTrigger>
       <DataTrigger Binding="{Binding IsPaneOpen, RelativeSource={RelativeSource AncestorType={x:Type ui:NavigationViewItem}}}" Value="False">
         <Setter Property="Visibility" Value="Collapsed" />
@@ -314,13 +326,13 @@
     <Setter Property="Height" Value="6" />
     <Setter Property="Margin" Value="0,0,6,0" />
     <Setter Property="VerticalAlignment" Value="Center" />
-    <Setter Property="Fill" Value="White" />
+    <Setter Property="Fill" Value="{DynamicResource TextFillColorPrimaryBrush}" />
   </Style>
 
   <Style x:Key="SettingsTransportBadgeTextStyle" TargetType="TextBlock">
     <Setter Property="FontSize" Value="10.5" />
     <Setter Property="FontWeight" Value="SemiBold" />
-    <Setter Property="Foreground" Value="White" />
+    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 

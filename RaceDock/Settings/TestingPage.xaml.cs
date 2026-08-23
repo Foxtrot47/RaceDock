@@ -107,15 +107,17 @@ public sealed partial class TestingPage : Page
         var completed = archive?.IsCompleted == true;
         var paused = playback?.IsPaused == true;
 
-        var (label, tint) = playback switch
+        var (label, background, foreground) = playback switch
         {
-            null => ("LIVE", "SystemFillColorSuccessBackgroundBrush"),
-            _ when completed => ("COMPLETED", "SystemFillColorNeutralBackgroundBrush"),
-            _ when paused => ("PAUSED", "SystemFillColorCautionBackgroundBrush"),
-            _ => ("REPLAY", "SystemFillColorAttentionBackgroundBrush")
+            null => ("LIVE", "RaceDockStatusLiveBrush", "RaceDockStatusOnColorBrush"),
+            _ when completed => ("COMPLETED", "SystemFillColorNeutralBackgroundBrush", "TextFillColorPrimaryBrush"),
+            _ when paused => ("PAUSED", "RaceDockStatusUpcomingBrush", "RaceDockStatusOnColorBrush"),
+            _ => ("REPLAY", "RaceDockStatusReplayBrush", "RaceDockStatusOnColorBrush")
         };
         TransportStateText.Text = label;
-        TransportStateBadge.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, tint);
+        TransportStateBadge.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, background);
+        TransportStateDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, foreground);
+        TransportStateText.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, foreground);
 
         TransportPrimaryText.Text = playback switch
         {

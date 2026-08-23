@@ -22,7 +22,8 @@
             </Grid.ColumnDefinitions>
             <Border x:Name="TransportStateBadge" Style="{StaticResource SettingsTransportBadgeStyle}">
               <StackPanel Orientation="Horizontal">
-                <Ellipse Style="{StaticResource SettingsTransportDotStyle}" />
+                <Ellipse x:Name="TransportStateDot"
+                         Style="{StaticResource SettingsTransportDotStyle}" />
                 <TextBlock x:Name="TransportStateText"
                            Text="LIVE"
                            Style="{StaticResource SettingsTransportBadgeTextStyle}" />
