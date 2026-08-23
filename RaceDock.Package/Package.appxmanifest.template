@@ -6,7 +6,8 @@
          IgnorableNamespaces="uap desktop rescap">
   <Identity Name="Foxtrot47.RaceDock"
             Publisher="CN=B3628FD3-BCE4-4EF1-ADE8-780F73A4FC3F"
-            Version="__VERSION__" />
+            Version="__VERSION__"
+            ProcessorArchitecture="x64" />
   <Properties>
     <DisplayName>RaceDock</DisplayName>
     <PublisherDisplayName>Foxtrot47</PublisherDisplayName>
