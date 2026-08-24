@@ -2,21 +2,30 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
-## [0.2.0] — 2026-08-22
+## [1.0.0] — 2026-08-24
 
 ### Added
 
-- Live timing for MotoGP, Moto2, Moto3, Formula E, DTM, and INDYCAR.
-- Championship-specific taskbar and flyout display profiles.
-- Settings dashboard with timing status, visibility controls, archive replay, and deterministic testing.
-- Structured logs, crash markers, settings recovery, and versioned settings persistence.
-- Reduced archive replay memory use by generating snapshots from a rolling state.
-- Windows application identity artwork and an unsigned MSIX packaging path.
+- Rebranded the application as RaceDock with dedicated speedometer identity artwork.
+- Live timing for Formula 2, Formula 3, Formula E, DTM, INDYCAR, MotoGP, Moto2, Moto3, GT World Challenge Europe, IMSA, and the World Rally Championship alongside Formula 1.
+- Championship-specific taskbar and flyout display profiles, configurable columns, taskbar placement, and championship visibility.
+- A redesigned Settings experience with timing status, per-championship controls, archive replay, and deterministic testing scenarios.
+- Timing71 archive and compatible HAR replay with pause, restart, stepping, and playback-speed controls.
+- Structured logs, crash markers, settings recovery, versioned settings persistence, and provider schema-drift diagnostics.
+- An unsigned Microsoft Store MSIX packaging workflow with packaged startup registration and legacy-settings migration.
 
 ### Changed
 
 - Settings and logs are stored under `%LocalAppData%\RaceDock`.
+- Archive replay generates snapshots from a rolling state, substantially reducing memory use on long recordings.
 - Completed classifications remain visible for the configured retention interval.
-- Formula E, IMSA, DTM, INDYCAR, and motorcycle feed selection is independently guarded against stale or unsupported sessions.
+- Application theme changes now refresh the Settings window, taskbar surface, classification flyout, and racing-state badges.
+- Automatic startup registration is limited to explicit distribution builds.
 
-[0.2.0]: https://github.com/Foxtrot47/RaceDock/releases/tag/v0.2.0
+### Fixed
+
+- Stabilized acrylic classification flyout opening, closing, and rapid reopening without fading blurred content to an empty surface.
+- Corrected Formula 1 qualifying and sprint-qualifying part labels and the leader interval presentation.
+- Hardened Formula E, IMSA, DTM, INDYCAR, and motorcycle session selection against stale or unsupported timing data.
+
+[1.0.0]: https://github.com/Foxtrot47/RaceDock/releases/tag/v1.0.0
