@@ -80,30 +80,34 @@ internal static class SurfaceMotion
         });
     }
 
-    /// <summary>Fades and lifts a flyout into place.</summary>
+    /// <summary>Lifts a flyout into place, optionally fading an opaque surface.</summary>
     /// <param name="slide">Carries the travel. It drives no visual of its own; the caller watches
     /// it and moves the window, so the blurred surface travels with the content.</param>
-    public static void PlayOpen(Window window, TranslateTransform slide)
+    /// <param name="fade">Whether to animate window opacity. Accent blur remains native and must not outlive faded WPF content.</param>
+    public static void PlayOpen(Window window, TranslateTransform slide, bool fade = true)
     {
         slide.BeginAnimation(TranslateTransform.YProperty, null);
         window.BeginAnimation(UIElement.OpacityProperty, null);
+        window.Opacity = 1;
 
         if (!Enabled)
         {
             slide.Y = 0;
-            window.Opacity = 1;
             return;
         }
 
-        window.Opacity = 0;
         slide.Y = SlideDistance;
         var ease = new QuadraticEase { EasingMode = EasingMode.EaseOut };
-        window.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation
+        if (fade)
         {
-            To = 1,
-            Duration = Reveal,
-            EasingFunction = ease
-        });
+            window.Opacity = 0;
+            window.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation
+            {
+                To = 1,
+                Duration = Reveal,
+                EasingFunction = ease
+            });
+        }
         slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation
         {
             To = 0,
@@ -112,8 +116,8 @@ internal static class SurfaceMotion
         });
     }
 
-    /// <summary>Fades and drops a flyout away, invoking <paramref name="hidden"/> once it has gone.</summary>
-    public static void PlayClose(Window window, TranslateTransform slide, Action hidden)
+    /// <summary>Drops a flyout away, optionally fading it, and invokes <paramref name="hidden"/> once it has gone.</summary>
+    public static void PlayClose(Window window, TranslateTransform slide, Action hidden, bool fade = true)
     {
         if (!Enabled)
         {
@@ -122,17 +126,25 @@ internal static class SurfaceMotion
         }
 
         var ease = new QuadraticEase { EasingMode = EasingMode.EaseIn };
-        var fade = new DoubleAnimation { To = 0, Duration = Reveal, EasingFunction = ease };
-        // Completed can arrive after a re-open has already cancelled this animation, so the
-        // caller re-checks before acting on it.
-        fade.Completed += (_, _) => hidden();
-        slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation
+        var slideAnimation = new DoubleAnimation
         {
             To = SlideDistance,
             Duration = Reveal,
             EasingFunction = ease
-        });
-        window.BeginAnimation(UIElement.OpacityProperty, fade);
+        };
+        if (fade)
+        {
+            var fadeAnimation = new DoubleAnimation { To = 0, Duration = Reveal, EasingFunction = ease };
+            fadeAnimation.Completed += (_, _) => hidden();
+            window.BeginAnimation(UIElement.OpacityProperty, fadeAnimation);
+        }
+        else
+        {
+            window.BeginAnimation(UIElement.OpacityProperty, null);
+            window.Opacity = 1;
+            slideAnimation.Completed += (_, _) => hidden();
+        }
+        slide.BeginAnimation(TranslateTransform.YProperty, slideAnimation);
     }
 
     /// <summary>Stops an in-flight close so a re-opened flyout is not left half faded.</summary>

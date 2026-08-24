@@ -49,6 +49,7 @@ public sealed class ClassificationFlyout : Window
     private bool _blurred;
     private int _driverSignature;
     private int _visibleRowCount;
+    private int _motionVersion;
     private IReadOnlyList<FlyoutColumn>? _headerOrder;
 
     /// <summary>Root padding and border, added to the column total to get the window width.</summary>
@@ -141,13 +142,13 @@ public sealed class ClassificationFlyout : Window
         _closeTimer.Tick += (_, _) =>
         {
             _closeTimer.Stop();
-            // The fade can finish after the pointer has come back. Hiding then would be wrong, and
-            // leaving the window faded out would strand it invisible, so put it back instead.
+            var motionVersion = ++_motionVersion;
             SurfaceMotion.PlayClose(this, _slide, () =>
             {
-                if (!_closeTimer.IsEnabled && !IsMouseOver) Hide();
+                if (motionVersion != _motionVersion) return;
+                if (!IsMouseOver) Hide();
                 else CancelClose();
-            });
+            }, fade: !_blurred);
         };
         MouseEnter += (_, _) =>
         {
@@ -347,7 +348,7 @@ public sealed class ClassificationFlyout : Window
     {
         CancelClose();
         Show();
-        SurfaceMotion.PlayOpen(this, _slide);
+        SurfaceMotion.PlayOpen(this, _slide, fade: !_blurred);
     }
 
     public void ScheduleClose()
@@ -364,6 +365,7 @@ public sealed class ClassificationFlyout : Window
 
     public void CancelClose()
     {
+        _motionVersion++;
         _closeTimer.Stop();
         SurfaceMotion.CancelClose(this, _slide);
     }

@@ -21,7 +21,10 @@
             </ui:CardControl>
             <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Color24}">
                 <ui:CardControl.Header>
-                    <TextBlock Text="Enable Mica" Style="{StaticResource SettingsCardTitleStyle}" />
+                    <StackPanel HorizontalAlignment="Left">
+                        <TextBlock Text="Enable Mica (Fully experimental)" Style="{StaticResource SettingsCardTitleStyle}" />
+                        <TextBlock Text="Disable this if the classification flyout appears empty or unstable" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                    </StackPanel>
                 </ui:CardControl.Header>
                 <ui:ToggleSwitch IsChecked="{Binding FlyoutAcrylicBlur, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
             </ui:CardControl>
