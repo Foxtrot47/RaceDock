@@ -5,7 +5,7 @@
          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
          IgnorableNamespaces="uap desktop rescap">
   <Identity Name="Foxtrot47.RaceDock"
-            Publisher="CN=B3628FD3-BCE4-4EF1-ADE8-780F73A4FC3F"
+            Publisher="CN=B3628FD3-BCE4-4EF1-ADE8-7B0F73A4FC3F"
             Version="__VERSION__"
             ProcessorArchitecture="x64" />
   <Properties>
