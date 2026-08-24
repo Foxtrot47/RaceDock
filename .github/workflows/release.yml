@@ -82,6 +82,7 @@ jobs:
             --no-restore `
             -o artifacts/publish `
             -p:SourceRevisionId=${{ github.sha }} `
+            -p:RaceDockDistributionBuild=true `
             -p:PublishSingleFile=true `
             -p:EnableCompressionInSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `

@@ -31,6 +31,7 @@ $publishArgs = @(
     '--self-contained', 'true',
     '--no-restore',
     '-o', $publish,
+    '-p:RaceDockDistributionBuild=true',
     '-p:PublishSingleFile=false',
     '-p:PublishTrimmed=false',
     '-p:PublishReadyToRun=false',

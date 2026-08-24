@@ -43,6 +43,9 @@ internal static class WindowsStartupRegistration
 
     public static void Apply(bool enabled)
     {
+#if !RACEDOCK_DISTRIBUTION
+        return;
+#else
         if (IsPackaged) return;
         if (!enabled)
         {
@@ -58,6 +61,7 @@ internal static class WindowsStartupRegistration
             throw new InvalidOperationException("Could not determine the RaceDock executable path.");
 
         key.SetValue(ValueName, $"\"{processPath}\"", RegistryValueKind.String);
+#endif
     }
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]

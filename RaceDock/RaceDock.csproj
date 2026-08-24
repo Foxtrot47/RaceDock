@@ -17,6 +17,7 @@
     <Authors>Foxtrot47</Authors>
     <Copyright>Copyright © 2026 Foxtrot47</Copyright>
     <Description>Live motorsport timing in the Windows taskbar.</Description>
+    <DefineConstants Condition="'$(RaceDockDistributionBuild)' == 'true'">$(DefineConstants);RACEDOCK_DISTRIBUTION</DefineConstants>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="..\RaceDock.Core\RaceDock.Core.csproj" /></ItemGroup>
   <ItemGroup><PackageReference Include="WPF-UI" Version="4.3.0" /></ItemGroup>
