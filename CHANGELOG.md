@@ -2,6 +2,18 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
+## [1.0.1] — 2026-08-28
+
+### Added
+
+- Settings Home lists the next published event for Formula 1, MotoGP, Moto2, Moto3, the World Rally Championship, DTM, and GT World Challenge Europe, so race information is available between sessions.
+- Launching RaceDock now opens the Settings window, so the app always shows something when started by hand.
+- Starting RaceDock while it is already running brings the Settings window back instead of quitting silently.
+
+### Changed
+
+- Sign-in launches stay in the notification area: unpackaged startup entries carry a startup flag, and the packaged build recognizes startup-task activation.
+
 ## [1.0.0] — 2026-08-24
 
 ### Added
