@@ -23,6 +23,7 @@ public sealed class AppController : IAsyncDisposable
     private TaskbarWindow? _taskbar;
     private SettingsWindow? _settingsWindow;
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly UpcomingScheduleService _schedule = new();
     private UserSettings _settings;
     private bool _snapshotLogged;
     private string? _wrcTransitionKey;
@@ -246,6 +247,23 @@ public sealed class AppController : IAsyncDisposable
         foreach (var snapshot in _latestSnapshots.Values) _settingsWindow.UpdateSnapshot(snapshot);
         _settingsWindow.Show();
         _settingsWindow.Activate();
+        // The schedule comes from third-party calendars, so it loads after the window is already usable.
+        _ = RefreshUpcomingSessionsAsync(_settingsWindow);
+    }
+
+    private async Task RefreshUpcomingSessionsAsync(SettingsWindow window)
+    {
+        try
+        {
+            await window.RefreshUpcomingSessionsAsync(_schedule, _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception failure)
+        {
+            AppLog.Warning("AppController", "Could not load the published schedule.", failure);
+        }
     }
 
     private async Task ApplySettingsAsync(UserSettings settings)
@@ -310,6 +328,7 @@ public sealed class AppController : IAsyncDisposable
         finally { _sourceSwitch.Release(); }
         _taskbar?.Close();
         _settingsWindow?.ClosePermanently();
+        _schedule.Dispose();
         _sourceSwitch.Dispose();
         _lifetime.Dispose();
     }

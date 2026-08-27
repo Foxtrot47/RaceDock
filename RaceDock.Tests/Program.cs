@@ -50,6 +50,8 @@ var tests = new (string Name, Action Run)[]
     ("unreadable settings are kept aside rather than lost", SettingsVersioningAndRecovery),
     ("legacy settings import into the writable data folder", LegacySettingsImport),
     ("only a startup launch is treated as automatic", StartupLaunchDetection),
+    ("championship calendars select the next published event", ChampionshipCalendarSelection),
+    ("the schedule service isolates failures and caches results", UpcomingScheduleAggregation),
     ("Run values resolve the executable with or without the startup flag", RunValueExecutablePaths),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
@@ -1780,6 +1782,97 @@ static void StartupLaunchDetection()
     False(LaunchArguments.IndicatesStartup(["--startupdelay"]));
 }
 
+static void ChampionshipCalendarSelection()
+{
+    var now = new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero);
+
+    var f1 = ChampionshipCalendars.NextFormula1(
+    [
+        new("Dutch Grand Prix", "Race", now.AddDays(-2), now.AddDays(-2).AddHours(2)),
+        new("Italian Grand Prix", "Qualifying", now.AddDays(9), now.AddDays(9).AddHours(1)),
+        new("Italian Grand Prix", "Race", now.AddDays(10), now.AddDays(10).AddHours(2))
+    ], now);
+    Equal(Championship.Formula1, f1!.Championship);
+    Equal("Italian Grand Prix", f1.EventName);
+    Equal("Qualifying", f1.SessionName);
+
+    // Tests and launch events share the motorcycle feed and must not be presented as race weekends.
+    var motorcycle = ChampionshipCalendars.NextMotorcycleGrandPrix(JsonNode.Parse("""
+    [
+      { "kind": "TEST", "name": "SEPANG TEST", "date_start": "2026-08-28T08:00:00+00:00" },
+      { "kind": "MEDIA", "name": "TEAM PRESENTATION", "date_start": "2026-08-29T08:00:00+00:00" },
+      { "kind": "GP", "name": "GRAND PRIX OF ARAGON", "date_start": "2026-08-30T08:00:00+00:00" },
+      { "kind": "GP", "name": "GRAND PRIX OF MISANO", "date_start": "2026-09-13T08:00:00+00:00" }
+    ]
+    """) as JsonArray, now);
+    Equal(3, motorcycle.Count);
+    Equal("Grand Prix of Aragon", motorcycle[0].EventName);
+    Equal(Championship.MotoGp, motorcycle[0].Championship);
+    Equal(Championship.Moto2, motorcycle[1].Championship);
+    Equal(Championship.Moto3, motorcycle[2].Championship);
+    True(motorcycle.All(item => item.StartUtc == new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero)));
+
+    var dtm = ChampionshipCalendars.NextDtm(JsonNode.Parse("""
+    [
+      { "name": "Race 2", "startTime": "2026-09-13T12:00:00+00:00", "event": { "name": "07 Sachsenring" } },
+      { "name": "Free Practice", "startTime": "2026-09-11T07:00:00+00:00", "event": { "name": "07 Sachsenring" } }
+    ]
+    """) as JsonArray, now);
+    Equal("07 Sachsenring", dtm!.EventName);
+    Equal("Free Practice", dtm.SessionName);
+
+    // GT World Challenge publishes day-precision meeting windows in dd.MM.yyyy form.
+    var gtwc = ChampionshipCalendars.NextGtWorldChallenge(JsonNode.Parse("""
+    {
+      "Meetings": {
+        "a": { "Name": "Round 6", "BeginDate": "10.07.2026" },
+        "b": { "Name": "Round 7", "BeginDate": "28.08.2026" },
+        "c": { "Name": "Round 8", "BeginDate": "02.10.2026" }
+      }
+    }
+    """) as JsonObject, now);
+    Equal("Round 7", gtwc!.EventName);
+    Equal(new DateTimeOffset(2026, 8, 28, 0, 0, 0, TimeSpan.Zero), gtwc.StartUtc);
+
+    Equal(null, ChampionshipCalendars.NextFormula1([], now));
+    Equal(0, ChampionshipCalendars.NextMotorcycleGrandPrix(null, now).Count);
+    Equal(null, ChampionshipCalendars.NextDtm(null, now));
+    Equal(null, ChampionshipCalendars.NextGtWorldChallenge(null, now));
+
+    Equal("in 3 days", ChampionshipCalendars.DescribeTimeUntil(now.AddDays(3), now));
+    Equal("in 1 day", ChampionshipCalendars.DescribeTimeUntil(now.AddDays(1), now));
+    Equal("in 5 hours", ChampionshipCalendars.DescribeTimeUntil(now.AddHours(5), now));
+    Equal("in 20 minutes", ChampionshipCalendars.DescribeTimeUntil(now.AddMinutes(20), now));
+    Equal("under way", ChampionshipCalendars.DescribeTimeUntil(now.AddMinutes(-1), now));
+}
+
+static void UpcomingScheduleAggregation()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero));
+    var working = new StubCalendar([new(Championship.Dtm, "Sachsenring", "Race", clock.UtcNow.AddDays(4))]);
+    var late = new StubCalendar([new(Championship.Formula1, "Monza", "Race", clock.UtcNow.AddDays(2))]);
+    var broken = new StubCalendar(new InvalidOperationException("provider offline"));
+    var service = new UpcomingScheduleService([working, broken, late], clock, TimeSpan.FromHours(6), TimeSpan.FromSeconds(5));
+
+    var first = service.GetUpcomingAsync(CancellationToken.None).GetAwaiter().GetResult();
+    // A broken provider drops out; the rest stay and are ordered by start time.
+    Equal(2, first.Count);
+    Equal(Championship.Formula1, first[0].Championship);
+    Equal(Championship.Dtm, first[1].Championship);
+    Equal(1, working.Calls);
+
+    service.GetUpcomingAsync(CancellationToken.None).GetAwaiter().GetResult();
+    Equal(1, working.Calls);
+
+    clock.Advance(TimeSpan.FromHours(7));
+    service.GetUpcomingAsync(CancellationToken.None).GetAwaiter().GetResult();
+    Equal(2, working.Calls);
+
+    var stalling = new StubCalendar(TimeSpan.FromSeconds(30));
+    var timed = new UpcomingScheduleService([stalling], clock, TimeSpan.FromHours(6), TimeSpan.FromMilliseconds(150));
+    Equal(0, timed.GetUpcomingAsync(CancellationToken.None).GetAwaiter().GetResult().Count);
+}
+
 static void RunValueExecutablePaths()
 {
     Equal(@"C:\Apps\RaceDock\RaceDock.exe", LaunchArguments.ExecutablePathFromRunValue(@"""C:\Apps\RaceDock\RaceDock.exe"" --startup"));
@@ -3021,4 +3114,22 @@ sealed class FakeTimingSource(TimingSnapshot snapshot) : ILiveTimingSource
     public void Publish(TimingSnapshot value) => SnapshotReceived?.Invoke(value);
     public Task StopAsync() => Task.CompletedTask;
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+sealed class StubCalendar : IChampionshipCalendar
+{
+    private readonly IReadOnlyList<UpcomingSession> _sessions;
+    private readonly Exception? _failure;
+    private readonly TimeSpan _delay;
+    public StubCalendar(IReadOnlyList<UpcomingSession> sessions) => _sessions = sessions;
+    public StubCalendar(Exception failure) { _sessions = []; _failure = failure; }
+    public StubCalendar(TimeSpan delay) { _sessions = []; _delay = delay; }
+    public int Calls { get; private set; }
+    public async Task<IReadOnlyList<UpcomingSession>> GetUpcomingAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        Calls++;
+        if (_failure is not null) throw _failure;
+        if (_delay > TimeSpan.Zero) await Task.Delay(_delay, cancellationToken);
+        return _sessions;
+    }
 }

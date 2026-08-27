@@ -155,6 +155,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private readonly IReadOnlyDictionary<Championship, ChampionshipStatusItem> _statusByChampionship;
     private readonly ObservableCollection<FlyoutColumnItem> _flyoutColumns = [];
     private ChampionshipDisplayProfiles _profiles = new();
+    private string _upcomingSessionsStatus = "Checking published schedules…";
     private bool _syncingProfile;
     private bool _enableFormula1;
     private bool _enableFormula2;
@@ -216,6 +217,40 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
 
     public IReadOnlyList<ChampionshipStatusItem> ChampionshipStatuses { get; }
     public ObservableCollection<ChampionshipStatusItem> DashboardChampionshipStatuses { get; }
+    public ObservableCollection<UpcomingSessionItem> UpcomingSessions { get; } = [];
+
+    public string UpcomingSessionsStatus
+    {
+        get => _upcomingSessionsStatus;
+        private set
+        {
+            if (_upcomingSessionsStatus == value) return;
+            _upcomingSessionsStatus = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool HasUpcomingSessions => UpcomingSessions.Count > 0;
+
+    /// <summary>Replaces the published schedule. An empty result keeps the section visible with an explanation.</summary>
+    public void SetUpcomingSessions(IReadOnlyList<UpcomingSession> sessions, DateTimeOffset now)
+    {
+        UpcomingSessions.Clear();
+        // MotoGP, Moto2, and Moto3 share one grand prix weekend, so their entries collapse into a single row.
+        var groups = sessions
+            .Where(session => _statusByChampionship.ContainsKey(session.Championship))
+            .GroupBy(session => (session.EventName, session.SessionName, session.StartUtc));
+        foreach (var group in groups)
+        {
+            var names = group.Select(session => _statusByChampionship[session.Championship].DisplayName);
+            var icon = _statusByChampionship[group.First().Championship].IconSource;
+            UpcomingSessions.Add(new UpcomingSessionItem(group.First(), string.Join(" · ", names), icon, now));
+        }
+        UpcomingSessionsStatus = UpcomingSessions.Count > 0
+            ? string.Empty
+            : "No published dates are available right now.";
+        OnPropertyChanged(nameof(HasUpcomingSessions));
+    }
 
     public void UpdateTimingStatus(TimingSnapshot snapshot)
     {
