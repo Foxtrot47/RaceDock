@@ -49,6 +49,8 @@ var tests = new (string Name, Action Run)[]
     ("a fatal session is announced once on the next launch", CrashMarkerAnnouncesOnce),
     ("unreadable settings are kept aside rather than lost", SettingsVersioningAndRecovery),
     ("legacy settings import into the writable data folder", LegacySettingsImport),
+    ("only a startup launch is treated as automatic", StartupLaunchDetection),
+    ("Run values resolve the executable with or without the startup flag", RunValueExecutablePaths),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
     ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
@@ -1764,6 +1766,29 @@ static void UserSettingsPersistence()
     {
         if (Directory.Exists(directory)) Directory.Delete(directory, true);
     }
+}
+
+static void StartupLaunchDetection()
+{
+    True(LaunchArguments.IndicatesStartup(["--startup"]));
+    True(LaunchArguments.IndicatesStartup(["/startup"]));
+    True(LaunchArguments.IndicatesStartup(["--STARTUP"]));
+    True(LaunchArguments.IndicatesStartup(["--verbose", "--startup"]));
+    False(LaunchArguments.IndicatesStartup(null));
+    False(LaunchArguments.IndicatesStartup([]));
+    False(LaunchArguments.IndicatesStartup(["", "  "]));
+    False(LaunchArguments.IndicatesStartup(["--startupdelay"]));
+}
+
+static void RunValueExecutablePaths()
+{
+    Equal(@"C:\Apps\RaceDock\RaceDock.exe", LaunchArguments.ExecutablePathFromRunValue(@"""C:\Apps\RaceDock\RaceDock.exe"" --startup"));
+    Equal(@"C:\Apps\RaceDock\RaceDock.exe", LaunchArguments.ExecutablePathFromRunValue(@"""C:\Apps\RaceDock\RaceDock.exe"""));
+    Equal(@"C:\Apps\RaceDock.exe", LaunchArguments.ExecutablePathFromRunValue(@"C:\Apps\RaceDock.exe --startup"));
+    Equal(@"C:\Apps\RaceDock.exe", LaunchArguments.ExecutablePathFromRunValue(@"C:\Apps\RaceDock.exe"));
+    Equal(null, LaunchArguments.ExecutablePathFromRunValue("   "));
+    Equal(null, LaunchArguments.ExecutablePathFromRunValue(null));
+    Equal(null, LaunchArguments.ExecutablePathFromRunValue("\"\""));
 }
 
 static void GtwcDiscoveryFiltering()

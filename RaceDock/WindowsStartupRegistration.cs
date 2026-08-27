@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
 using Microsoft.Win32;
+using RaceDock.Core;
 
 namespace RaceDock.App;
 
@@ -19,9 +20,8 @@ internal static class WindowsStartupRegistration
             try
             {
                 using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
-                var value = key?.GetValue(ValueName) as string;
-                if (string.IsNullOrWhiteSpace(value)) return null;
-                var executable = value.Trim().Trim('"');
+                var executable = LaunchArguments.ExecutablePathFromRunValue(key?.GetValue(ValueName) as string);
+                if (executable is null) return null;
                 var directory = Path.GetDirectoryName(executable);
                 return string.IsNullOrWhiteSpace(directory) ? null : Path.Combine(directory, "settings.json");
             }
@@ -60,7 +60,7 @@ internal static class WindowsStartupRegistration
         if (string.IsNullOrWhiteSpace(processPath))
             throw new InvalidOperationException("Could not determine the RaceDock executable path.");
 
-        key.SetValue(ValueName, $"\"{processPath}\"", RegistryValueKind.String);
+        key.SetValue(ValueName, $"\"{processPath}\" {LaunchArguments.StartupFlag}", RegistryValueKind.String);
 #endif
     }
 

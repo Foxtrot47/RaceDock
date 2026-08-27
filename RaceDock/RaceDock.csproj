@@ -19,6 +19,16 @@
     <Description>Live motorsport timing in the Windows taskbar.</Description>
     <DefineConstants Condition="'$(RaceDockDistributionBuild)' == 'true'">$(DefineConstants);RACEDOCK_DISTRIBUTION</DefineConstants>
   </PropertyGroup>
+  <!--
+    Only the MSIX build needs Windows SDK projections: the packaged startup task passes no arguments, so
+    a sign-in launch can only be recognized through the activation API. Unpackaged builds recognize it
+    from the startup flag on their Run entry and stay free of the 24 MB projection assemblies.
+  -->
+  <PropertyGroup Condition="'$(RaceDockPackagedBuild)' == 'true'">
+    <IncludeWindowsSDKRefFrameworkReferences>true</IncludeWindowsSDKRefFrameworkReferences>
+    <WindowsSdkPackageVersion>10.0.17763.87</WindowsSdkPackageVersion>
+    <DefineConstants>$(DefineConstants);RACEDOCK_PACKAGED</DefineConstants>
+  </PropertyGroup>
   <ItemGroup><ProjectReference Include="..\RaceDock.Core\RaceDock.Core.csproj" /></ItemGroup>
   <ItemGroup><PackageReference Include="WPF-UI" Version="4.3.0" /></ItemGroup>
   <ItemGroup>

@@ -12,20 +12,26 @@ public partial class App : System.Windows.Application
     private System.Windows.Forms.NotifyIcon? _tray;
     private System.Windows.Forms.ToolStripMenuItem? _statusItem;
     private AppController? _controller;
+    private SecondInstanceSignal? _secondInstanceSignal;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         Wpf.Ui.Appearance.ApplicationThemeManager.ApplySystemTheme();
         _mutex = new Mutex(true, @"Local\RaceDock.Singleton", out var first);
-        if (!first) { Shutdown(); return; }
+        // A second launch is a request to see the app, so hand it to the instance that owns the UI.
+        if (!first) { SecondInstanceSignal.RequestExistingWindow(); Shutdown(); return; }
         Directory.SetCurrentDirectory(AppContext.BaseDirectory);
         InstallCrashHandlers();
-        AppLog.Info("App", $"Started version {AppVersion.Display}.");
+        var automaticStartup = LaunchMode.IsAutomaticStartup(e.Args);
+        AppLog.Info("App", $"Started version {AppVersion.Display} ({(automaticStartup ? "sign-in launch" : "user launch")}).");
         _controller = new AppController(Dispatcher);
         BuildTray();
         ReportPreviousCrash();
         _controller.StatusChanged += status => Dispatcher.Invoke(() => { if (_tray is not null) _tray.Text = $"RaceDock — {status}"; if (_statusItem is not null) _statusItem.Text = $"Connection: {status}"; });
+        _secondInstanceSignal = SecondInstanceSignal.Listen(() => Dispatcher.Invoke(() => _controller?.ShowSettings()));
+        // Windows starts the app silently at sign-in; every other launch has to show something.
+        if (!automaticStartup) _controller.ShowSettings();
         _ = StartFeedAsync();
     }
 
@@ -86,6 +92,6 @@ public partial class App : System.Windows.Application
     protected override void OnExit(ExitEventArgs e)
     {
         AppLog.Info("App", "Exited.");
-        _tray?.Dispose(); _controller?.DisposeAsync().AsTask().GetAwaiter().GetResult(); _mutex?.Dispose(); base.OnExit(e);
+        _secondInstanceSignal?.Dispose(); _tray?.Dispose(); _controller?.DisposeAsync().AsTask().GetAwaiter().GetResult(); _mutex?.Dispose(); base.OnExit(e);
     }
 }
