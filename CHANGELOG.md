@@ -2,6 +2,12 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
+## [Unreleased]
+
+### Fixed
+
+- Championship names in the settings navigation pane no longer run underneath the session status badge: a championship showing a badge is listed by its short name until the badge clears.
+
 ## [1.0.2] — 2026-08-28
 
 ### Added
