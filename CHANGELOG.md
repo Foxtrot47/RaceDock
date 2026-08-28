@@ -13,6 +13,10 @@ All notable RaceDock changes are recorded here. Release packages include the cor
 
 - Countdowns target the next session rather than the start of the race weekend: rally stages, motorcycle class sessions, and GT World Challenge track sessions each carry their own time.
 
+### Fixed
+
+- The back button in Settings now returns to the previous page instead of doing nothing.
+
 ## [1.0.1] — 2026-08-28
 
 ### Added
