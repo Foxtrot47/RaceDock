@@ -35,6 +35,10 @@ public sealed partial class SettingsWindow : FluentWindow
     private readonly DispatcherTimer _autoSave = new() { Interval = TimeSpan.FromMilliseconds(600) };
     private bool _loading;
     private bool _allowClose;
+    private PageLocation? _current;
+
+    /// <summary>A page as it was reached: the requested key, and the pane item that was highlighted for it.</summary>
+    private sealed record PageLocation(string Key, NavigationViewItem? Item);
 
     public SettingsWindow(AppController controller, UserSettings current, Func<UserSettings, Task> apply)
     {
@@ -68,6 +72,7 @@ public sealed partial class SettingsWindow : FluentWindow
             {
                 if (args.PropertyName is nameof(ChampionshipStatusItem.StatusKind)) UpdateChampionshipNavigation();
             };
+        RootNavigation.BackNavigated += page => ShowPage((PageLocation)page, remember: false);
         RootNavigation.PaneOpened += (_, _) => UpdateChampionshipNavigation();
         RootNavigation.PaneClosed += (_, _) => UpdateChampionshipNavigation();
         _autoSave.Tick += async (_, _) => await SaveAsync();
@@ -149,16 +154,23 @@ public sealed partial class SettingsWindow : FluentWindow
         if (item.Tag is string key) ShowPage(key, item);
     }
 
-    /// <summary>Shows a page and highlights <paramref name="item"/>. Pages reached from a card
-    /// rather than the pane have no item, and leave the pane with nothing highlighted.</summary>
-    private void ShowPage(string key, NavigationViewItem? item)
+    private void ShowPage(string key, NavigationViewItem? item) => ShowPage(new PageLocation(key, item), remember: true);
+
+    /// <summary>Shows a page and highlights its pane item. Pages reached from a card rather than the pane
+    /// have no item, and leave the pane with nothing highlighted.</summary>
+    private void ShowPage(PageLocation location, bool remember)
     {
+        var key = location.Key;
+        var item = location.Item;
+        if (_current?.Key == key) return;
         if (TryChampionship(key, out var championship))
         {
             _draft.SelectedChampionship = championship;
             key = "Championship";
         }
         if (!_pages.TryGetValue(key, out var page)) return;
+        if (remember && _current is not null) RootNavigation.Remember(_current);
+        _current = location;
         foreach (var navigationItem in RootNavigation.MenuItems.OfType<NavigationViewItem>()
                      .Concat(RootNavigation.FooterMenuItems.OfType<NavigationViewItem>()))
         {
