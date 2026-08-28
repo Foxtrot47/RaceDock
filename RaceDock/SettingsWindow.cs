@@ -32,6 +32,7 @@ public sealed partial class SettingsWindow : FluentWindow
     private readonly SettingsDraft _draft = new();
     private readonly TestingPage _testingPage;
     private readonly Dictionary<string, UIElement> _pages = [];
+    private readonly Dictionary<string, string> _paneLabels = [];
     private readonly DispatcherTimer _autoSave = new() { Interval = TimeSpan.FromMilliseconds(600) };
     private bool _loading;
     private bool _allowClose;
@@ -46,6 +47,8 @@ public sealed partial class SettingsWindow : FluentWindow
         InitializeComponent();
         SystemThemeWatcher.Watch(this, WindowBackdropType.Mica);
         ErrorBar.IsOpen = false;
+        foreach (var item in RootNavigation.MenuItems.OfType<NavigationViewItem>())
+            if (item is { Tag: string tag, Content: string label }) _paneLabels[tag] = label;
 
         var dashboard = new DashboardPage();
         dashboard.NavigateRequested += NavigateTo;
@@ -191,12 +194,25 @@ public sealed partial class SettingsWindow : FluentWindow
             var status = _draft.ChampionshipStatuses.FirstOrDefault(candidate => candidate.Championship == championship);
             if (status is null) continue;
             item.DataContext = status;
+            item.Content = PaneLabel(item, championship, status);
             item.InfoBadge ??= new InfoBadge { Style = badgeStyle, Margin = new Thickness(0, 0, 12, 0) };
             item.Visibility = status.IsVisible ? Visibility.Visible : Visibility.Collapsed;
             item.Opacity = status.IsChampionshipEnabled ? 1 : 0.62;
             item.ToolTip = status.IsChampionshipEnabled ? null : "Disabled — open to configure";
             ApplyCollapsedTint(item, status);
         }
+    }
+
+    /// <summary>
+    /// The status badge is laid out over the end of the label, so the longest names run underneath it. A
+    /// championship showing a badge therefore falls back to its short name, and takes its full name back
+    /// once the badge goes away.
+    /// </summary>
+    private string PaneLabel(NavigationViewItem item, Championship championship, ChampionshipStatusItem status)
+    {
+        var full = item.Tag is string tag && _paneLabels.TryGetValue(tag, out var label) ? label : ChampionshipDisplay.FullName(championship);
+        var showsBadge = status.StatusKind != ChampionshipStatusKind.Idle && RootNavigation.IsPaneOpen;
+        return showsBadge ? ChampionshipDisplay.ShortName(championship) : full;
     }
 
     /// <summary>Carries session state on a collapsed pane, where the label badge would cover the championship artwork.</summary>
