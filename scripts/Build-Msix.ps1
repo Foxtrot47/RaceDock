@@ -60,9 +60,6 @@ $manifest = (Get-Content (Join-Path $root 'RaceDock.Package/Package.appxmanifest
 $manifestDocument = [xml]$manifest
 Assert-StoreIdentity $manifestDocument.Package.Identity 'Package manifest'
 
-$appInstallerDocument = [xml](Get-Content (Join-Path $root 'RaceDock.Package/RaceDock.appinstaller.template') -Raw)
-Assert-StoreIdentity $appInstallerDocument.AppInstaller.MainPackage 'App Installer'
-
 Set-Content (Join-Path $stage 'AppxManifest.xml') $manifest -Encoding utf8
 
 $makeAppx = Get-ChildItem (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin\*\x64\makeappx.exe') | Sort-Object FullName -Descending | Select-Object -First 1

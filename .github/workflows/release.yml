@@ -58,6 +58,20 @@ jobs:
             throw "GitHub Release $tag already exists. Increment VersionPrefix before releasing again."
           }
 
+          # The release notes are the changelog entry for this version, so the published notes match the
+          # notes the application shows.
+          $changelog = Get-Content CHANGELOG.md -Raw
+          $entry = [regex]::Match($changelog, "(?ms)^## \[$([regex]::Escape($version))\][^\r\n]*\r?\n(.*?)(?=^## \[|\z)")
+          if (-not $entry.Success) {
+            throw "CHANGELOG.md has no '## [$version]' entry. Add the release notes before releasing."
+          }
+          $notes = $entry.Groups[1].Value.Trim()
+          if ([string]::IsNullOrWhiteSpace($notes)) {
+            throw "The CHANGELOG.md entry for $version is empty."
+          }
+          New-Item -ItemType Directory -Force -Path artifacts > $null
+          Set-Content artifacts/release-notes.md $notes -Encoding utf8
+
           $archive = "RaceDock-$tag-win-x64.zip"
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
@@ -120,5 +134,5 @@ jobs:
             'artifacts/${{ steps.version.outputs.archive }}' `
             'artifacts/${{ steps.version.outputs.checksum }}' `
             --target '${{ github.sha }}' `
-            --generate-notes `
+            --notes-file 'artifacts/release-notes.md' `
             --title 'RaceDock ${{ steps.version.outputs.version }}'
