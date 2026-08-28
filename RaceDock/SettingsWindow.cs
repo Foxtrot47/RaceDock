@@ -53,6 +53,7 @@ public sealed partial class SettingsWindow : FluentWindow
         AddPage("Championship", new ChampionshipPage());
         AddPage("Testing", _testingPage);
         AddPage("MoreChampionships", new MoreChampionshipsPage());
+        AddPage("Updates", new UpdatesPage());
         AddPage("About", new AboutPage());
 
         _draft.PropertyChanged += (_, args) =>

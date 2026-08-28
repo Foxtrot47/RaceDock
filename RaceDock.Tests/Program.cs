@@ -52,6 +52,7 @@ var tests = new (string Name, Action Run)[]
     ("only a startup launch is treated as automatic", StartupLaunchDetection),
     ("championship calendars select the next published event", ChampionshipCalendarSelection),
     ("the schedule service queries only enabled championships", UpcomingScheduleAggregation),
+    ("changelog entries drive release notes and update checks", ReleaseNotesAndUpdateCheck),
     ("Run values resolve the executable with or without the startup flag", RunValueExecutablePaths),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
@@ -1918,6 +1919,60 @@ static void ChampionshipCalendarSelection()
     Equal("in 5 hours", ChampionshipCalendars.DescribeTimeUntil(now.AddHours(5), now));
     Equal("in 20 minutes", ChampionshipCalendars.DescribeTimeUntil(now.AddMinutes(20), now));
     Equal("under way", ChampionshipCalendars.DescribeTimeUntil(now.AddMinutes(-1), now));
+}
+
+static void ReleaseNotesAndUpdateCheck()
+{
+    const string changelog = """
+    # Changelog
+
+    All notable RaceDock changes are recorded here.
+
+    ## [1.0.2] - 2026-08-28
+
+    ### Added
+
+    - An in-app release notes page.
+    - An update check for downloaded builds.
+
+    ### Fixed
+
+    - A wrong lead time.
+
+    ## [1.0.1] - 2026-08-26
+
+    ### Changed
+
+    - Sign-in launches stay in the notification area.
+    """;
+
+    var notes = ReleaseNotes.Parse(changelog);
+    Equal(2, notes.Count);
+    Equal("1.0.2", notes[0].Version);
+    Equal("2026-08-28", notes[0].Date);
+    Equal(2, notes[0].Groups.Count);
+    Equal("Added", notes[0].Groups[0].Heading);
+    Equal(2, notes[0].Groups[0].Items.Count);
+    Equal("An update check for downloaded builds.", notes[0].Groups[0].Items[1]);
+    Equal("Fixed", notes[0].Groups[1].Heading);
+    Equal("1.0.1", notes[1].Version);
+
+    // The running build reports an informational version, and tags carry a leading v.
+    Equal("1.0.2", ReleaseNotes.ForVersion(notes, "1.0.2+abc123")!.Version);
+    Equal("1.0.1", ReleaseNotes.ForVersion(notes, "v1.0.1")!.Version);
+    Equal(null, ReleaseNotes.ForVersion(notes, "9.9.9"));
+    Equal(0, ReleaseNotes.Parse(null).Count);
+    Equal(0, ReleaseNotes.Parse("# Changelog\n\nNothing released yet.\n").Count);
+
+    True(UpdateCheck.IsNewer("v1.0.3", "1.0.2"));
+    True(UpdateCheck.IsNewer("1.1.0", "1.0.2+abc123"));
+    False(UpdateCheck.IsNewer("v1.0.2", "1.0.2"));
+    False(UpdateCheck.IsNewer("v1.0.1", "1.0.2"));
+    // A prerelease of the running version is not an update, and unreadable values never claim one.
+    False(UpdateCheck.IsNewer("v1.0.2-beta.1", "1.0.2"));
+    False(UpdateCheck.IsNewer("nightly", "1.0.2"));
+    False(UpdateCheck.IsNewer("v1.0.3", "unknown"));
+    False(UpdateCheck.IsNewer(null, "1.0.2"));
 }
 
 static void UpcomingScheduleAggregation()

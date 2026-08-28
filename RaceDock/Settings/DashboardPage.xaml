@@ -44,14 +44,16 @@
         </ui:Button>
 
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-          <ui:SymbolIcon Symbol="CheckmarkCircle24"
+          <ui:SymbolIcon x:Name="UpdateStateIcon"
+                         Symbol="CheckmarkCircle24"
                          Filled="True"
                          Foreground="{DynamicResource SystemFillColorSuccessBrush}"
                          FontSize="24"
                          Margin="0,0,12,0" />
           <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="Updates managed by Windows" FontWeight="SemiBold" />
-            <TextBlock Text="Use View updates for release notes"
+            <TextBlock x:Name="UpdateStateTitle" Text="Updates managed by Windows" FontWeight="SemiBold" />
+            <TextBlock x:Name="UpdateStateDetail"
+                       Text="Use View updates for release notes"
                        FontSize="12"
                        Opacity="0.65" />
           </StackPanel>

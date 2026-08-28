@@ -40,4 +40,8 @@
     <Resource Include="Assets\AppIcon\racedock.svg" />
     <Resource Include="Assets\AppIcon\racedock-*.png" />
   </ItemGroup>
+  <!-- The changelog ships inside the build so the release notes always match the running version. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\CHANGELOG.md" LogicalName="RaceDock.CHANGELOG.md" />
+  </ItemGroup>
 </Project>
