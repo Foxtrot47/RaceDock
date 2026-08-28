@@ -2,6 +2,17 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
+## [1.0.2] — 2026-08-28
+
+### Added
+
+- A What's new page in Settings shows the release notes for the running version and earlier versions, instead of sending you to the commit history.
+- Builds downloaded from the project releases check whether a newer release was published and link to it. Microsoft Store installations update through the Store and do not perform this check.
+
+### Changed
+
+- Countdowns target the next session rather than the start of the race weekend: rally stages, motorcycle class sessions, and GT World Challenge track sessions each carry their own time.
+
 ## [1.0.1] — 2026-08-28
 
 ### Added
