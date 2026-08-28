@@ -22,6 +22,8 @@ When you enable a championship, RaceDock connects directly from your device to t
 
 RaceDock can open GitHub release, support, and project pages in your default web browser. GitHub's privacy policy applies when you visit those pages.
 
+When you open the What's new page, a build downloaded from the project releases asks GitHub for the latest published release number so it can tell you whether an update exists. That request sends no information about you beyond the IP address and connection metadata any web request carries. Installations from the Microsoft Store update through the Store and never make this request.
+
 ## Sharing and sale of information
 
 RaceDock does not sell personal information. RaceDock does not transmit locally stored settings, logs, or diagnostic recordings to the developer or to advertising or analytics providers. If you voluntarily attach logs or diagnostic files to a support request, the information you choose to provide will be used only to investigate that request.
