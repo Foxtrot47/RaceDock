@@ -30,8 +30,33 @@
                               Margin="0,0,24,0"
                               MaxWidth="260"
                               VerticalAlignment="Center">
-                            <TextBlock x:Name="ChampionshipIdleText"
-                                       Style="{StaticResource SettingsStatusIdleTextStyle}" />
+                            <TextBlock x:Name="ChampionshipIdleText">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource SettingsStatusIdleTextStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasUpcoming}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <StackPanel HorizontalAlignment="Right"
+                                        Visibility="{Binding HasUpcoming, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="{Binding UpcomingEvent}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Right"
+                                           TextAlignment="Right"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding UpcomingDetail}"
+                                           Margin="0,3,0,0"
+                                           FontSize="11"
+                                           Opacity="0.6"
+                                           HorizontalAlignment="Right"
+                                           TextAlignment="Right"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
                             <StackPanel HorizontalAlignment="Right"
                                         Visibility="{Binding HasTiming, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <TextBlock x:Name="ChampionshipEventText"

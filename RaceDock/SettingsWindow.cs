@@ -93,9 +93,9 @@ public sealed partial class SettingsWindow : FluentWindow
     /// Fills the Home schedule section. Failures are already absorbed by the service, so an empty result
     /// simply shows that no dates are published rather than surfacing an error to the user.
     /// </summary>
-    public async Task RefreshUpcomingSessionsAsync(UpcomingScheduleService schedule, CancellationToken cancellationToken)
+    public async Task RefreshUpcomingSessionsAsync(UpcomingScheduleService schedule, IReadOnlySet<Championship> enabled, CancellationToken cancellationToken)
     {
-        var sessions = await schedule.GetUpcomingAsync(cancellationToken);
+        var sessions = await schedule.GetUpcomingAsync(enabled, cancellationToken);
         if (cancellationToken.IsCancellationRequested) return;
         _draft.SetUpcomingSessions(sessions, DateTimeOffset.UtcNow);
     }

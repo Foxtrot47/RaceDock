@@ -10,6 +10,9 @@ public sealed record UpcomingSession(Championship Championship, string EventName
 /// <summary>Reads one championship's published calendar. Implementations never throw for an empty calendar.</summary>
 public interface IChampionshipCalendar
 {
+    /// <summary>Championships this calendar covers, so a source is only contacted for a championship the user enabled.</summary>
+    IReadOnlyList<Championship> Championships { get; }
+
     Task<IReadOnlyList<UpcomingSession>> GetUpcomingAsync(DateTimeOffset now, CancellationToken cancellationToken);
 }
 
@@ -27,26 +30,53 @@ public static class ChampionshipCalendars
 
     /// <summary>
     /// MotoGP, Moto2, and Moto3 share one grand prix weekend, so a single event produces one entry per class.
-    /// Tests and media days appear in the same feed and are excluded by <c>kind</c>.
+    /// Tests and media days appear in the same feed and are excluded by <c>kind</c>. A weekend that has already
+    /// begun stays selected until it ends, because that is the race weekend a viewer cares about.
     /// </summary>
     public static IReadOnlyList<UpcomingSession> NextMotorcycleGrandPrix(JsonArray? events, DateTimeOffset now)
     {
-        var next = events?.OfType<JsonObject>()
+        if (SelectGrandPrixWeekend(events, now) is not { } weekend) return [];
+        var name = Titleize(weekend.Name);
+        return MotorcycleClasses
+            .Select(entry => NextMotorcycleSession(weekend.Event, entry.Acronym, now) is { } session
+                ? new UpcomingSession(entry.Championship, name, session.Name, session.Start)
+                : new UpcomingSession(entry.Championship, name, null, weekend.Start))
+            .ToList();
+    }
+
+    private static (JsonObject Event, string Name, DateTimeOffset Start)? SelectGrandPrixWeekend(JsonArray? events, DateTimeOffset now) =>
+        events?.OfType<JsonObject>()
             .Where(item => string.Equals(JsonSupport.String(item["kind"]), "GP", StringComparison.OrdinalIgnoreCase))
+            .Select(item => (
+                Event: item,
+                Name: JsonSupport.String(item["name"]),
+                Start: ParseDate(JsonSupport.String(item["date_start"])),
+                End: ParseDate(JsonSupport.String(item["date_end"]))))
+            .Where(item => item.Name is not null && item.Start is not null && (item.End ?? item.Start) > now)
+            .OrderBy(item => item.Start)
+            .Select(item => ((JsonObject Event, string Name, DateTimeOffset Start)?)(item.Event, item.Name!, item.Start!.Value))
+            .FirstOrDefault();
+
+    private static readonly (Championship Championship, string Acronym)[] MotorcycleClasses =
+    [
+        (Championship.MotoGp, "MGP"),
+        (Championship.Moto2, "MT2"),
+        (Championship.Moto3, "MT3"),
+    ];
+
+    /// <summary>
+    /// The events payload embeds the weekend timetable, so the next track session for one class is read
+    /// without a further request. Media and press entries are excluded by <c>type</c>.
+    /// </summary>
+    private static (string Name, DateTimeOffset Start)? NextMotorcycleSession(JsonObject grandPrix, string acronym, DateTimeOffset now) =>
+        (grandPrix["broadcasts"] as JsonArray)?.OfType<JsonObject>()
+            .Where(item => string.Equals(JsonSupport.String(item["type"]), "SESSION", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(JsonSupport.String(item["category"]?["acronym"]), acronym, StringComparison.OrdinalIgnoreCase))
             .Select(item => (Name: JsonSupport.String(item["name"]), Start: ParseDate(JsonSupport.String(item["date_start"]))))
             .Where(item => item.Name is not null && item.Start > now)
             .OrderBy(item => item.Start)
-            .Cast<(string? Name, DateTimeOffset? Start)?>()
+            .Select(item => ((string Name, DateTimeOffset Start)?)(item.Name!, item.Start!.Value))
             .FirstOrDefault();
-        if (next is not { Name: { } rawName, Start: { } start }) return [];
-        var name = Titleize(rawName);
-        return
-        [
-            new(Championship.MotoGp, name, null, start),
-            new(Championship.Moto2, name, null, start),
-            new(Championship.Moto3, name, null, start),
-        ];
-    }
 
     public static UpcomingSession? NextDtm(JsonArray? sessions, DateTimeOffset now) =>
         sessions?.OfType<JsonObject>()
@@ -59,19 +89,99 @@ public static class ChampionshipCalendars
             .Select(item => new UpcomingSession(Championship.Dtm, item.Event ?? "DTM", item.Session, item.Start!.Value))
             .FirstOrDefault();
 
-    /// <summary>GT World Challenge meetings carry a day-precision <c>dd.MM.yyyy</c> window and no session times.</summary>
-    public static UpcomingSession? NextGtWorldChallenge(JsonObject? season, DateTimeOffset now)
+    /// <summary>A GT World Challenge round, identified so its session timetable can be fetched.</summary>
+    public sealed record GtwcMeeting(string Id, string Name, string CountryCode, DateTimeOffset StartUtc);
+
+    /// <summary>
+    /// GT World Challenge meetings carry a day-precision <c>dd.MM.yyyy</c> window. The closing date is
+    /// inclusive, so a meeting runs until the end of that day.
+    /// </summary>
+    public static GtwcMeeting? NextGtWorldChallengeMeeting(JsonObject? season, DateTimeOffset now)
     {
         if (season?["Meetings"] is not JsonObject meetings) return null;
         return meetings.Select(entry => entry.Value as JsonObject)
             .OfType<JsonObject>()
             .Select(meeting => (
+                Id: JsonSupport.String(meeting["Id"]),
                 Name: JsonSupport.String(meeting["Name"]),
-                Start: ParseDayPrecisionDate(JsonSupport.String(meeting["BeginDate"]))))
-            .Where(meeting => meeting.Name is not null && meeting.Start > now)
+                Country: JsonSupport.String(meeting["CountryCode"]) ?? "",
+                Start: ParseDayPrecisionDate(JsonSupport.String(meeting["BeginDate"])),
+                End: ParseDayPrecisionDate(JsonSupport.String(meeting["EndDate"]))?.AddDays(1)))
+            .Where(meeting => meeting is { Id: not null, Name: not null, Start: not null } && (meeting.End ?? meeting.Start) > now)
             .OrderBy(meeting => meeting.Start)
-            .Select(meeting => new UpcomingSession(Championship.GtWorldChallengeEurope, meeting.Name!, null, meeting.Start!.Value))
+            .Select(meeting => new GtwcMeeting(meeting.Id!, meeting.Name!, meeting.Country, meeting.Start!.Value))
             .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Session times in the meeting timetable are track-local with no offset, so they are read in the venue's
+    /// timezone. Support races share the timetable and are filtered out by series. Without a usable timetable
+    /// the meeting itself is reported, which carries a date but no clock time.
+    /// </summary>
+    public static UpcomingSession NextGtWorldChallenge(GtwcMeeting meeting, JsonObject? schedule, DateTimeOffset now)
+    {
+        var session = NextGtWorldChallengeSession(meeting, schedule, now);
+        return new(Championship.GtWorldChallengeEurope, meeting.Name, session?.Name, session?.Start ?? meeting.StartUtc);
+    }
+
+    private static (string Name, DateTimeOffset Start)? NextGtWorldChallengeSession(GtwcMeeting meeting, JsonObject? schedule, DateTimeOffset now)
+    {
+        if (schedule is null || VenueZone(meeting.CountryCode) is not { } zone) return null;
+        var competitions = GtwcTiming.GtwcEuropeCompetitionIds(schedule);
+        return (schedule["Units"] as JsonObject)?.Select(entry => entry.Value as JsonObject)
+            .OfType<JsonObject>()
+            .Where(unit => competitions.Contains(JsonSupport.String(unit["CompetitionId"]) ?? ""))
+            .Select(unit => (
+                Name: JsonSupport.String(unit["Name"]) ?? JsonSupport.String(unit["Code"]),
+                Start: ParseVenueLocalTime(JsonSupport.String(unit["BeginTime"]), zone)))
+            .Where(unit => unit.Name is not null && unit.Start > now)
+            .OrderBy(unit => unit.Start)
+            .Select(unit => ((string Name, DateTimeOffset Start)?)(unit.Name!, unit.Start!.Value))
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Timetables that carry no offset are read in the venue's own time. Only countries the calendar has
+    /// visited are mapped; an unlisted country falls back to the meeting date rather than an invented time.
+    /// </summary>
+    private static readonly Dictionary<string, string> VenueZones = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["BEL"] = "Europe/Brussels",
+        ["DEU"] = "Europe/Berlin",
+        ["ESP"] = "Europe/Madrid",
+        ["FRA"] = "Europe/Paris",
+        ["GBR"] = "Europe/London",
+        ["ITA"] = "Europe/Rome",
+        ["NED"] = "Europe/Amsterdam",
+        ["PRT"] = "Europe/Lisbon",
+    };
+
+    private static TimeZoneInfo? VenueZone(string countryCode) =>
+        VenueZones.TryGetValue(countryCode, out var id) ? TimeZoneInfo.FindSystemTimeZoneById(id) : null;
+
+    private static DateTimeOffset? ParseVenueLocalTime(string? value, TimeZoneInfo zone) =>
+        DateTime.TryParseExact(value, "dd.MM.yyyy HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+            ? new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(parsed, zone), TimeSpan.Zero)
+            : null;
+
+    /// <summary>
+    /// A rally runs as a sequence of stages, so the countdown targets the next stage rather than the rally
+    /// start. Rallies without a published itinerary fall back to the rally start.
+    /// </summary>
+    public static UpcomingSession NextWorldRally(
+        string eventName,
+        DateTimeOffset eventStartUtc,
+        IEnumerable<(string Code, string Name, DateTimeOffset? StartUtc)> stages,
+        DateTimeOffset now)
+    {
+        var stage = stages
+            .Where(item => item.StartUtc > now)
+            .OrderBy(item => item.StartUtc)
+            .Select(item => ((string Name, DateTimeOffset Start)?)(
+                string.IsNullOrWhiteSpace(item.Name) ? item.Code : $"{item.Code} {item.Name}",
+                item.StartUtc!.Value))
+            .FirstOrDefault();
+        return new(Championship.WorldRallyChampionship, eventName, stage?.Name, stage?.Start ?? eventStartUtc);
     }
 
     /// <summary>Plain-language lead time such as "in 3 days", used next to the exact start time.</summary>

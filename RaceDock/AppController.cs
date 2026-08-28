@@ -96,21 +96,36 @@ public sealed class AppController : IAsyncDisposable
         finally { _sourceSwitch.Release(); }
     }
 
+    /// <summary>Every championship that can be fed live, in rotation order, with the label used in the log.</summary>
+    private sealed record LiveFeed(Championship Championship, string Label, Func<AppController, ILiveTimingSource> Create);
+
+    private static readonly LiveFeed[] LiveFeeds =
+    [
+        new(Championship.Formula1, "F1", owner => new F1LiveTimingSource(owner._processor, owner._clock)),
+        new(Championship.Formula2, "F2", owner => new F2LiveTimingSource(owner._clock, owner._alerts)),
+        new(Championship.Formula3, "F3", owner => new F2LiveTimingSource(owner._clock, owner._alerts, "F3")),
+        new(Championship.MotoGp, "MotoGP", owner => new MotoGpLiveTimingSource(owner._clock, owner._alerts, Championship.MotoGp)),
+        new(Championship.Moto2, "Moto2", owner => new MotoGpLiveTimingSource(owner._clock, owner._alerts, Championship.Moto2)),
+        new(Championship.Moto3, "Moto3", owner => new MotoGpLiveTimingSource(owner._clock, owner._alerts, Championship.Moto3)),
+        new(Championship.GtWorldChallengeEurope, "GTWC", owner => new GtwcLiveTimingSource(owner._clock, owner._alerts)),
+        new(Championship.WorldRallyChampionship, "WRC", owner => new WrcLiveTimingSource(owner._clock, owner._alerts)),
+        new(Championship.Imsa, "IMSA", owner => new ImsaLiveTimingSource(owner._clock, owner._alerts)),
+        new(Championship.FormulaE, "Formula E", owner => new FormulaELiveTimingSource(owner._clock, owner._alerts)),
+        new(Championship.Dtm, "DTM", owner => new DtmLiveTimingSource(owner._clock, owner._alerts)),
+        new(Championship.IndyCar, "INDYCAR", owner => new IndyCarLiveTimingSource(owner._clock, owner._alerts)),
+    ];
+
+    private IEnumerable<LiveFeed> EnabledFeeds()
+    {
+        var enabled = EnabledChampionships(_settings);
+        return LiveFeeds.Where(feed => enabled.Contains(feed.Championship));
+    }
+
     private ILiveTimingSource CreateLiveSource()
     {
-        var factories = new List<Func<ILiveTimingSource>>();
-        if (_settings.EnableFormula1) factories.Add(() => new F1LiveTimingSource(_processor, _clock));
-        if (_settings.EnableFormula2) factories.Add(() => new F2LiveTimingSource(_clock, _alerts));
-        if (_settings.EnableFormula3) factories.Add(() => new F2LiveTimingSource(_clock, _alerts, "F3"));
-        if (_settings.EnableMotoGp) factories.Add(() => new MotoGpLiveTimingSource(_clock, _alerts, Championship.MotoGp));
-        if (_settings.EnableMoto2) factories.Add(() => new MotoGpLiveTimingSource(_clock, _alerts, Championship.Moto2));
-        if (_settings.EnableMoto3) factories.Add(() => new MotoGpLiveTimingSource(_clock, _alerts, Championship.Moto3));
-        if (_settings.EnableGtWorldChallengeEurope) factories.Add(() => new GtwcLiveTimingSource(_clock, _alerts));
-        if (_settings.EnableWrc) factories.Add(() => new WrcLiveTimingSource(_clock, _alerts));
-        if (_settings.EnableImsa) factories.Add(() => new ImsaLiveTimingSource(_clock, _alerts));
-        if (_settings.EnableFormulaE) factories.Add(() => new FormulaELiveTimingSource(_clock, _alerts));
-        if (_settings.EnableDtm) factories.Add(() => new DtmLiveTimingSource(_clock, _alerts));
-        if (_settings.EnableIndyCar) factories.Add(() => new IndyCarLiveTimingSource(_clock, _alerts));
+        var factories = EnabledFeeds()
+            .Select(feed => (Func<ILiveTimingSource>)(() => feed.Create(this)))
+            .ToList();
         return new CompositeLiveTimingSource(factories, _clock,
             TimeSpan.FromSeconds(_settings.RotationSeconds),
             TimeSpan.FromMinutes(_settings.CompletedSessionRetentionMinutes));
@@ -156,21 +171,7 @@ public sealed class AppController : IAsyncDisposable
 
     private void LogSourceStarted(ILiveTimingSource source)
     {
-        var enabled = string.Join(" + ", new[]
-        {
-            _settings.EnableFormula1 ? "F1" : null,
-            _settings.EnableFormula2 ? "F2" : null,
-            _settings.EnableFormula3 ? "F3" : null,
-            _settings.EnableMotoGp ? "MotoGP" : null,
-            _settings.EnableMoto2 ? "Moto2" : null,
-            _settings.EnableMoto3 ? "Moto3" : null,
-            _settings.EnableGtWorldChallengeEurope ? "GTWC" : null,
-            _settings.EnableWrc ? "WRC" : null,
-            _settings.EnableImsa ? "IMSA" : null,
-            _settings.EnableFormulaE ? "Formula E" : null,
-            _settings.EnableDtm ? "DTM" : null,
-            _settings.EnableIndyCar ? "INDYCAR" : null
-        }.Where(value => value is not null));
+        var enabled = string.Join(" + ", EnabledFeeds().Select(feed => feed.Label));
         Log(source switch
         {
             ITimingArchiveSource archive => $"Source started: archive replay {archive.ArchiveName}; {archive.FrameCount} frames",
@@ -255,7 +256,8 @@ public sealed class AppController : IAsyncDisposable
     {
         try
         {
-            await window.RefreshUpcomingSessionsAsync(_schedule, _lifetime.Token);
+            // Only enabled championships are contacted, so a disabled series never causes a network call.
+            await window.RefreshUpcomingSessionsAsync(_schedule, EnabledChampionships(_settings), _lifetime.Token);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
@@ -266,26 +268,24 @@ public sealed class AppController : IAsyncDisposable
         }
     }
 
+    internal static HashSet<Championship> EnabledChampionships(UserSettings settings) =>
+        Enum.GetValues<Championship>().Where(settings.IsChampionshipEnabled).ToHashSet();
+
+    /// <summary>The live feeds only depend on which championships run and how their sessions are cycled.</summary>
+    private static bool FeedsDiffer(UserSettings left, UserSettings right) =>
+        !EnabledChampionships(left).SetEquals(EnabledChampionships(right)) ||
+        left.RotationSeconds != right.RotationSeconds ||
+        left.CompletedSessionRetentionMinutes != right.CompletedSessionRetentionMinutes;
+
     private async Task ApplySettingsAsync(UserSettings settings)
     {
-        var restartFeeds = settings.EnableFormula1 != _settings.EnableFormula1 ||
-            settings.EnableFormula2 != _settings.EnableFormula2 ||
-            settings.EnableFormula3 != _settings.EnableFormula3 ||
-            settings.EnableMotoGp != _settings.EnableMotoGp ||
-            settings.EnableMoto2 != _settings.EnableMoto2 ||
-            settings.EnableMoto3 != _settings.EnableMoto3 ||
-            settings.EnableGtWorldChallengeEurope != _settings.EnableGtWorldChallengeEurope ||
-            settings.EnableWrc != _settings.EnableWrc ||
-            settings.EnableImsa != _settings.EnableImsa ||
-            settings.EnableFormulaE != _settings.EnableFormulaE ||
-            settings.EnableDtm != _settings.EnableDtm ||
-            settings.EnableIndyCar != _settings.EnableIndyCar ||
-            settings.RotationSeconds != _settings.RotationSeconds ||
-            settings.CompletedSessionRetentionMinutes != _settings.CompletedSessionRetentionMinutes;
+        var restartFeeds = FeedsDiffer(settings, _settings);
         _settingsStore.Save(settings);
         _settings = settings.Normalize();
         WindowsStartupRegistration.Apply(_settings.AutoStartOnWindowsBoot);
         _taskbar?.ApplySettings(_settings);
+        // Enabling a championship is what allows its calendar to be contacted, so the schedule follows the change.
+        if (restartFeeds && _settingsWindow is { } window) _ = RefreshUpcomingSessionsAsync(window);
         if (restartFeeds && !TestMode) await SwitchSourceAsync(TimingSourceMode.Live, force: true);
     }
 

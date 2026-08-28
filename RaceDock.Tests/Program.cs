@@ -51,7 +51,7 @@ var tests = new (string Name, Action Run)[]
     ("legacy settings import into the writable data folder", LegacySettingsImport),
     ("only a startup launch is treated as automatic", StartupLaunchDetection),
     ("championship calendars select the next published event", ChampionshipCalendarSelection),
-    ("the schedule service isolates failures and caches results", UpcomingScheduleAggregation),
+    ("the schedule service queries only enabled championships", UpcomingScheduleAggregation),
     ("Run values resolve the executable with or without the startup flag", RunValueExecutablePaths),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
@@ -1799,10 +1799,10 @@ static void ChampionshipCalendarSelection()
     // Tests and launch events share the motorcycle feed and must not be presented as race weekends.
     var motorcycle = ChampionshipCalendars.NextMotorcycleGrandPrix(JsonNode.Parse("""
     [
-      { "kind": "TEST", "name": "SEPANG TEST", "date_start": "2026-08-28T08:00:00+00:00" },
-      { "kind": "MEDIA", "name": "TEAM PRESENTATION", "date_start": "2026-08-29T08:00:00+00:00" },
-      { "kind": "GP", "name": "GRAND PRIX OF ARAGON", "date_start": "2026-08-30T08:00:00+00:00" },
-      { "kind": "GP", "name": "GRAND PRIX OF MISANO", "date_start": "2026-09-13T08:00:00+00:00" }
+      { "kind": "TEST", "name": "SEPANG TEST", "date_start": "2026-08-28T08:00:00+00:00", "date_end": "2026-08-28T18:00:00+00:00" },
+      { "kind": "MEDIA", "name": "TEAM PRESENTATION", "date_start": "2026-08-29T08:00:00+00:00", "date_end": "2026-08-29T18:00:00+00:00" },
+      { "kind": "GP", "name": "GRAND PRIX OF ARAGON", "date_start": "2026-08-30T08:00:00+00:00", "date_end": "2026-09-01T18:00:00+00:00" },
+      { "kind": "GP", "name": "GRAND PRIX OF MISANO", "date_start": "2026-09-13T08:00:00+00:00", "date_end": "2026-09-15T18:00:00+00:00" }
     ]
     """) as JsonArray, now);
     Equal(3, motorcycle.Count);
@@ -1810,6 +1810,7 @@ static void ChampionshipCalendarSelection()
     Equal(Championship.MotoGp, motorcycle[0].Championship);
     Equal(Championship.Moto2, motorcycle[1].Championship);
     Equal(Championship.Moto3, motorcycle[2].Championship);
+    // Without a published timetable every class falls back to the weekend start.
     True(motorcycle.All(item => item.StartUtc == new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero)));
 
     var dtm = ChampionshipCalendars.NextDtm(JsonNode.Parse("""
@@ -1822,22 +1823,95 @@ static void ChampionshipCalendarSelection()
     Equal("Free Practice", dtm.SessionName);
 
     // GT World Challenge publishes day-precision meeting windows in dd.MM.yyyy form.
-    var gtwc = ChampionshipCalendars.NextGtWorldChallenge(JsonNode.Parse("""
+    const string gtwcSeason = """
     {
       "Meetings": {
-        "a": { "Name": "Round 6", "BeginDate": "10.07.2026" },
-        "b": { "Name": "Round 7", "BeginDate": "28.08.2026" },
-        "c": { "Name": "Round 8", "BeginDate": "02.10.2026" }
+        "a": { "Id": "a", "Name": "Round 6", "CountryCode": "FRA", "BeginDate": "10.07.2026", "EndDate": "12.07.2026" },
+        "b": { "Id": "b", "Name": "Round 7", "CountryCode": "DEU", "BeginDate": "28.08.2026", "EndDate": "30.08.2026" },
+        "c": { "Id": "c", "Name": "Round 8", "CountryCode": "GBR", "BeginDate": "02.10.2026", "EndDate": "04.10.2026" }
       }
     }
-    """) as JsonObject, now);
-    Equal("Round 7", gtwc!.EventName);
-    Equal(new DateTimeOffset(2026, 8, 28, 0, 0, 0, TimeSpan.Zero), gtwc.StartUtc);
+    """;
+    // Support races share the meeting timetable and must not be presented as championship sessions.
+    const string gtwcSchedule = """
+    {
+      "Series": { "s1": { "Name": "GTWorldChEU pwrd by AWS Endurance Cup" }, "s2": { "Name": "Lamborghini Super Trofeo" } },
+      "Competitions": { "c1": { "SerieId": "s1" }, "c2": { "SerieId": "s2" } },
+      "Units": {
+        "u1": { "Name": "Free Practice 1", "CompetitionId": "c1", "BeginTime": "29.08.2026 10:50:00" },
+        "u2": { "Name": "Super Trofeo Race", "CompetitionId": "c2", "BeginTime": "29.08.2026 09:00:00" },
+        "u3": { "Name": "Qualifying 1", "CompetitionId": "c1", "BeginTime": "30.08.2026 09:45:00" }
+      }
+    }
+    """;
+    var meeting = ChampionshipCalendars.NextGtWorldChallengeMeeting(JsonNode.Parse(gtwcSeason) as JsonObject, now);
+    Equal("Round 7", meeting!.Name);
+    Equal(new DateTimeOffset(2026, 8, 28, 0, 0, 0, TimeSpan.Zero), meeting.StartUtc);
+
+    // Nurburgring runs on central European summer time, so 10:50 local is 08:50 UTC.
+    var gtwc = ChampionshipCalendars.NextGtWorldChallenge(meeting, JsonNode.Parse(gtwcSchedule) as JsonObject, now);
+    Equal("Round 7", gtwc.EventName);
+    Equal("Free Practice 1", gtwc.SessionName);
+    Equal(new DateTimeOffset(2026, 8, 29, 8, 50, 0, TimeSpan.Zero), gtwc.StartUtc);
+
+    // Once a session has started the countdown moves to the next one.
+    var duringRaceWeekend = new DateTimeOffset(2026, 8, 29, 9, 0, 0, TimeSpan.Zero);
+    var runningGtwc = ChampionshipCalendars.NextGtWorldChallenge(
+        ChampionshipCalendars.NextGtWorldChallengeMeeting(JsonNode.Parse(gtwcSeason) as JsonObject, duringRaceWeekend)!,
+        JsonNode.Parse(gtwcSchedule) as JsonObject,
+        duringRaceWeekend);
+    Equal("Round 7", runningGtwc.EventName);
+    Equal("Qualifying 1", runningGtwc.SessionName);
+
+    // Without a timetable the round still shows, carrying its meeting date and no session name.
+    var withoutSchedule = ChampionshipCalendars.NextGtWorldChallenge(meeting, null, now);
+    Equal(null, withoutSchedule.SessionName);
+    Equal(meeting.StartUtc, withoutSchedule.StartUtc);
+
+    // Once the closing day has passed the following round takes over.
+    var afterRaceWeekend = new DateTimeOffset(2026, 8, 31, 9, 0, 0, TimeSpan.Zero);
+    Equal("Round 8", ChampionshipCalendars.NextGtWorldChallengeMeeting(JsonNode.Parse(gtwcSeason) as JsonObject, afterRaceWeekend)!.Name);
+
+    // A grand prix weekend counts down to each class's own next session.
+    const string motorcycleWeekend = """
+    [
+      { "kind": "GP", "name": "GRAND PRIX OF ARAGON", "date_start": "2026-08-28T08:00:00+00:00", "date_end": "2026-08-30T18:00:00+00:00",
+        "broadcasts": [
+          { "type": "MEDIA", "name": "Press Conference", "date_start": "2026-08-29T10:00:00+00:00", "category": { "acronym": "MGP" } },
+          { "type": "SESSION", "name": "Free Practice Nr. 2", "date_start": "2026-08-29T08:10:00+00:00", "category": { "acronym": "MGP" } },
+          { "type": "SESSION", "name": "Qualifying Nr. 1", "date_start": "2026-08-29T12:50:00+00:00", "category": { "acronym": "MGP" } },
+          { "type": "SESSION", "name": "Free Practice Nr. 2", "date_start": "2026-08-29T09:25:00+00:00", "category": { "acronym": "MT2" } },
+          { "type": "SESSION", "name": "Race Nr. 1", "date_start": "2026-08-29T14:10:00+00:00", "category": { "acronym": "BWC" } }
+        ] },
+      { "kind": "GP", "name": "GRAND PRIX OF MISANO", "date_start": "2026-09-13T08:00:00+00:00", "date_end": "2026-09-15T18:00:00+00:00" }
+    ]
+    """;
+    var runningMotorcycle = ChampionshipCalendars.NextMotorcycleGrandPrix(JsonNode.Parse(motorcycleWeekend) as JsonArray, duringRaceWeekend);
+    Equal("Grand Prix of Aragon", runningMotorcycle[0].EventName);
+    Equal("Qualifying Nr. 1", runningMotorcycle[0].SessionName);
+    Equal(new DateTimeOffset(2026, 8, 29, 12, 50, 0, TimeSpan.Zero), runningMotorcycle[0].StartUtc);
+    // Moto2 keeps its own timetable, and a class without one falls back to the weekend start.
+    Equal("Free Practice Nr. 2", runningMotorcycle[1].SessionName);
+    Equal(null, runningMotorcycle[2].SessionName);
+    Equal(new DateTimeOffset(2026, 8, 28, 8, 0, 0, TimeSpan.Zero), runningMotorcycle[2].StartUtc);
+
+    // A rally counts down to its next stage, and falls back to the rally start without an itinerary.
+    var rallyStart = new DateTimeOffset(2026, 8, 28, 3, 0, 0, TimeSpan.Zero);
+    var stages = new (string Code, string Name, DateTimeOffset? StartUtc)[]
+    {
+        ("SS9", "Bella Vista", duringRaceWeekend.AddHours(-2)),
+        ("SS10", "Hohenau", duringRaceWeekend.AddHours(4)),
+        ("SS11", "Trinidad", duringRaceWeekend.AddHours(5))
+    };
+    var rally = ChampionshipCalendars.NextWorldRally("Ueno Rally Del Paraguay", rallyStart, stages, duringRaceWeekend);
+    Equal("SS10 Hohenau", rally.SessionName);
+    Equal(duringRaceWeekend.AddHours(4), rally.StartUtc);
+    Equal(rallyStart, ChampionshipCalendars.NextWorldRally("Ueno Rally Del Paraguay", rallyStart, [], duringRaceWeekend).StartUtc);
 
     Equal(null, ChampionshipCalendars.NextFormula1([], now));
     Equal(0, ChampionshipCalendars.NextMotorcycleGrandPrix(null, now).Count);
     Equal(null, ChampionshipCalendars.NextDtm(null, now));
-    Equal(null, ChampionshipCalendars.NextGtWorldChallenge(null, now));
+    Equal(null, ChampionshipCalendars.NextGtWorldChallengeMeeting(null, now));
 
     Equal("in 3 days", ChampionshipCalendars.DescribeTimeUntil(now.AddDays(3), now));
     Equal("in 1 day", ChampionshipCalendars.DescribeTimeUntil(now.AddDays(1), now));
@@ -1851,26 +1925,37 @@ static void UpcomingScheduleAggregation()
     var clock = new FakeClock(new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero));
     var working = new StubCalendar([new(Championship.Dtm, "Sachsenring", "Race", clock.UtcNow.AddDays(4))]);
     var late = new StubCalendar([new(Championship.Formula1, "Monza", "Race", clock.UtcNow.AddDays(2))]);
-    var broken = new StubCalendar(new InvalidOperationException("provider offline"));
-    var service = new UpcomingScheduleService([working, broken, late], clock, TimeSpan.FromHours(6), TimeSpan.FromSeconds(5));
+    var broken = new StubCalendar(Championship.Imsa, new InvalidOperationException("provider offline"));
+    var disabled = new StubCalendar([new(Championship.IndyCar, "Portland", "Race", clock.UtcNow.AddDays(3))]);
+    var service = new UpcomingScheduleService([working, broken, late, disabled], clock, TimeSpan.FromHours(6), TimeSpan.FromSeconds(5));
+    var enabled = new HashSet<Championship> { Championship.Dtm, Championship.Formula1, Championship.Imsa };
 
-    var first = service.GetUpcomingAsync(CancellationToken.None).GetAwaiter().GetResult();
+    var first = service.GetUpcomingAsync(enabled, CancellationToken.None).GetAwaiter().GetResult();
     // A broken provider drops out; the rest stay and are ordered by start time.
     Equal(2, first.Count);
     Equal(Championship.Formula1, first[0].Championship);
     Equal(Championship.Dtm, first[1].Championship);
     Equal(1, working.Calls);
+    // A championship the user has not enabled is never contacted.
+    Equal(0, disabled.Calls);
 
-    service.GetUpcomingAsync(CancellationToken.None).GetAwaiter().GetResult();
+    service.GetUpcomingAsync(enabled, CancellationToken.None).GetAwaiter().GetResult();
     Equal(1, working.Calls);
 
-    clock.Advance(TimeSpan.FromHours(7));
-    service.GetUpcomingAsync(CancellationToken.None).GetAwaiter().GetResult();
+    // Enabling another championship invalidates the cache so the new source is queried.
+    var widened = new HashSet<Championship>(enabled) { Championship.IndyCar };
+    var second = service.GetUpcomingAsync(widened, CancellationToken.None).GetAwaiter().GetResult();
+    Equal(3, second.Count);
+    Equal(1, disabled.Calls);
     Equal(2, working.Calls);
 
-    var stalling = new StubCalendar(TimeSpan.FromSeconds(30));
+    clock.Advance(TimeSpan.FromHours(7));
+    service.GetUpcomingAsync(widened, CancellationToken.None).GetAwaiter().GetResult();
+    Equal(3, working.Calls);
+
+    var stalling = new StubCalendar(Championship.Dtm, TimeSpan.FromSeconds(30));
     var timed = new UpcomingScheduleService([stalling], clock, TimeSpan.FromHours(6), TimeSpan.FromMilliseconds(150));
-    Equal(0, timed.GetUpcomingAsync(CancellationToken.None).GetAwaiter().GetResult().Count);
+    Equal(0, timed.GetUpcomingAsync(enabled, CancellationToken.None).GetAwaiter().GetResult().Count);
 }
 
 static void RunValueExecutablePaths()
@@ -3121,9 +3206,14 @@ sealed class StubCalendar : IChampionshipCalendar
     private readonly IReadOnlyList<UpcomingSession> _sessions;
     private readonly Exception? _failure;
     private readonly TimeSpan _delay;
-    public StubCalendar(IReadOnlyList<UpcomingSession> sessions) => _sessions = sessions;
-    public StubCalendar(Exception failure) { _sessions = []; _failure = failure; }
-    public StubCalendar(TimeSpan delay) { _sessions = []; _delay = delay; }
+    public StubCalendar(IReadOnlyList<UpcomingSession> sessions)
+    {
+        _sessions = sessions;
+        Championships = sessions.Select(session => session.Championship).Distinct().ToList();
+    }
+    public StubCalendar(Championship championship, Exception failure) { _sessions = []; _failure = failure; Championships = [championship]; }
+    public StubCalendar(Championship championship, TimeSpan delay) { _sessions = []; _delay = delay; Championships = [championship]; }
+    public IReadOnlyList<Championship> Championships { get; }
     public int Calls { get; private set; }
     public async Task<IReadOnlyList<UpcomingSession>> GetUpcomingAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {

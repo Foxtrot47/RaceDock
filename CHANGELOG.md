@@ -6,7 +6,7 @@ All notable RaceDock changes are recorded here. Release packages include the cor
 
 ### Added
 
-- Settings Home lists the next published event for Formula 1, MotoGP, Moto2, Moto3, the World Rally Championship, DTM, and GT World Challenge Europe, so race information is available between sessions.
+- Championship cards and championship pages show the next published event for Formula 1, MotoGP, Moto2, Moto3, the World Rally Championship, DTM, and GT World Challenge Europe, so race information is available between sessions.
 - Launching RaceDock now opens the Settings window, so the app always shows something when started by hand.
 - Starting RaceDock while it is already running brings the Settings window back instead of quitting silently.
 

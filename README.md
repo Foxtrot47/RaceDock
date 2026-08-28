@@ -76,7 +76,8 @@ RaceDock connects to these services directly from your PC. It is an independent 
 - The app is English-only for now; there are no translations yet.
 - It attaches to your main taskbar, not taskbars on secondary monitors.
 - Timing feeds are run by others: they can change, slow down, or drop out mid-session, and some series simply do not publish tyres, sectors, or pit data.
-- It covers live sessions only, no standings tables, schedules, results archives, or video.
+- It covers live timing, plus the next event for the series that publish a calendar. There are no standings tables, results archives, or video.
+- Upcoming dates are not available for Formula 2, Formula 3, Formula E, IMSA, and INDYCAR, because those series do not publish a calendar RaceDock can read.
 - The Mica background option is experimental and off by default.
 
 ## Help and bugs

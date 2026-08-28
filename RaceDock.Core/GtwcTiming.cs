@@ -52,23 +52,29 @@ internal static class GtwcTiming
         return new(id, circuit, circuit, JsonSupport.Int(node["State"]) ?? 0);
     }
 
-    public static GtwcUnit? PresentedUnit(JsonObject schedule)
+    /// <summary>Competitions in a meeting timetable that belong to the championship rather than a support race.</summary>
+    public static HashSet<string> GtwcEuropeCompetitionIds(JsonObject schedule)
     {
         var series = schedule["Series"] as JsonObject ?? [];
         var competitions = schedule["Competitions"] as JsonObject ?? [];
-        var units = schedule["Units"] as JsonObject ?? [];
         var targetSeries = series
             .Where(pair => pair.Value is JsonObject value &&
                 (IsGtwcEuropeName(JsonSupport.String(value["Name"])) ||
                  IsGtwcEuropeName(JsonSupport.String(value["ShortName"]))))
             .Select(pair => pair.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var targetCompetitions = competitions
+        return competitions
             .Where(pair => pair.Value is JsonObject value &&
                 (targetSeries.Contains(JsonSupport.String(value["SerieId"]) ?? "") ||
                  IsGtwcEuropeName(JsonSupport.String(value["Name"]))))
             .Select(pair => pair.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public static GtwcUnit? PresentedUnit(JsonObject schedule)
+    {
+        var units = schedule["Units"] as JsonObject ?? [];
+        var targetCompetitions = GtwcEuropeCompetitionIds(schedule);
         var id = JsonSupport.String(schedule["PresentationRoundId"]);
         var node = ValueById(units, id) as JsonObject;
         if (node is null || string.IsNullOrWhiteSpace(id)) return null;

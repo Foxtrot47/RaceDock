@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -17,6 +17,9 @@ internal sealed class ChampionshipStatusItem : INotifyPropertyChanged
     private string _eventName = "No active session";
     private string _sessionName = "";
     private string _progressText = "";
+    private string _upcomingEvent = "";
+    private string _upcomingDetail = "";
+    private string _upcomingSummary = "";
 
     public ChampionshipStatusItem(Championship championship, string displayName, string iconSource, string description)
     {
@@ -73,9 +76,48 @@ internal sealed class ChampionshipStatusItem : INotifyPropertyChanged
         _ => ""
     };
 
-    public string StatusTooltip => !_hasTiming
-        ? _eventName
-        : string.Join(" \u00b7 ", new[] { _eventName, _sessionName, _progressText }.Where(part => !string.IsNullOrWhiteSpace(part)));
+    /// <summary>The next published event, shown only while nothing is on track.</summary>
+    public bool HasUpcoming => !_hasTiming && _upcomingEvent.Length > 0;
+    public string UpcomingEvent => _upcomingEvent;
+    public string UpcomingDetail => _upcomingDetail;
+    public string UpcomingSummary => _upcomingSummary;
+
+    public string StatusTooltip
+    {
+        get
+        {
+            if (_hasTiming) return string.Join(" \u00b7 ", new[] { _eventName, _sessionName, _progressText }.Where(part => !string.IsNullOrWhiteSpace(part)));
+            return HasUpcoming ? $"{_upcomingEvent} \u00b7 {_upcomingDetail}" : _eventName;
+        }
+    }
+
+    public void SetUpcoming(UpcomingSession? session, DateTimeOffset now)
+    {
+        if (session is null)
+        {
+            SetStatus(ref _upcomingEvent, "", nameof(UpcomingEvent));
+            SetStatus(ref _upcomingDetail, "", nameof(UpcomingDetail));
+            SetStatus(ref _upcomingSummary, "", nameof(UpcomingSummary));
+        }
+        else
+        {
+            var local = session.StartUtc.ToLocalTime();
+            var lead = ChampionshipCalendars.DescribeTimeUntil(session.StartUtc, now);
+            // Within a day the lead time says more than a calendar date, so it replaces it.
+            var imminent = session.StartUtc - now < TimeSpan.FromDays(1);
+            // Meetings without a published session time carry a date only, so a clock time would be invented.
+            var when = imminent ? lead
+                : session.StartUtc.TimeOfDay == TimeSpan.Zero ? local.ToString("ddd d MMM")
+                : local.ToString("ddd d MMM, HH:mm");
+            var detail = new[] { session.SessionName, when, imminent ? null : lead }
+                .Where(part => !string.IsNullOrWhiteSpace(part));
+            SetStatus(ref _upcomingEvent, session.EventName, nameof(UpcomingEvent));
+            SetStatus(ref _upcomingDetail, string.Join(" \u00b7 ", detail), nameof(UpcomingDetail));
+            SetStatus(ref _upcomingSummary, $"{when} \u00b7 {session.EventName}", nameof(UpcomingSummary));
+        }
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasUpcoming)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusTooltip)));
+    }
 
     public void Update(bool enabled) => IsChampionshipEnabled = enabled;
 
@@ -93,6 +135,7 @@ internal sealed class ChampionshipStatusItem : INotifyPropertyChanged
         {
             _hasTiming = hasTiming;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasTiming)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasUpcoming)));
         }
         var eventName = snapshot is null || string.IsNullOrWhiteSpace(snapshot.Meeting)
             ? "No active session"
@@ -155,7 +198,6 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private readonly IReadOnlyDictionary<Championship, ChampionshipStatusItem> _statusByChampionship;
     private readonly ObservableCollection<FlyoutColumnItem> _flyoutColumns = [];
     private ChampionshipDisplayProfiles _profiles = new();
-    private string _upcomingSessionsStatus = "Checking published schedules…";
     private bool _syncingProfile;
     private bool _enableFormula1;
     private bool _enableFormula2;
@@ -217,39 +259,11 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
 
     public IReadOnlyList<ChampionshipStatusItem> ChampionshipStatuses { get; }
     public ObservableCollection<ChampionshipStatusItem> DashboardChampionshipStatuses { get; }
-    public ObservableCollection<UpcomingSessionItem> UpcomingSessions { get; } = [];
-
-    public string UpcomingSessionsStatus
-    {
-        get => _upcomingSessionsStatus;
-        private set
-        {
-            if (_upcomingSessionsStatus == value) return;
-            _upcomingSessionsStatus = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool HasUpcomingSessions => UpcomingSessions.Count > 0;
-
-    /// <summary>Replaces the published schedule. An empty result keeps the section visible with an explanation.</summary>
+    /// <summary>Attaches the published schedule to each championship; a series without a date simply keeps none.</summary>
     public void SetUpcomingSessions(IReadOnlyList<UpcomingSession> sessions, DateTimeOffset now)
     {
-        UpcomingSessions.Clear();
-        // MotoGP, Moto2, and Moto3 share one grand prix weekend, so their entries collapse into a single row.
-        var groups = sessions
-            .Where(session => _statusByChampionship.ContainsKey(session.Championship))
-            .GroupBy(session => (session.EventName, session.SessionName, session.StartUtc));
-        foreach (var group in groups)
-        {
-            var names = group.Select(session => _statusByChampionship[session.Championship].DisplayName);
-            var icon = _statusByChampionship[group.First().Championship].IconSource;
-            UpcomingSessions.Add(new UpcomingSessionItem(group.First(), string.Join(" · ", names), icon, now));
-        }
-        UpcomingSessionsStatus = UpcomingSessions.Count > 0
-            ? string.Empty
-            : "No published dates are available right now.";
-        OnPropertyChanged(nameof(HasUpcomingSessions));
+        foreach (var status in ChampionshipStatuses)
+            status.SetUpcoming(sessions.FirstOrDefault(session => session.Championship == status.Championship), now);
     }
 
     public void UpdateTimingStatus(TimingSnapshot snapshot)
