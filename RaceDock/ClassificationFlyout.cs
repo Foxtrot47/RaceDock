@@ -353,6 +353,9 @@ public sealed class ClassificationFlyout : Window
 
     public void ScheduleClose()
     {
+        // Closing a flyout that is not open would animate a hidden window, and the motion drives the
+        // native repositioning that makes it visible again.
+        if (!IsVisible) return;
         _closeTimer.Stop();
         _closeTimer.Start();
     }

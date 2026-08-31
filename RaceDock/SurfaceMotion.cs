@@ -39,11 +39,14 @@ internal static class SurfaceMotion
     /// </summary>
     /// <param name="highlightTopEdge">Cards are lit from above; rows in a list are not, so a row
     /// takes the fill alone.</param>
-    public static void AttachHover(Border surface, bool highlightTopEdge = true)
+    public static void AttachHover(Border surface, bool highlightTopEdge = true, bool preserveHitTarget = false)
     {
+        // A layered window ignores fully transparent pixels during native hit testing. Its resting fill
+        // therefore keeps one alpha step: visually transparent, but still part of the window's click target.
+        var resting = preserveHitTarget ? Color.FromArgb(1, 0, 0, 0) : Colors.Transparent;
         // Animating a brush needs a local, unfrozen instance; a resource reference cannot be
         // animated in place. The colours themselves still come from the Fluent palette.
-        var fill = new SolidColorBrush(Colors.Transparent);
+        var fill = new SolidColorBrush(resting);
         surface.Background = fill;
         if (highlightTopEdge)
         {
@@ -51,16 +54,17 @@ internal static class SurfaceMotion
             surface.BorderBrush = new SolidColorBrush(Colors.Transparent);
         }
 
-        surface.MouseEnter += (_, _) => SetHover(surface, fill, true, highlightTopEdge);
-        surface.MouseLeave += (_, _) => SetHover(surface, fill, false, highlightTopEdge);
+        surface.MouseEnter += (_, _) => SetHover(surface, fill, true, highlightTopEdge, resting);
+        surface.MouseLeave += (_, _) => SetHover(surface, fill, false, highlightTopEdge, resting);
     }
 
     private static Color HighlightFor(bool entering) =>
         entering ? Resolve("ControlStrokeColorDefault", FallbackHighlight) : Colors.Transparent;
 
-    private static void SetHover(Border surface, SolidColorBrush fill, bool entering, bool highlightTopEdge)
+    private static void SetHover(Border surface, SolidColorBrush fill, bool entering, bool highlightTopEdge,
+        Color resting)
     {
-        var fillTarget = entering ? Resolve("SubtleFillColorSecondary", FallbackFill) : Colors.Transparent;
+        var fillTarget = entering ? Resolve("SubtleFillColorSecondary", FallbackFill) : resting;
 
         if (!Enabled)
         {

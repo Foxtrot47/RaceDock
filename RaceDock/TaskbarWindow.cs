@@ -81,7 +81,7 @@ public sealed class TaskbarWindow : Window
         _root.Children.Add(_raceContext); _root.Children.Add(_strip);
         // The widget lights as one surface, the way a taskbar button does.
         _hoverSurface = new Border { Child = _root, CornerRadius = new CornerRadius(6), SnapsToDevicePixels = true };
-        SurfaceMotion.AttachHover(_hoverSurface);
+        SurfaceMotion.AttachHover(_hoverSurface, preserveHitTarget: true);
         Content = _hoverSurface;
         _host = new(this); SourceInitialized += (_, _) => _host.Attach();
         Loaded += (_, _) =>
@@ -90,11 +90,13 @@ public sealed class TaskbarWindow : Window
             _host.Reattach();
         };
         _host.PositionChanged += visible => { if (!visible) _flyout.Hide(); else if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
-        MouseLeftButtonUp += (_, _) => ShowFlyout(); MouseLeave += (_, _) => _flyout.ScheduleClose();
+        MouseLeftButtonUp += (_, _) => ShowFlyout(); MouseLeave += (_, _) => { if (_flyout.IsVisible) _flyout.ScheduleClose(); };
         _flyout.PointerEntered += (_, _) => _flyout.CancelClose();
         // The flyout resizes when columns are toggled or the field changes, so it has to be re-centred.
         _flyout.SizeChanged += (_, _) => { if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
-        _flyout.SlideTo = offset => _host.PositionFlyout(_flyout, offset);
+        // Positioning shows the window at the Win32 level, so a hidden flyout must never be positioned:
+        // a closing animation that outlives the hide would otherwise put an empty panel back on screen.
+        _flyout.SlideTo = offset => { if (_flyout.IsVisible) _host.PositionFlyout(_flyout, offset); };
         _reattach = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => _host.Reattach(), Dispatcher); _reattach.Start();
         ApplySettings(_settings);
     }
