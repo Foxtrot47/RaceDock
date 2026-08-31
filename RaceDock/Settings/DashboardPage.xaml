@@ -9,8 +9,10 @@
   <ScrollViewer VerticalScrollBarVisibility="Auto"
                 HorizontalScrollBarVisibility="Disabled">
     <StackPanel Style="{StaticResource SettingsPagePanelStyle}">
-      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-        <TextBlock Text="RaceDock Settings"
+      <StackPanel Orientation="Horizontal"
+                  VerticalAlignment="Center"
+                  Margin="0,0,0,12">
+        <TextBlock Text="RaceDock"
                    FontSize="24"
                    FontWeight="SemiBold" />
         <TextBlock x:Name="VersionText"
@@ -18,11 +20,6 @@
                    Opacity="0.55"
                    Margin="10,6,0,0" />
       </StackPanel>
-
-      <TextBlock Text="Home"
-                 FontSize="24"
-                 FontWeight="SemiBold"
-                 Margin="0,36,0,12" />
 
       <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
         <ui:Button Appearance="Transparent"
