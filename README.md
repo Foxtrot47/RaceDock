@@ -4,7 +4,7 @@
 
 # RaceDock
 
-**Live motorsport timing, right on your Windows taskbar.**
+**Live motorsport timing and upcoming race schedules, right on your Windows taskbar.**
 
 [![CI](https://github.com/Foxtrot47/RaceDock/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Foxtrot47/RaceDock/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/Foxtrot47/RaceDock?logo=github)](https://github.com/Foxtrot47/RaceDock/releases/latest)

@@ -2,7 +2,7 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
-## [Unreleased]
+## [1.2.0] — 2026-08-31
 
 ### Added
 
@@ -11,6 +11,7 @@ All notable RaceDock changes are recorded here. Release packages include the cor
 ### Changed
 
 - Taskbar, schedule, classification, and Settings surfaces use concise event names without provider boilerplate or title-sponsor wording. Raw feed names remain unchanged in diagnostics.
+- The Dashboard header now presents the RaceDock name and version without redundant page labels.
 
 ### Fixed
 
