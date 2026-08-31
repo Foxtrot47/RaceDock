@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace RaceDock.Core;
 
-public sealed record ScheduledSession(string Meeting, string Name, DateTimeOffset Start, DateTimeOffset End);
+public sealed record ScheduledSession(string Meeting, string Name, DateTimeOffset Start, DateTimeOffset End, string? Venue = null);
 
 public sealed class F1ScheduleClient(HttpClient? httpClient = null) : IDisposable
 {
@@ -13,23 +13,34 @@ public sealed class F1ScheduleClient(HttpClient? httpClient = null) : IDisposabl
     {
         using var response = await _http.GetAsync($"{now.Year}.json?limit=100", ct); response.EnsureSuccessStatusCode();
         var root = await response.Content.ReadFromJsonAsync<JsonNode>(cancellationToken: ct);
-        var races = root?["MRData"]?["RaceTable"]?["Races"] as JsonArray; List<ScheduledSession> result = [];
-        if (races is null) return result;
-        foreach (var node in races.OfType<JsonObject>())
-        {
-            var meeting = JsonSupport.String(node["raceName"]) ?? "Formula 1";
-            Add(node, "date", "time", "Race", TimeSpan.FromHours(4));
-            Add(node["Qualifying"] as JsonObject, "date", "time", "Qualifying", TimeSpan.FromHours(2));
-            Add(node["Sprint"] as JsonObject, "date", "time", "Sprint", TimeSpan.FromHours(2));
-            Add(node["SprintQualifying"] as JsonObject, "date", "time", "Sprint Qualifying", TimeSpan.FromHours(1.5));
-            void Add(JsonObject? source, string dateKey, string timeKey, string name, TimeSpan duration)
-            {
-                var date = JsonSupport.String(source?[dateKey]); var time = JsonSupport.String(source?[timeKey]);
-                if (date is not null && DateTimeOffset.TryParse($"{date}T{(string.IsNullOrWhiteSpace(time) ? "00:00:00Z" : time)}", out var start)) result.Add(new(meeting, name, start, start + duration));
-            }
-        }
-        return result.OrderBy(x => x.Start).ToList();
+        var races = root?["MRData"]?["RaceTable"]?["Races"] as JsonArray;
+        if (races is null) return [];
+        List<ScheduledSession> result = [];
+        foreach (var race in races.OfType<JsonObject>()) AddRaceSessions(result, race);
+        return result.OrderBy(session => session.Start).ToList();
     }
+    private static void AddRaceSessions(List<ScheduledSession> result, JsonObject race)
+    {
+        var meeting = JsonSupport.String(race["raceName"]) ?? "Formula 1";
+        var venue = JsonSupport.String(race["Circuit"]?["circuitName"]);
+        AddSession(result, race, "Race", TimeSpan.FromHours(4), meeting, venue);
+        AddSession(result, race["FirstPractice"] as JsonObject, "Practice 1", TimeSpan.FromHours(1), meeting, venue);
+        AddSession(result, race["SecondPractice"] as JsonObject, "Practice 2", TimeSpan.FromHours(1), meeting, venue);
+        AddSession(result, race["ThirdPractice"] as JsonObject, "Practice 3", TimeSpan.FromHours(1), meeting, venue);
+        AddSession(result, race["Qualifying"] as JsonObject, "Qualifying", TimeSpan.FromHours(2), meeting, venue);
+        AddSession(result, race["Sprint"] as JsonObject, "Sprint", TimeSpan.FromHours(2), meeting, venue);
+        AddSession(result, race["SprintQualifying"] as JsonObject, "Sprint Qualifying", TimeSpan.FromHours(1.5), meeting, venue);
+    }
+
+    private static void AddSession(List<ScheduledSession> result, JsonObject? source, string name,
+        TimeSpan duration, string meeting, string? venue)
+    {
+        var date = JsonSupport.String(source?["date"]);
+        var time = JsonSupport.String(source?["time"]);
+        if (date is null || !DateTimeOffset.TryParse($"{date}T{(string.IsNullOrWhiteSpace(time) ? "00:00:00Z" : time)}", out var start)) return;
+        result.Add(new(meeting, name, start, start + duration, venue));
+    }
+
     public void Dispose() => _http.Dispose();
 }
 

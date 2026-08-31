@@ -5,7 +5,8 @@ using System.Text.Json.Nodes;
 namespace RaceDock.Core;
 
 /// <summary>A published session or event that has not started yet.</summary>
-public sealed record UpcomingSession(Championship Championship, string EventName, string? SessionName, DateTimeOffset StartUtc);
+/// <param name="Venue">Circuit, track, or rally base as the source publishes it, absent when it publishes none.</param>
+public sealed record UpcomingSession(Championship Championship, string EventName, string? SessionName, DateTimeOffset StartUtc, string? Venue = null);
 
 /// <summary>Reads one championship's published calendar. Implementations never throw for an empty calendar.</summary>
 public interface IChampionshipCalendar
@@ -25,7 +26,7 @@ public static class ChampionshipCalendars
     public static UpcomingSession? NextFormula1(IReadOnlyList<ScheduledSession> sessions, DateTimeOffset now) =>
         sessions.Where(session => session.Start > now)
             .OrderBy(session => session.Start)
-            .Select(session => new UpcomingSession(Championship.Formula1, session.Meeting, session.Name, session.Start))
+            .Select(session => new UpcomingSession(Championship.Formula1, session.Meeting, session.Name, session.Start, session.Venue))
             .FirstOrDefault();
 
     /// <summary>
@@ -37,10 +38,11 @@ public static class ChampionshipCalendars
     {
         if (SelectGrandPrixWeekend(events, now) is not { } weekend) return [];
         var name = Titleize(weekend.Name);
+        var venue = JsonSupport.String(weekend.Event["circuit"]?["name"]);
         return MotorcycleClasses
             .Select(entry => NextMotorcycleSession(weekend.Event, entry.Acronym, now) is { } session
-                ? new UpcomingSession(entry.Championship, name, session.Name, session.Start)
-                : new UpcomingSession(entry.Championship, name, null, weekend.Start))
+                ? new UpcomingSession(entry.Championship, name, session.Name, session.Start, venue)
+                : new UpcomingSession(entry.Championship, name, null, weekend.Start, venue))
             .ToList();
     }
 
@@ -83,14 +85,15 @@ public static class ChampionshipCalendars
             .Select(item => (
                 Event: JsonSupport.String(item["event"]?["name"]),
                 Session: JsonSupport.String(item["name"]),
+                Venue: JsonSupport.String(item["event"]?["trackConfig"]?["track"]?["name"]),
                 Start: ParseDate(JsonSupport.String(item["startTime"]))))
             .Where(item => item.Start > now)
             .OrderBy(item => item.Start)
-            .Select(item => new UpcomingSession(Championship.Dtm, item.Event ?? "DTM", item.Session, item.Start!.Value))
+            .Select(item => new UpcomingSession(Championship.Dtm, item.Event ?? "DTM", item.Session, item.Start!.Value, item.Venue))
             .FirstOrDefault();
 
     /// <summary>A GT World Challenge round, identified so its session timetable can be fetched.</summary>
-    public sealed record GtwcMeeting(string Id, string Name, string CountryCode, DateTimeOffset StartUtc);
+    public sealed record GtwcMeeting(string Id, string Name, string CountryCode, DateTimeOffset StartUtc, string? Location = null);
 
     /// <summary>
     /// GT World Challenge meetings carry a day-precision <c>dd.MM.yyyy</c> window. The closing date is
@@ -105,11 +108,12 @@ public static class ChampionshipCalendars
                 Id: JsonSupport.String(meeting["Id"]),
                 Name: JsonSupport.String(meeting["Name"]),
                 Country: JsonSupport.String(meeting["CountryCode"]) ?? "",
+                Location: JsonSupport.String(meeting["Location"]) ?? JsonSupport.String(meeting["TrackName"]),
                 Start: ParseDayPrecisionDate(JsonSupport.String(meeting["BeginDate"])),
                 End: ParseDayPrecisionDate(JsonSupport.String(meeting["EndDate"]))?.AddDays(1)))
             .Where(meeting => meeting is { Id: not null, Name: not null, Start: not null } && (meeting.End ?? meeting.Start) > now)
             .OrderBy(meeting => meeting.Start)
-            .Select(meeting => new GtwcMeeting(meeting.Id!, meeting.Name!, meeting.Country, meeting.Start!.Value))
+            .Select(meeting => new GtwcMeeting(meeting.Id!, meeting.Name!, meeting.Country, meeting.Start!.Value, meeting.Location))
             .FirstOrDefault();
     }
 
@@ -121,7 +125,7 @@ public static class ChampionshipCalendars
     public static UpcomingSession NextGtWorldChallenge(GtwcMeeting meeting, JsonObject? schedule, DateTimeOffset now)
     {
         var session = NextGtWorldChallengeSession(meeting, schedule, now);
-        return new(Championship.GtWorldChallengeEurope, meeting.Name, session?.Name, session?.Start ?? meeting.StartUtc);
+        return new(Championship.GtWorldChallengeEurope, meeting.Name, session?.Name, session?.Start ?? meeting.StartUtc, meeting.Location);
     }
 
     private static (string Name, DateTimeOffset Start)? NextGtWorldChallengeSession(GtwcMeeting meeting, JsonObject? schedule, DateTimeOffset now)
@@ -172,7 +176,8 @@ public static class ChampionshipCalendars
         string eventName,
         DateTimeOffset eventStartUtc,
         IEnumerable<(string Code, string Name, DateTimeOffset? StartUtc)> stages,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        string? location = null)
     {
         var stage = stages
             .Where(item => item.StartUtc > now)
@@ -181,7 +186,7 @@ public static class ChampionshipCalendars
                 string.IsNullOrWhiteSpace(item.Name) ? item.Code : $"{item.Code} {item.Name}",
                 item.StartUtc!.Value))
             .FirstOrDefault();
-        return new(Championship.WorldRallyChampionship, eventName, stage?.Name, stage?.Start ?? eventStartUtc);
+        return new(Championship.WorldRallyChampionship, eventName, stage?.Name, stage?.Start ?? eventStartUtc, location);
     }
 
     /// <summary>Plain-language lead time such as "in 3 days", used next to the exact start time.</summary>

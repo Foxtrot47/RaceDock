@@ -52,6 +52,7 @@ var tests = new (string Name, Action Run)[]
     ("legacy settings import into the writable data folder", LegacySettingsImport),
     ("only a startup launch is treated as automatic", StartupLaunchDetection),
     ("championship calendars select the next published event", ChampionshipCalendarSelection),
+    ("the Formula 1 calendar includes practice sessions", F1CalendarIncludesPractice),
     ("the schedule service queries only enabled championships", UpcomingScheduleAggregation),
     ("changelog entries drive release notes and update checks", ReleaseNotesAndUpdateCheck),
     ("Run values resolve the executable with or without the startup flag", RunValueExecutablePaths),
@@ -1828,26 +1829,60 @@ static void StartupLaunchDetection()
     False(LaunchArguments.IndicatesStartup(["--startupdelay"]));
 }
 
+static void F1CalendarIncludesPractice()
+{
+    const string payload = """
+    {
+      "MRData": { "RaceTable": { "Races": [{
+        "raceName": "Italian Grand Prix",
+        "Circuit": { "circuitName": "Autodromo Nazionale di Monza" },
+        "FirstPractice": { "date": "2026-09-04", "time": "10:30:00Z" },
+        "SecondPractice": { "date": "2026-09-04", "time": "14:00:00Z" },
+        "ThirdPractice": { "date": "2026-09-05", "time": "10:30:00Z" },
+        "Qualifying": { "date": "2026-09-05", "time": "14:00:00Z" },
+        "date": "2026-09-06", "time": "13:00:00Z"
+      }] } }
+    }
+    """;
+    using var http = new HttpClient(new StaticJsonHandler(payload))
+    {
+        BaseAddress = new Uri("https://api.jolpi.ca/ergast/f1/")
+    };
+    using var client = new F1ScheduleClient(http);
+    var sessions = client.GetSessionsAsync(new DateTimeOffset(2026, 8, 31, 0, 0, 0, TimeSpan.Zero),
+        CancellationToken.None).GetAwaiter().GetResult();
+
+    Equal(5, sessions.Count);
+    Equal("Practice 1", sessions[0].Name);
+    Equal(new DateTimeOffset(2026, 9, 4, 10, 30, 0, TimeSpan.Zero), sessions[0].Start);
+    Equal("Practice 2", sessions[1].Name);
+    Equal("Practice 3", sessions[2].Name);
+    Equal("Qualifying", sessions[3].Name);
+    Equal("Race", sessions[4].Name);
+    True(sessions.All(session => session.Venue == "Autodromo Nazionale di Monza"));
+}
+
 static void ChampionshipCalendarSelection()
 {
     var now = new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero);
 
     var f1 = ChampionshipCalendars.NextFormula1(
     [
-        new("Dutch Grand Prix", "Race", now.AddDays(-2), now.AddDays(-2).AddHours(2)),
-        new("Italian Grand Prix", "Qualifying", now.AddDays(9), now.AddDays(9).AddHours(1)),
-        new("Italian Grand Prix", "Race", now.AddDays(10), now.AddDays(10).AddHours(2))
+        new("Dutch Grand Prix", "Race", now.AddDays(-2), now.AddDays(-2).AddHours(2), "Circuit Zandvoort"),
+        new("Italian Grand Prix", "Qualifying", now.AddDays(9), now.AddDays(9).AddHours(1), "Autodromo Nazionale Monza"),
+        new("Italian Grand Prix", "Race", now.AddDays(10), now.AddDays(10).AddHours(2), "Autodromo Nazionale Monza")
     ], now);
     Equal(Championship.Formula1, f1!.Championship);
     Equal("Italian Grand Prix", f1.EventName);
     Equal("Qualifying", f1.SessionName);
+    Equal("Autodromo Nazionale Monza", f1.Venue);
 
     // Tests and launch events share the motorcycle feed and must not be presented as race weekends.
     var motorcycle = ChampionshipCalendars.NextMotorcycleGrandPrix(JsonNode.Parse("""
     [
       { "kind": "TEST", "name": "SEPANG TEST", "date_start": "2026-08-28T08:00:00+00:00", "date_end": "2026-08-28T18:00:00+00:00" },
       { "kind": "MEDIA", "name": "TEAM PRESENTATION", "date_start": "2026-08-29T08:00:00+00:00", "date_end": "2026-08-29T18:00:00+00:00" },
-      { "kind": "GP", "name": "GRAND PRIX OF ARAGON", "date_start": "2026-08-30T08:00:00+00:00", "date_end": "2026-09-01T18:00:00+00:00" },
+      { "kind": "GP", "name": "GRAND PRIX OF ARAGON", "date_start": "2026-08-30T08:00:00+00:00", "date_end": "2026-09-01T18:00:00+00:00", "circuit": { "name": "MotorLand Aragon" } },
       { "kind": "GP", "name": "GRAND PRIX OF MISANO", "date_start": "2026-09-13T08:00:00+00:00", "date_end": "2026-09-15T18:00:00+00:00" }
     ]
     """) as JsonArray, now);
@@ -1856,24 +1891,27 @@ static void ChampionshipCalendarSelection()
     Equal(Championship.MotoGp, motorcycle[0].Championship);
     Equal(Championship.Moto2, motorcycle[1].Championship);
     Equal(Championship.Moto3, motorcycle[2].Championship);
+    // Every class of the weekend is held at the same circuit.
+    True(motorcycle.All(item => item.Venue == "MotorLand Aragon"));
     // Without a published timetable every class falls back to the weekend start.
     True(motorcycle.All(item => item.StartUtc == new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero)));
 
     var dtm = ChampionshipCalendars.NextDtm(JsonNode.Parse("""
     [
       { "name": "Race 2", "startTime": "2026-09-13T12:00:00+00:00", "event": { "name": "07 Sachsenring" } },
-      { "name": "Free Practice", "startTime": "2026-09-11T07:00:00+00:00", "event": { "name": "07 Sachsenring" } }
+      { "name": "Free Practice", "startTime": "2026-09-11T07:00:00+00:00", "event": { "name": "07 Sachsenring", "trackConfig": { "track": { "name": "Sachsenring" } } } }
     ]
     """) as JsonArray, now);
     Equal("07 Sachsenring", dtm!.EventName);
     Equal("Free Practice", dtm.SessionName);
+    Equal("Sachsenring", dtm.Venue);
 
     // GT World Challenge publishes day-precision meeting windows in dd.MM.yyyy form.
     const string gtwcSeason = """
     {
       "Meetings": {
         "a": { "Id": "a", "Name": "Round 6", "CountryCode": "FRA", "BeginDate": "10.07.2026", "EndDate": "12.07.2026" },
-        "b": { "Id": "b", "Name": "Round 7", "CountryCode": "DEU", "BeginDate": "28.08.2026", "EndDate": "30.08.2026" },
+        "b": { "Id": "b", "Name": "Round 7", "CountryCode": "DEU", "Location": "Nurburgring", "TrackName": "Nurburgring GP", "BeginDate": "28.08.2026", "EndDate": "30.08.2026" },
         "c": { "Id": "c", "Name": "Round 8", "CountryCode": "GBR", "BeginDate": "02.10.2026", "EndDate": "04.10.2026" }
       }
     }
@@ -1898,6 +1936,7 @@ static void ChampionshipCalendarSelection()
     var gtwc = ChampionshipCalendars.NextGtWorldChallenge(meeting, JsonNode.Parse(gtwcSchedule) as JsonObject, now);
     Equal("Round 7", gtwc.EventName);
     Equal("Free Practice 1", gtwc.SessionName);
+    Equal("Nurburgring", gtwc.Venue);
     Equal(new DateTimeOffset(2026, 8, 29, 8, 50, 0, TimeSpan.Zero), gtwc.StartUtc);
 
     // Once a session has started the countdown moves to the next one.
@@ -1949,7 +1988,8 @@ static void ChampionshipCalendarSelection()
         ("SS10", "Hohenau", duringRaceWeekend.AddHours(4)),
         ("SS11", "Trinidad", duringRaceWeekend.AddHours(5))
     };
-    var rally = ChampionshipCalendars.NextWorldRally("Ueno Rally Del Paraguay", rallyStart, stages, duringRaceWeekend);
+    var rally = ChampionshipCalendars.NextWorldRally("Ueno Rally Del Paraguay", rallyStart, stages, duringRaceWeekend, "Encarnacion");
+    Equal("Encarnacion", rally.Venue);
     Equal("SS10 Hohenau", rally.SessionName);
     Equal(duringRaceWeekend.AddHours(4), rally.StartUtc);
     Equal(rallyStart, ChampionshipCalendars.NextWorldRally("Ueno Rally Del Paraguay", rallyStart, [], duringRaceWeekend).StartUtc);

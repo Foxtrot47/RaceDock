@@ -64,7 +64,7 @@ internal sealed class WrcApiClient : IDisposable
                 JsonSupport.Bool(rally["isMain"])))
             .ToList() ?? [];
         return new(parsedId, RequireString(node["name"], "WRC event name"), window.Start, window.End,
-            Math.Max(0, JsonSupport.Int(node["shakedownCount"]) ?? 0), rallies);
+            Math.Max(0, JsonSupport.Int(node["shakedownCount"]) ?? 0), rallies, JsonSupport.String(node["location"]));
     }
 
     public async Task<IReadOnlyDictionary<int, WrcEntry>> GetEntriesAsync(int eventId, int rallyId, CancellationToken ct)

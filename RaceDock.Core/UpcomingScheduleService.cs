@@ -81,7 +81,7 @@ internal sealed class WrcCalendar(WrcApiClient client) : IChampionshipCalendar
             if ((selection.Current ?? selection.Next) is not { } next) continue;
             var detail = await client.GetEventAsync(next.EventId, cancellationToken);
             var stages = await TryGetStagesAsync(next.EventId, cancellationToken);
-            return [ChampionshipCalendars.NextWorldRally(detail.Name, next.StartUtc, stages, now)];
+            return [ChampionshipCalendars.NextWorldRally(detail.Name, next.StartUtc, stages, now, detail.Location)];
         }
         return [];
     }

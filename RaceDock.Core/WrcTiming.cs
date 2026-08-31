@@ -15,7 +15,8 @@ internal sealed record WrcEventDetail(
     DateTimeOffset StartUtc,
     DateTimeOffset EndUtc,
     int ShakedownCount,
-    IReadOnlyList<WrcRally> Rallies);
+    IReadOnlyList<WrcRally> Rallies,
+    string? Location = null);
 
 internal sealed record WrcRally(int RallyId, int? ItineraryId, bool IsMain);
 
