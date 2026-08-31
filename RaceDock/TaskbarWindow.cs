@@ -15,8 +15,10 @@ namespace RaceDock.App;
 public sealed class TaskbarWindow : Window
 {
     private readonly Grid _root = new();
+    private readonly IdleTaskbarView _idle = new();
     private readonly Border _hoverSurface;
     private readonly ColumnDefinition _contextColumn = new() { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 100 };
+    private readonly ColumnDefinition _stripColumn = new() { Width = new GridLength(1, GridUnitType.Star) };
     private readonly UniformGrid _strip = new() { Rows = 1, Columns = 5, Margin = new(2) };
     private readonly Grid _raceContext = new() { Margin = new(6, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
     private readonly ScrollingTextBlock _raceText = new() { FontSize = 10.5, FontWeight = FontWeights.SemiBold };
@@ -49,6 +51,8 @@ public sealed class TaskbarWindow : Window
     private readonly List<TaskbarCell> _cells = [];
     private readonly DispatcherTimer _reattach;
     private TimingSnapshot? _snapshot;
+    private UpcomingSession? _nextSession;
+    private IReadOnlyList<UpcomingSession> _upcoming = [];
     private RaceAlert? _currentAlert;
     private UserSettings _settings;
     private ChampionshipDisplaySettings _display;
@@ -68,7 +72,7 @@ public sealed class TaskbarWindow : Window
         _flagCanvas.Children.Add(_flagShape); _flagCanvas.Children.Add(_secondFlagShape);
         _alert.Child = _flagCanvas;
         _root.ColumnDefinitions.Add(_contextColumn);
-        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _root.ColumnDefinitions.Add(_stripColumn);
         _raceContext.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _raceContext.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -79,6 +83,9 @@ public sealed class TaskbarWindow : Window
         _raceContext.Children.Add(_eventHeader); _raceContext.Children.Add(_lapText);
         Grid.SetColumn(_raceContext, 0); Grid.SetColumn(_strip, 1);
         _root.Children.Add(_raceContext); _root.Children.Add(_strip);
+        Grid.SetColumnSpan(_idle.Element, 2);
+        _idle.Element.Visibility = Visibility.Collapsed;
+        _root.Children.Add(_idle.Element);
         // The widget lights as one surface, the way a taskbar button does.
         _hoverSurface = new Border { Child = _root, CornerRadius = new CornerRadius(6), SnapsToDevicePixels = true };
         SurfaceMotion.AttachHover(_hoverSurface, preserveHitTarget: true);
@@ -101,6 +108,9 @@ public sealed class TaskbarWindow : Window
         ApplySettings(_settings);
     }
 
+    /// <summary>Whether a classification currently owns the widget, which the countdown must not displace.</summary>
+    public bool ShowingSnapshot => _snapshot is not null && IsVisible;
+
     public void ApplySettings(UserSettings settings)
     {
         _settings = settings.Normalize();
@@ -118,8 +128,45 @@ public sealed class TaskbarWindow : Window
         _strip.Columns = _display.TaskbarCompetitorCount;
     }
 
+    /// <summary>
+    /// Shows the next published session in place of a classification. This is the state the widget sits in
+    /// between sessions, so it is deliberately narrow and carries no strip, flag, or flyout.
+    /// </summary>
+    public void ShowNextSession(UpcomingSession session, IReadOnlyList<UpcomingSession> upcoming, DateTimeOffset now)
+    {
+        _nextSession = session;
+        _upcoming = upcoming;
+        _snapshot = null;
+        _raceContext.Visibility = Visibility.Collapsed;
+        _strip.Visibility = Visibility.Collapsed;
+        _stripColumn.Width = new GridLength(0);
+        _contextColumn.MaxWidth = double.PositiveInfinity;
+        _eventHeader.MaxWidth = double.PositiveInfinity;
+        _idle.Update(session, now, TimeZoneInfo.Local);
+        _idle.Element.Visibility = Visibility.Visible;
+        System.Windows.Automation.AutomationProperties.SetName(this,
+            NextSessionDisplay.Tooltip(session, TimeZoneInfo.Local));
+        RefreshFlag();
+        _host.ApplyWidth(IdleLogicalWidth, IdleMinimumLogicalWidth);
+        if (!IsVisible) Show();
+    }
+
+    // Two short lines, so the widget gives back most of the room a classification needs.
+    private const double IdleLogicalWidth = 210, IdleMinimumLogicalWidth = 180;
+
     public void UpdateSnapshot(TimingSnapshot snapshot)
     {
+        if (_nextSession is not null)
+        {
+            _nextSession = null;
+            _idle.Element.Visibility = Visibility.Collapsed;
+            _raceContext.Visibility = Visibility.Visible;
+            _strip.Visibility = Visibility.Visible;
+            _stripColumn.Width = new GridLength(1, GridUnitType.Star);
+            _contextColumn.MaxWidth = 100;
+            _eventHeader.MaxWidth = 150;
+            _host.ApplyWidth(520, 420);
+        }
         _snapshot = snapshot;
         ApplyDisplay(snapshot.Championship);
         _raceText.Text = ChampionshipDisplay.CompactEvent(snapshot);
@@ -295,8 +342,17 @@ public sealed class TaskbarWindow : Window
 
     private void ShowFlyout()
     {
+        // Between sessions the flyout carries the schedule, which is the only thing there is to show.
+        if (_snapshot is null && !PrepareSchedule()) return;
         // Sized and placed before the reveal, so the slide starts from the correct resting point.
-        if (_snapshot is null) return; _flyout.Show(); _flyout.UpdateLayout(); _host.PositionFlyout(_flyout); _flyout.Reveal();
+        _flyout.Show(); _flyout.UpdateLayout(); _host.PositionFlyout(_flyout); _flyout.Reveal();
+    }
+
+    private bool PrepareSchedule()
+    {
+        if (_nextSession is null) return false;
+        _flyout.ShowSchedule(_upcoming, DateTimeOffset.UtcNow);
+        return true;
     }
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {

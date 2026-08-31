@@ -22,6 +22,19 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
     public event Action? ExplorerRestarted;
     public event Action<bool>? PositionChanged;
 
+    /// <summary>How much taskbar the widget asks for. The countdown shown between sessions needs far less
+    /// room than a classification strip, so it gives the space back rather than reserving it empty.</summary>
+    public double LogicalWidth { get; private set; } = 520;
+    public double MinimumLogicalWidth { get; private set; } = 420;
+
+    public void ApplyWidth(double logicalWidth, double minimumLogicalWidth)
+    {
+        if (LogicalWidth == logicalWidth && MinimumLogicalWidth == minimumLogicalWidth) return;
+        LogicalWidth = logicalWidth;
+        MinimumLogicalWidth = minimumLogicalWidth;
+        Reattach();
+    }
+
     public void ApplyPosition(TaskbarWidgetPosition position)
     {
         if (_position == position) return;
@@ -44,7 +57,7 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
         SetParent(_hwnd, taskbar);
         if (!GetWindowRect(taskbar, out var rect)) return;
         var taskbarRect = new PixelRect(rect.Left, rect.Top, rect.Right, rect.Bottom);
-        var geometry = TaskbarGeometry.CalculateChild(taskbarRect, GetDpiForWindow(taskbar), _position, FindOccupiedRectangles(taskbar, taskbarRect));
+        var geometry = TaskbarGeometry.CalculateChild(taskbarRect, GetDpiForWindow(taskbar), _position, FindOccupiedRectangles(taskbar, taskbarRect), LogicalWidth, minimumLogicalWidth: MinimumLogicalWidth);
         if (geometry is null) { ShowWindow(_hwnd, SwHide); PositionChanged?.Invoke(false); return; }
         var placement = geometry.Value;
         var parentPoint = new Point { X = taskbarRect.Left + placement.X, Y = taskbarRect.Top + placement.Y };

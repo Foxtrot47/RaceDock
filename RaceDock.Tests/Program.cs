@@ -55,6 +55,7 @@ var tests = new (string Name, Action Run)[]
     ("the Formula 1 calendar includes practice sessions", F1CalendarIncludesPractice),
     ("the schedule service queries only enabled championships", UpcomingScheduleAggregation),
     ("changelog entries drive release notes and update checks", ReleaseNotesAndUpdateCheck),
+    ("the idle widget names the next session and when it starts", NextSessionPresentation),
     ("Run values resolve the executable with or without the startup flag", RunValueExecutablePaths),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
@@ -2058,6 +2059,63 @@ static void ReleaseNotesAndUpdateCheck()
     False(UpdateCheck.IsNewer("nightly", "1.0.2"));
     False(UpdateCheck.IsNewer("v1.0.3", "unknown"));
     False(UpdateCheck.IsNewer(null, "1.0.2"));
+}
+
+static void NextSessionPresentation()
+{
+    var now = new DateTimeOffset(2026, 9, 1, 10, 0, 0, TimeSpan.Zero);
+    var zone = TimeZoneInfo.Utc;
+    UpcomingSession[] sessions =
+    [
+        new(Championship.Dtm, "Sachsenring", "Race", now.AddDays(4)),
+        new(Championship.Formula1, "Italian Grand Prix", "Practice 1", now.AddDays(3)),
+        new(Championship.WorldRallyChampionship, "Rally Paraguay", "SS1", now.AddHours(-2))
+    ];
+
+    // A session already under way belongs to the live feeds, so the widget looks past it.
+    var next = NextSessionDisplay.Next(sessions, now)!;
+    Equal(Championship.Formula1, next.Championship);
+    Equal(null, NextSessionDisplay.Next([], now));
+    Equal(null, NextSessionDisplay.Next([sessions[2]], now));
+
+    Equal("F1 · Italian Grand Prix", NextSessionDisplay.Headline(next));
+    Equal("WRC", NextSessionDisplay.Headline(new(Championship.WorldRallyChampionship, "", null, now)));
+
+    // Close sessions count down; distant ones give the local clock time instead.
+    Equal("Practice 1 · in 42m", NextSessionDisplay.Detail(next with { StartUtc = now.AddMinutes(42) }, now, zone));
+    Equal("Practice 1 · in 3h 05m", NextSessionDisplay.Detail(next with { StartUtc = now.AddMinutes(185) }, now, zone));
+    Equal("Practice 1 · Fri 13:30", NextSessionDisplay.Detail(next with { StartUtc = new DateTimeOffset(2026, 9, 4, 13, 30, 0, TimeSpan.Zero) }, now, zone));
+    // The month name follows the machine's culture ("Sep" or "Sept"), so only the fixed part is asserted.
+    True(NextSessionDisplay.Detail(next with { StartUtc = new DateTimeOffset(2026, 9, 12, 13, 30, 0, TimeSpan.Zero) }, now, zone).StartsWith("Practice 1 · Sat 12 "));
+    Equal("in 1m", NextSessionDisplay.Detail(new(Championship.Dtm, "Sachsenring", null, now.AddSeconds(30)), now, zone));
+
+    // The schedule keeps only what is still ahead, soonest first, whatever order the calendars answered in.
+    var schedule = NextSessionDisplay.Schedule(sessions, now);
+    Equal(2, schedule.Count);
+    Equal(Championship.Formula1, schedule[0].Championship);
+    Equal(Championship.Dtm, schedule[1].Championship);
+
+    var monza = next with { Venue = "Autodromo Nazionale Monza" };
+    Equal("Practice 1 · Autodromo Nazionale Monza", NextSessionDisplay.RowSubtitle(monza));
+    Equal("Practice 1", NextSessionDisplay.RowSubtitle(next));
+    Equal("Autodromo Nazionale Monza", NextSessionDisplay.RowSubtitle(next with { SessionName = null, Venue = "Autodromo Nazionale Monza" }));
+    Equal("", NextSessionDisplay.RowSubtitle(next with { SessionName = null }));
+
+    // A venue the event name already carries is not repeated.
+    Equal("Free Practice", NextSessionDisplay.RowSubtitle(new(Championship.Dtm, "07 Sachsenring", "Free Practice", now, "Sachsenring")));
+
+    // Near days are named rather than dated, because a date is harder to read against today.
+    Equal("TODAY", NextSessionDisplay.GroupDay(next with { StartUtc = now.AddHours(6) }, now, zone));
+    Equal("TOMORROW", NextSessionDisplay.GroupDay(next with { StartUtc = now.AddDays(1) }, now, zone));
+    True(NextSessionDisplay.GroupDay(next with { StartUtc = new DateTimeOffset(2026, 9, 4, 13, 30, 0, TimeSpan.Zero) }, now, zone).StartsWith("FRIDAY 4 "));
+    True(NextSessionDisplay.GroupDay(next with { StartUtc = new DateTimeOffset(2026, 9, 12, 13, 30, 0, TimeSpan.Zero) }, now, zone).StartsWith("SAT 12 "));
+    Equal("13:30", NextSessionDisplay.RowTime(next with { StartUtc = new DateTimeOffset(2026, 9, 4, 13, 30, 0, TimeSpan.Zero) }, zone));
+    // Day-precision meetings publish no start time, so the row is left to say that itself.
+    Equal("", NextSessionDisplay.RowTime(next with { StartUtc = new DateTimeOffset(2026, 9, 4, 0, 0, 0, TimeSpan.Zero) }, zone));
+
+    var tooltip = NextSessionDisplay.Tooltip(next with { StartUtc = new DateTimeOffset(2026, 9, 4, 13, 30, 0, TimeSpan.Zero) }, zone);
+    True(tooltip.StartsWith("Next session: Formula 1 · Italian Grand Prix — Practice 1, Fri 4 "));
+    True(tooltip.EndsWith(", 13:30"));
 }
 
 static void UpcomingScheduleAggregation()

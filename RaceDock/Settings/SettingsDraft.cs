@@ -214,6 +214,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private bool _enableDtm;
     private bool _enableIndyCar;
     private bool _autoStartOnWindowsBoot;
+    private bool _showNextSessionWhenIdle;
     private bool _interfaceAnimations;
     private bool _flyoutAcrylicBlur;
     private int _flyoutBlurTint;
@@ -294,6 +295,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     public bool EnableDtm { get => _enableDtm; set => SetStream(Championship.Dtm, ref _enableDtm, value); }
     public bool EnableIndyCar { get => _enableIndyCar; set => SetStream(Championship.IndyCar, ref _enableIndyCar, value); }
     public bool AutoStartOnWindowsBoot { get => _autoStartOnWindowsBoot; set => Set(ref _autoStartOnWindowsBoot, value); }
+    public bool ShowNextSessionWhenIdle { get => _showNextSessionWhenIdle; set => Set(ref _showNextSessionWhenIdle, value); }
     public bool InterfaceAnimations { get => _interfaceAnimations; set => Set(ref _interfaceAnimations, value); }
     public bool FlyoutAcrylicBlur { get => _flyoutAcrylicBlur; set => Set(ref _flyoutAcrylicBlur, value); }
     public int FlyoutBlurTint { get => _flyoutBlurTint; set => Set(ref _flyoutBlurTint, value); }
@@ -496,6 +498,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         EnableDtm = normalized.EnableDtm;
         EnableIndyCar = normalized.EnableIndyCar;
         AutoStartOnWindowsBoot = normalized.AutoStartOnWindowsBoot;
+        ShowNextSessionWhenIdle = normalized.ShowNextSessionWhenIdle;
         InterfaceAnimations = normalized.InterfaceAnimations;
         FlyoutAcrylicBlur = normalized.FlyoutAcrylicBlur;
         FlyoutBlurTint = normalized.FlyoutBlurTint;
@@ -515,6 +518,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     {
         var defaults = new UserSettings();
         AutoStartOnWindowsBoot = defaults.AutoStartOnWindowsBoot;
+        ShowNextSessionWhenIdle = defaults.ShowNextSessionWhenIdle;
         InterfaceAnimations = defaults.InterfaceAnimations;
         FlyoutAcrylicBlur = defaults.FlyoutAcrylicBlur;
         FlyoutBlurTint = defaults.FlyoutBlurTint;
@@ -566,6 +570,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             ShowPositionColors = formula1.FlyoutShowPositionColors,
             UseManufacturerLogos = formula1.FlyoutUseManufacturerLogos,
             AutoStartOnWindowsBoot = AutoStartOnWindowsBoot,
+            ShowNextSessionWhenIdle = ShowNextSessionWhenIdle,
             InterfaceAnimations = InterfaceAnimations,
             FlyoutAcrylicBlur = FlyoutAcrylicBlur,
             FlyoutBlurTint = FlyoutBlurTint,

@@ -24,6 +24,9 @@ public sealed class AppController : IAsyncDisposable
     private SettingsWindow? _settingsWindow;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly UpcomingScheduleService _schedule = new();
+    private readonly DispatcherTimer _idleTimer;
+    private IReadOnlyList<UpcomingSession> _upcoming = [];
+    private bool _scheduleRefreshRunning;
     private UserSettings _settings;
     private bool _snapshotLogged;
     private string? _wrcTransitionKey;
@@ -49,10 +52,17 @@ public sealed class AppController : IAsyncDisposable
             _alerts.Tick();
             if (_source is not ITimingPlaybackSource) _processor.MarkStale(TimeSpan.FromSeconds(12));
         }, dispatcher);
-        _renderTimer.Start(); _healthTimer.Start();
+        // The countdown only has to stay honest to the minute, and it also carries the schedule refresh.
+        _idleTimer = new DispatcherTimer(TimeSpan.FromSeconds(30), DispatcherPriority.Background, (_, _) => UpdateIdleWidget(), dispatcher);
+        _renderTimer.Start(); _healthTimer.Start(); _idleTimer.Start();
     }
 
-    public Task StartLiveAsync() => SwitchSourceAsync(TimingSourceMode.Live);
+    public Task StartLiveAsync()
+    {
+        // The widget can show the next session before any feed reports in, so the calendar is asked at once.
+        _ = RefreshNextSessionAsync();
+        return SwitchSourceAsync(TimingSourceMode.Live);
+    }
     public async Task RestartAsync()
     {
         await _sourceSwitch.WaitAsync(_lifetime.Token);
@@ -229,8 +239,56 @@ public sealed class AppController : IAsyncDisposable
             else _latestSnapshots[snapshot.Championship] = snapshot;
             _settingsWindow?.UpdateSnapshot(snapshot);
         }
-        if (snapshot.Lifecycle == SessionLifecycle.OffSession || (snapshot.Lifecycle == SessionLifecycle.Ended && Archive is null)) { _taskbar?.Hide(); return; }
+        if (snapshot.Lifecycle == SessionLifecycle.OffSession || (snapshot.Lifecycle == SessionLifecycle.Ended && Archive is null)) { _taskbar?.Hide(); UpdateIdleWidget(); return; }
         _taskbar ??= new TaskbarWindow(_settings); _taskbar.UpdateSnapshot(snapshot); _taskbar.SetAlert(_alerts.Current); if (!_taskbar.IsVisible) _taskbar.Show();
+    }
+
+    /// <summary>
+    /// Puts the next published session on the taskbar while no session is on track, so the widget still says
+    /// something on a day without running sessions. Live timing always takes the widget back.
+    /// </summary>
+    private void UpdateIdleWidget()
+    {
+        // A snapshot on the widget outranks the calendar, including a completed session still being retained.
+        if (TestMode || _taskbar is { ShowingSnapshot: true }) return;
+        if (!_settings.ShowNextSessionWhenIdle) { _taskbar?.Hide(); return; }
+        var now = _clock.UtcNow;
+        var upcoming = NextSessionDisplay.Schedule(_upcoming, now);
+        // An exhausted calendar means the feeds, not the schedule, own what happens next.
+        if (upcoming.Count == 0)
+        {
+            _taskbar?.Hide();
+            _ = RefreshNextSessionAsync();
+            return;
+        }
+        _taskbar ??= new TaskbarWindow(_settings);
+        _taskbar.ShowNextSession(upcoming[0], upcoming, now);
+    }
+
+    /// <summary>Reloads the published schedule. The service caches, so calling this often costs nothing.</summary>
+    private async Task RefreshNextSessionAsync()
+    {
+        if (_scheduleRefreshRunning) return;
+        _scheduleRefreshRunning = true;
+        try
+        {
+            var sessions = await _schedule.GetUpcomingAsync(EnabledChampionships(_settings), _lifetime.Token);
+            var refreshed = NextSessionDisplay.Schedule(sessions, _clock.UtcNow);
+            // The widget reads the schedule, so it is replaced on the thread that draws it.
+            await _dispatcher.InvokeAsync(() =>
+            {
+                _upcoming = refreshed;
+                UpdateIdleWidget();
+            });
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception failure)
+        {
+            AppLog.Warning("AppController", "Could not load the next published session.", failure);
+        }
+        finally { _scheduleRefreshRunning = false; }
     }
 
     public void ShowSettings() => _ = ShowSettingsAsync();
@@ -286,6 +344,8 @@ public sealed class AppController : IAsyncDisposable
         _taskbar?.ApplySettings(_settings);
         // Enabling a championship is what allows its calendar to be contacted, so the schedule follows the change.
         if (restartFeeds && _settingsWindow is { } window) _ = RefreshUpcomingSessionsAsync(window);
+        if (restartFeeds) _upcoming = [];
+        UpdateIdleWidget();
         if (restartFeeds && !TestMode) await SwitchSourceAsync(TimingSourceMode.Live, force: true);
     }
 
@@ -314,6 +374,7 @@ public sealed class AppController : IAsyncDisposable
         _disposed = true;
         _renderTimer.Stop();
         _healthTimer.Stop();
+        _idleTimer.Stop();
         await _lifetime.CancelAsync();
         await _sourceSwitch.WaitAsync();
         try

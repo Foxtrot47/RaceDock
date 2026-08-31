@@ -13,6 +13,15 @@
                 </ui:CardControl.Header>
                 <ui:ToggleSwitch IsChecked="{Binding AutoStartOnWindowsBoot, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
             </ui:CardControl>
+            <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon CalendarClock24}">
+                <ui:CardControl.Header>
+                    <StackPanel HorizontalAlignment="Left">
+                        <TextBlock Text="Show the next session when nothing is live" Style="{StaticResource SettingsCardTitleStyle}" />
+                        <TextBlock Text="Between sessions the widget counts down to the next published session instead of leaving the taskbar" Style="{StaticResource SettingsCardDescriptionStyle}" />
+                    </StackPanel>
+                </ui:CardControl.Header>
+                <ui:ToggleSwitch IsChecked="{Binding ShowNextSessionWhenIdle, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+            </ui:CardControl>
             <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Flash24}">
                 <ui:CardControl.Header>
                     <TextBlock Text="Enable Animations" Style="{StaticResource SettingsCardTitleStyle}" />
