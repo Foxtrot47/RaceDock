@@ -4,8 +4,19 @@ All notable RaceDock changes are recorded here. Release packages include the cor
 
 ## [Unreleased]
 
+### Added
+
+- Between sessions the taskbar shows the next session of the championships you follow and counts down to it. Clicking the countdown opens the upcoming schedule with championship logos, venues, and local start times. Settings › General turns it off for an empty taskbar when nothing is running.
+
+### Changed
+
+- Taskbar, schedule, classification, and Settings surfaces use concise event names without provider boilerplate or title-sponsor wording. Raw feed names remain unchanged in diagnostics.
+
 ### Fixed
 
+- Formula 1 practice sessions now appear in the upcoming schedule and wake the live feed; previously the calendar skipped directly to qualifying.
+- The taskbar widget now opens from a click anywhere across its body, rather than only where opaque text or artwork is drawn.
+- The classification no longer opens as an empty panel: a flyout that was never shown could be pushed on screen by the closing animation that follows the pointer leaving the taskbar strip.
 - Championship names in the settings navigation pane no longer run underneath the session status badge: a championship showing a badge is listed by its short name until the badge clears.
 
 ## [1.0.2] — 2026-08-28

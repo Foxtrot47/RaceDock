@@ -22,11 +22,12 @@
 ![RaceDock showing Formula 1 timing in the Windows taskbar with the full classification open](assets/screenshot.png)
 
 RaceDock puts live race timing in your Windows taskbar, so you can follow a session while you work.
-The leaders stay visible in a small strip on the taskbar. Click it and the full classification opens without pulling focus away from whatever you are using. When no session you follow is running, RaceDock shows nothing at all.
+The leaders stay visible in a small strip on the taskbar. Click it and the full classification opens without pulling focus away from whatever you are using. Between sessions the strip shrinks to the next session on the calendar and counts down to it; click then to see the upcoming schedule. The countdown can be turned off in Settings, which leaves the taskbar empty until a session starts.
 
 ## Features
 
 - Up to five leading drivers in the taskbar, with the full field one click away.
+- A countdown to the next session of the championships you follow while nothing is running.
 - Lap, stage, gap, tyre, class, pit, status, and flag details when the series publishes them.
 - 12 championships: F1, F2, F3, Formula E, DTM, INDYCAR, MotoGP, Moto2, Moto3, GT World Challenge Europe, IMSA WeatherTech, and WRC.
 - Follow several series at once — RaceDock rotates between the ones currently live.
