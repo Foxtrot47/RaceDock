@@ -111,9 +111,10 @@ internal sealed class ChampionshipStatusItem : INotifyPropertyChanged
                 : local.ToString("ddd d MMM, HH:mm");
             var detail = new[] { session.SessionName, when, imminent ? null : lead }
                 .Where(part => !string.IsNullOrWhiteSpace(part));
-            SetStatus(ref _upcomingEvent, session.EventName, nameof(UpcomingEvent));
+            var eventName = ChampionshipDisplay.ShortEventName(session.Championship, session.EventName);
+            SetStatus(ref _upcomingEvent, eventName, nameof(UpcomingEvent));
             SetStatus(ref _upcomingDetail, string.Join(" \u00b7 ", detail), nameof(UpcomingDetail));
-            SetStatus(ref _upcomingSummary, $"{when} \u00b7 {session.EventName}", nameof(UpcomingSummary));
+            SetStatus(ref _upcomingSummary, $"{when} \u00b7 {eventName}", nameof(UpcomingSummary));
         }
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasUpcoming)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusTooltip)));
@@ -130,31 +131,32 @@ internal sealed class ChampionshipStatusItem : INotifyPropertyChanged
 
     public void UpdateSnapshot(TimingSnapshot? snapshot)
     {
-        var hasTiming = snapshot is not null;
-        if (_hasTiming != hasTiming)
-        {
-            _hasTiming = hasTiming;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasTiming)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasUpcoming)));
-        }
+        SetTimingAvailability(snapshot is not null);
         var eventName = snapshot is null || string.IsNullOrWhiteSpace(snapshot.Meeting)
             ? "No active session"
-            : snapshot.Meeting;
-        var sessionName = snapshot is null || string.IsNullOrWhiteSpace(snapshot.Session)
-            ? ""
-            : snapshot.Session;
-        var progress = snapshot is null ? "" : FormatProgress(snapshot);
-        var statusKind = ClassifyStatus(snapshot);
-        if (_statusKind != statusKind)
-        {
-            _statusKind = statusKind;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusKind)));
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusLabel)));
-        }
+            : ChampionshipDisplay.ShortEventName(snapshot.Championship, snapshot.Meeting);
+        var sessionName = snapshot is null || string.IsNullOrWhiteSpace(snapshot.Session) ? "" : snapshot.Session;
+        SetStatusKind(ClassifyStatus(snapshot));
         SetStatus(ref _eventName, eventName, nameof(EventName));
         SetStatus(ref _sessionName, sessionName, nameof(SessionName));
-        SetStatus(ref _progressText, progress, nameof(ProgressText));
+        SetStatus(ref _progressText, snapshot is null ? "" : FormatProgress(snapshot), nameof(ProgressText));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusTooltip)));
+    }
+
+    private void SetTimingAvailability(bool hasTiming)
+    {
+        if (_hasTiming == hasTiming) return;
+        _hasTiming = hasTiming;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasTiming)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasUpcoming)));
+    }
+
+    private void SetStatusKind(ChampionshipStatusKind statusKind)
+    {
+        if (_statusKind == statusKind) return;
+        _statusKind = statusKind;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusKind)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusLabel)));
     }
 
     private static ChampionshipStatusKind ClassifyStatus(TimingSnapshot? snapshot)

@@ -36,6 +36,7 @@ var tests = new (string Name, Action Run)[]
     ("WRC shakedown standings use actual best runs", WrcShakedownTiming),
     ("WRC missing shakedown data is not a feed failure", WrcOptionalShakedown),
     ("championship labels use compact taskbar and full flyout names", ChampionshipLabels),
+    ("sponsored event titles have stable display names", EventNameShortening),
     ("practice and qualifying report best laps, races report last laps", SessionLapTimeMode),
     ("stored classification column orders are repaired", FlyoutColumnOrderNormalization),
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
@@ -492,7 +493,9 @@ static void TimingArchiveHarReplay()
     try
     {
         var embeddedState = ArchiveState(10, 1.25);
-        embeddedState["manifest"] = ArchiveManifest();
+        var manifest = ArchiveManifest();
+        manifest["description"] = "Motul SportsCar Endurance Grand Prix - Race";
+        embeddedState["manifest"] = manifest;
         var entries = new JsonArray(HarEntry("2026-08-02T20:00:01Z", embeddedState));
         File.WriteAllText(path, new JsonObject { ["log"] = new JsonObject { ["entries"] = entries } }.ToJsonString());
         var source = new TimingArchiveReplaySource(path, new FakeClock());
@@ -503,6 +506,10 @@ static void TimingArchiveHarReplay()
         Equal(1, source.FrameCount);
         Equal(2, snapshot?.Competitors.Count);
         Equal(TrackCondition.AllClear, snapshot?.TrackCondition);
+        // Replay retains the captured value, while every presentation path receives its canonical name.
+        Equal("Motul SportsCar Endurance Grand Prix", snapshot?.Meeting);
+        Equal("IMSA WeatherTech SportsCar Championship · SportsCar Endurance Grand Prix",
+            ChampionshipDisplay.FullEvent(snapshot!));
         source.DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
     finally { Directory.Delete(directory, true); }
@@ -1134,6 +1141,39 @@ static void FlyoutColumnOrderNormalization()
     }
 }
 
+static void EventNameShortening()
+{
+    Equal("Emilia-Romagna Grand Prix", EventNameShortener.Shorten(Championship.Formula1,
+        "FORMULA 1 AWS GRAN PREMIO DEL MADE IN ITALY E DELL'EMILIA-ROMAGNA 2025"));
+    Equal("British Grand Prix", EventNameShortener.Shorten(Championship.Formula1,
+        "FORMULA 1 QATAR AIRWAYS BRITISH GRAND PRIX 2025"));
+    Equal("Barcelona-Catalunya Grand Prix", EventNameShortener.Shorten(Championship.Formula1,
+        "FORMULA 1 MSC CRUISES GRAN PREMIO DE BARCELONA-CATALUNYA 2026"));
+    Equal("French Grand Prix", EventNameShortener.Shorten(Championship.MotoGp,
+        "MICHELIN® GRAND PRIX OF FRANCE "));
+    Equal("Catalan Grand Prix", EventNameShortener.Shorten(Championship.Moto2,
+        "MONSTER ENERGY GRAND PRIX OF CATALUNYA"));
+    Equal("Tokyo E-Prix", EventNameShortener.Shorten(Championship.FormulaE,
+        "2026 TDK Tokyo E-Prix"));
+    Equal("Rally Japan", EventNameShortener.Shorten(Championship.WorldRallyChampionship,
+        "FORUM8 Rally Japan"));
+    Equal("Rally Finland", EventNameShortener.Shorten(Championship.WorldRallyChampionship,
+        "Secto Rally Finland"));
+    Equal("Markham Indy", EventNameShortener.Shorten(Championship.IndyCar,
+        "Ontario Honda Dealers Indy at Markham"));
+    Equal("Detroit Grand Prix", EventNameShortener.Shorten(Championship.IndyCar,
+        "Chevrolet Detroit Grand Prix presented by Lear"));
+    Equal("24 Hours of Daytona", EventNameShortener.Shorten(Championship.Imsa,
+        "Rolex 24 At Daytona"));
+    Equal("6 Hours of The Glen", EventNameShortener.Shorten(Championship.Imsa,
+        "Sahlen's Six Hours of The Glen"));
+    Equal("Sprint Cup · Round 8", EventNameShortener.Shorten(Championship.GtWorldChallengeEurope,
+        "GT WorldChEU pwrd by AWS Sprint Cup Round 8"));
+    Equal("Sachsenring", EventNameShortener.Shorten(Championship.Dtm, "07 Sachsenring"));
+    Equal("An Unknown Racing Festival", EventNameShortener.Shorten(Championship.Unknown,
+        "  An   Unknown Racing Festival  "));
+}
+
 static void SessionLapTimeMode()
 {
     var now = DateTimeOffset.UtcNow;
@@ -1374,20 +1414,25 @@ static void ChampionshipLabels()
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.IndyCar);
     Equal("F1 Spa", ChampionshipDisplay.CompactEvent(f1));
     Equal("Formula 1 · Belgian Grand Prix", ChampionshipDisplay.FullEvent(f1));
-    Equal("WRC Secto Rally Finland", ChampionshipDisplay.CompactEvent(wrc));
-    Equal("World Rally Championship · Secto Rally Finland", ChampionshipDisplay.FullEvent(wrc));
+    Equal("WRC Finland", ChampionshipDisplay.CompactEvent(wrc));
+    Equal("World Rally Championship · Rally Finland", ChampionshipDisplay.FullEvent(wrc));
     Equal("GTWC Magny", ChampionshipDisplay.CompactEvent(gtwc));
     Equal("GT World Challenge Europe · Magny-Cours", ChampionshipDisplay.FullEvent(gtwc));
     Equal("IMSA Road America", ChampionshipDisplay.CompactEvent(imsa));
-    Equal("IMSA WeatherTech SportsCar Championship · Motul SportsCar Endurance Grand Prix", ChampionshipDisplay.FullEvent(imsa));
+    Equal("IMSA WeatherTech SportsCar Championship · SportsCar Endurance Grand Prix", ChampionshipDisplay.FullEvent(imsa));
     Equal("Moto3 Silverstone", ChampionshipDisplay.CompactEvent(moto3));
-    Equal("Moto3 · Qatar Airways Grand Prix of Great Britain", ChampionshipDisplay.FullEvent(moto3));
+    Equal("Moto3 · British Grand Prix", ChampionshipDisplay.FullEvent(moto3));
     Equal("FE London", ChampionshipDisplay.CompactEvent(formulaE));
     Equal("Formula E · London E-Prix", ChampionshipDisplay.FullEvent(formulaE));
     Equal("DTM Nürburgring", ChampionshipDisplay.CompactEvent(dtm));
     Equal("DTM · Nürburgring", ChampionshipDisplay.FullEvent(dtm));
     Equal("INDYCAR Streets of Markham", ChampionshipDisplay.CompactEvent(indyCar));
-    Equal("NTT INDYCAR SERIES · Ontario Honda Dealers Indy at Markham", ChampionshipDisplay.FullEvent(indyCar));
+    Equal("NTT INDYCAR SERIES · Markham Indy", ChampionshipDisplay.FullEvent(indyCar));
+    // Provider and sponsor boilerplate is shortened consistently everywhere it is presented.
+    Equal("Sprint Cup · Round 8", ChampionshipDisplay.ShortEventName(Championship.GtWorldChallengeEurope, "GT WorldChEU pwrd by AWS Sprint Cup Round 8"));
+    Equal("San Marino Grand Prix", ChampionshipDisplay.ShortEventName(Championship.MotoGp, "RED Bull Grand Prix of SAN Marino and the Rimini Riviera"));
+    Equal("Rally Paraguay", ChampionshipDisplay.ShortEventName(Championship.WorldRallyChampionship, "Ueno Rally Del Paraguay"));
+    Equal("Italian Grand Prix", ChampionshipDisplay.ShortEventName(Championship.Formula1, "Italian Grand Prix"));
     Equal("MotoGP Silverstone", ChampionshipDisplay.CompactEvent(moto3 with
     {
         Championship = Championship.MotoGp,

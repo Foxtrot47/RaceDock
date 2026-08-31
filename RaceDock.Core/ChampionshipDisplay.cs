@@ -4,18 +4,25 @@ namespace RaceDock.Core;
 
 public static class ChampionshipDisplay
 {
+    /// <summary>Canonical event name for user-facing surfaces; raw feed values remain untouched.</summary>
+    public static string ShortEventName(Championship championship, string eventName) =>
+        EventNameShortener.Shorten(championship, eventName);
+
+    /// <summary>Compatibility overload for callers that do not know which series supplied the name.</summary>
+    public static string ShortEventName(string eventName) => EventNameShortener.Shorten(Championship.Unknown, eventName);
+
     public static string CompactEvent(TimingSnapshot snapshot)
     {
         var championship = ShortName(snapshot.Championship);
         var eventName = snapshot.Championship == Championship.WorldRallyChampionship
-            ? RemovePrefix(snapshot.Meeting, "Rally ")
+            ? RemovePrefix(ShortEventName(snapshot.Championship, snapshot.Meeting), "Rally ")
             : CompactCircuit(snapshot.Circuit, snapshot.Meeting);
         eventName = RemovePrefix(eventName, $"{championship} ");
         return Join(championship, eventName, " ");
     }
 
     public static string FullEvent(TimingSnapshot snapshot) =>
-        Join(FullName(snapshot.Championship), snapshot.Meeting, " · ");
+        Join(FullName(snapshot.Championship), ShortEventName(snapshot.Championship, snapshot.Meeting), " · ");
 
     /// <summary>
     /// Practice and qualifying are judged on the best lap set; sprints and races on the most recent

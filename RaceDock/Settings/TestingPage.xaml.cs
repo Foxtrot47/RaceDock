@@ -66,7 +66,7 @@ public sealed partial class TestingPage : Page
             : $"Lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}";
         var session = string.IsNullOrWhiteSpace(snapshot.Meeting)
             ? snapshot.Session
-            : $"{snapshot.Meeting} · {snapshot.Session}";
+            : $"{ChampionshipDisplay.ShortEventName(snapshot.Championship, snapshot.Meeting)} · {snapshot.Session}";
         SetSecondary($"{session} · {progress} · {snapshot.TrackCondition} · {snapshot.ConnectionState}");
         UpdateTransportState();
         if (_controller.Scenario is not null) SyncScenarioState(snapshot);
