@@ -97,6 +97,21 @@
                         <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f3.png" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="World Endurance Championship" Tag="Championship:WorldEnduranceChampionship" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/wec.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="European Le Mans Series" Tag="Championship:EuropeanLeMansSeries" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/elms.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Michelin Le Mans Cup" Tag="Championship:MichelinLeMansCup" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/mlmc.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
                 <ui:NavigationViewItem Content="Formula E" Tag="Championship:FormulaE" Click="NavigationItem_Click">
                     <ui:NavigationViewItem.Icon>
                         <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/formulae.png" />

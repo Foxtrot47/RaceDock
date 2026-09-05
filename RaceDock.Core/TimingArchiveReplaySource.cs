@@ -780,7 +780,7 @@ internal static class TimingArchiveLoader
     {
         if (string.IsNullOrWhiteSpace(vehicle)) return null;
         var upper = vehicle.ToUpperInvariant();
-        foreach (var brand in new[] { "ACURA", "ASTON MARTIN", "AUDI", "BMW", "CADILLAC", "CHEVROLET", "CITROEN", "CITROËN", "DS", "FERRARI", "FORD", "JAGUAR", "LAMBORGHINI", "LEXUS", "LOLA", "MAHINDRA", "MCLAREN", "MERCEDES", "NISSAN", "PORSCHE" })
+        foreach (var brand in new[] { "ACURA", "ALPINE", "ASTON MARTIN", "AUDI", "BMW", "CADILLAC", "CHEVROLET", "CITROEN", "CITROËN", "DS", "FERRARI", "FORD", "GENESIS", "JAGUAR", "LAMBORGHINI", "LEXUS", "LOLA", "MAHINDRA", "MCLAREN", "MERCEDES", "NISSAN", "PEUGEOT", "PORSCHE", "TOYOTA" })
             if (upper.Contains(brand, StringComparison.Ordinal)) return brand;
         foreach (var (brand, displayName) in new[]
         {
@@ -798,6 +798,9 @@ internal static class TimingArchiveLoader
         if (value.Contains("MOTO2") || value.Contains("MOTO 2")) return Championship.Moto2;
         if (value.Contains("MOTO3") || value.Contains("MOTO 3")) return Championship.Moto3;
         if (value.Contains("IMSA")) return Championship.Imsa;
+        if (value.Contains("FIA WEC") || value.Contains("WORLD ENDURANCE CHAMPIONSHIP")) return Championship.WorldEnduranceChampionship;
+        if (value.Contains("EUROPEAN LE MANS") || value.Contains("ELMS")) return Championship.EuropeanLeMansSeries;
+        if (value.Contains("MICHELIN LE MANS CUP") || value.Contains("MLMC")) return Championship.MichelinLeMansCup;
         if (value.Contains("FORMULA E")) return Championship.FormulaE;
         if (value.Contains("DTM")) return Championship.Dtm;
         if (value.Contains("INDYCAR") || value.Contains("INDY CAR")) return Championship.IndyCar;

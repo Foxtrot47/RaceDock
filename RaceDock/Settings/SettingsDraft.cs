@@ -208,6 +208,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private bool _enableMoto2;
     private bool _enableMoto3;
     private bool _enableGtWorldChallengeEurope;
+    private bool _enableWec;
+    private bool _enableElms;
+    private bool _enableMichelinLeMansCup;
     private bool _enableWrc;
     private bool _enableImsa;
     private bool _enableFormulaE;
@@ -251,6 +254,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             Status(Championship.Moto2, "Moto2", "moto2-sidebar.png", "Intermediate Grand Prix motorcycle class"),
             Status(Championship.Moto3, "Moto3", "moto3-sidebar.png", "Entry Grand Prix motorcycle class"),
             Status(Championship.GtWorldChallengeEurope, "GT World Challenge Europe", "gtwc.png", "European GT3 endurance and sprint racing"),
+            Status(Championship.WorldEnduranceChampionship, "World Endurance Championship", "wec.png", "Global Hypercar and LMGT3 endurance racing"),
+            Status(Championship.EuropeanLeMansSeries, "European Le Mans Series", "elms.png", "European LMP2, LMP3, and LMGT3 endurance racing"),
+            Status(Championship.MichelinLeMansCup, "Michelin Le Mans Cup", "mlmc.png", "European LMP3 and GT3 endurance racing"),
             Status(Championship.WorldRallyChampionship, "World Rally Championship", "wrc.png", "World championship rallying"),
             Status(Championship.Imsa, "IMSA WeatherTech", "imsa.png", "North American sportscar endurance racing")
         ];
@@ -289,6 +295,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     public bool EnableMoto2 { get => _enableMoto2; set => SetStream(Championship.Moto2, ref _enableMoto2, value); }
     public bool EnableMoto3 { get => _enableMoto3; set => SetStream(Championship.Moto3, ref _enableMoto3, value); }
     public bool EnableGtWorldChallengeEurope { get => _enableGtWorldChallengeEurope; set => SetStream(Championship.GtWorldChallengeEurope, ref _enableGtWorldChallengeEurope, value); }
+    public bool EnableWec { get => _enableWec; set => SetStream(Championship.WorldEnduranceChampionship, ref _enableWec, value); }
+    public bool EnableElms { get => _enableElms; set => SetStream(Championship.EuropeanLeMansSeries, ref _enableElms, value); }
+    public bool EnableMichelinLeMansCup { get => _enableMichelinLeMansCup; set => SetStream(Championship.MichelinLeMansCup, ref _enableMichelinLeMansCup, value); }
     public bool EnableWrc { get => _enableWrc; set => SetStream(Championship.WorldRallyChampionship, ref _enableWrc, value); }
     public bool EnableImsa { get => _enableImsa; set => SetStream(Championship.Imsa, ref _enableImsa, value); }
     public bool EnableFormulaE { get => _enableFormulaE; set => SetStream(Championship.FormulaE, ref _enableFormulaE, value); }
@@ -340,6 +349,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         Championship.Moto2 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/moto2.png",
         Championship.Moto3 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/moto3.png",
         Championship.GtWorldChallengeEurope => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/gtwc-wide.png",
+        Championship.WorldEnduranceChampionship => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/wec-wide.png",
+        Championship.EuropeanLeMansSeries => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/elms-wide.png",
+        Championship.MichelinLeMansCup => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/mlmc-wide.png",
         Championship.WorldRallyChampionship => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/wrc-wide.png",
         Championship.Imsa => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/imsa-wide.png",
         Championship.FormulaE => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/formulae-full.png",
@@ -359,6 +371,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             Championship.Moto2 => EnableMoto2,
             Championship.Moto3 => EnableMoto3,
             Championship.GtWorldChallengeEurope => EnableGtWorldChallengeEurope,
+            Championship.WorldEnduranceChampionship => EnableWec,
+            Championship.EuropeanLeMansSeries => EnableElms,
+            Championship.MichelinLeMansCup => EnableMichelinLeMansCup,
             Championship.WorldRallyChampionship => EnableWrc,
             Championship.Imsa => EnableImsa,
             Championship.FormulaE => EnableFormulaE,
@@ -380,6 +395,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             case Championship.Moto2: EnableMoto2 = value; break;
             case Championship.Moto3: EnableMoto3 = value; break;
             case Championship.GtWorldChallengeEurope: EnableGtWorldChallengeEurope = value; break;
+            case Championship.WorldEnduranceChampionship: EnableWec = value; break;
+            case Championship.EuropeanLeMansSeries: EnableElms = value; break;
+            case Championship.MichelinLeMansCup: EnableMichelinLeMansCup = value; break;
             case Championship.WorldRallyChampionship: EnableWrc = value; break;
             case Championship.Imsa: EnableImsa = value; break;
             case Championship.FormulaE: EnableFormulaE = value; break;
@@ -477,7 +495,8 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     }
 
     public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 ||
-        EnableMoto3 || EnableGtWorldChallengeEurope || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar;
+        EnableMoto3 || EnableGtWorldChallengeEurope || EnableWec || EnableElms || EnableMichelinLeMansCup || EnableWrc ||
+        EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar;
 
     public void Load(UserSettings settings)
     {
@@ -492,6 +511,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         EnableMoto2 = normalized.EnableMoto2;
         EnableMoto3 = normalized.EnableMoto3;
         EnableGtWorldChallengeEurope = normalized.EnableGtWorldChallengeEurope;
+        EnableWec = normalized.EnableWec;
+        EnableElms = normalized.EnableElms;
+        EnableMichelinLeMansCup = normalized.EnableMichelinLeMansCup;
         EnableWrc = normalized.EnableWrc;
         EnableImsa = normalized.EnableImsa;
         EnableFormulaE = normalized.EnableFormulaE;
@@ -558,6 +580,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             EnableMoto2 = EnableMoto2,
             EnableMoto3 = EnableMoto3,
             EnableGtWorldChallengeEurope = EnableGtWorldChallengeEurope,
+            EnableWec = EnableWec,
+            EnableElms = EnableElms,
+            EnableMichelinLeMansCup = EnableMichelinLeMansCup,
             EnableWrc = EnableWrc,
             EnableImsa = EnableImsa,
             EnableFormulaE = EnableFormulaE,

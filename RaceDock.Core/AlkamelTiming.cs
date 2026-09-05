@@ -183,6 +183,10 @@ internal static class AlkamelTiming
         var value = vehicle.ToUpperInvariant();
         if (value.Contains("ASTON MARTIN", StringComparison.Ordinal)) return "Aston Martin";
         if (value.Contains("MERCEDES", StringComparison.Ordinal)) return "Mercedes-AMG";
+        if (value.Contains("ALPINE", StringComparison.Ordinal)) return "Alpine";
+        if (value.Contains("GENESIS", StringComparison.Ordinal)) return "Genesis";
+        if (value.Contains("PEUGEOT", StringComparison.Ordinal)) return "Peugeot";
+        if (value.Contains("TOYOTA", StringComparison.Ordinal)) return "Toyota";
         if (value.Contains("CHEVROLET", StringComparison.Ordinal) || value.Contains("CORVETTE", StringComparison.Ordinal)) return "Chevrolet";
         if (value.Contains("LAMBORGHINI", StringComparison.Ordinal)) return "Lamborghini";
         if (value.Contains("PORSCHE", StringComparison.Ordinal)) return "Porsche";

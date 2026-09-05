@@ -77,6 +77,8 @@ var tests = new (string Name, Action Run)[]
     ("DTM bootstrap maps live race timing", DtmBootstrapTiming),
     ("DTM qualifying derives standings from valid laps", DtmQualifyingTiming),
     ("DTM discovery selects only the running session", DtmSessionSelection),
+    ("Griiip endurance bootstrap maps driver and class timing", GriiipEnduranceBootstrapTiming),
+    ("Griiip endurance discovery selects each running series", GriiipSessionSelection),
     ("INDYCAR practice maps official timing", IndyCarPracticeTiming),
     ("INDYCAR source publishes captured practice timing", IndyCarSourceLifecycle),
     ("INDYCAR source stays hidden while the feed is cold", IndyCarColdFeedLifecycle),
@@ -1191,6 +1193,14 @@ static void EventNameShortening()
     Equal("Sprint Cup · Round 8", EventNameShortener.Shorten(Championship.GtWorldChallengeEurope,
         "GT WorldChEU pwrd by AWS Sprint Cup Round 8"));
     Equal("Sachsenring", EventNameShortener.Shorten(Championship.Dtm, "07 Sachsenring"));
+    Equal("Lone Star Le Mans", EventNameShortener.Shorten(Championship.WorldEnduranceChampionship,
+        "FIA WEC - Lone Star Le Mans"));
+    Equal("8 Hours of Bahrain", EventNameShortener.Shorten(Championship.WorldEnduranceChampionship,
+        "FIA WEC - Bapco Energies 8 Hours of Bahrain"));
+    Equal("Silverstone Circuit", EventNameShortener.Shorten(Championship.EuropeanLeMansSeries,
+        "ELMS - Silverstone Circuit"));
+    Equal("Silverstone Round", EventNameShortener.Shorten(Championship.MichelinLeMansCup,
+        "MLMC - Silverstone Round"));
     Equal("An Unknown Racing Festival", EventNameShortener.Shorten(Championship.Unknown,
         "  An   Unknown Racing Festival  "));
 }
@@ -1397,7 +1407,7 @@ static void LegacySettingsImport()
         Equal(13, imported.RotationSeconds);
         False(imported.EnableWrc);
         True(File.Exists(targetPath));
-        True(File.ReadAllText(targetPath).Contains("\"Version\": 1", StringComparison.Ordinal));
+        True(File.ReadAllText(targetPath).Contains("\"Version\": 2", StringComparison.Ordinal));
     }
     finally
     {
@@ -1416,6 +1426,9 @@ static void ChampionshipLabels()
     Equal(10, (int)Championship.FormulaE);
     Equal(11, (int)Championship.Dtm);
     Equal(12, (int)Championship.IndyCar);
+    Equal(13, (int)Championship.WorldEnduranceChampionship);
+    Equal(14, (int)Championship.EuropeanLeMansSeries);
+    Equal(15, (int)Championship.MichelinLeMansCup);
     var now = DateTimeOffset.UtcNow;
     var f1 = new TimingSnapshot("Belgian Grand Prix", "Race", "Spa-Francorchamps", 1, 44,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Formula1);
@@ -1425,6 +1438,8 @@ static void ChampionshipLabels()
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.GtWorldChallengeEurope);
     var imsa = new TimingSnapshot("Motul SportsCar Endurance Grand Prix", "Race", "Road America", 33, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Imsa);
+    var wec = new TimingSnapshot("FIA WEC - Lone Star Le Mans", "Free Practice 1", "Circuit of the Americas", 25, null,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.WorldEnduranceChampionship);
     var moto3 = new TimingSnapshot("Qatar Airways Grand Prix of Great Britain", "Moto3 Practice", "Silverstone Circuit", 3, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Moto3);
     var formulaE = new TimingSnapshot("London E-Prix", "Free Practice 2", "London", 22, null,
@@ -1441,6 +1456,15 @@ static void ChampionshipLabels()
     Equal("GT World Challenge Europe · Magny-Cours", ChampionshipDisplay.FullEvent(gtwc));
     Equal("IMSA Road America", ChampionshipDisplay.CompactEvent(imsa));
     Equal("IMSA WeatherTech SportsCar Championship · SportsCar Endurance Grand Prix", ChampionshipDisplay.FullEvent(imsa));
+    Equal("WEC Circuit of the Americas", ChampionshipDisplay.CompactEvent(wec));
+    Equal("World Endurance Championship · Lone Star Le Mans", ChampionshipDisplay.FullEvent(wec));
+    Equal("ELMS", ChampionshipDisplay.ShortName(Championship.EuropeanLeMansSeries));
+    Equal("European Le Mans Series", ChampionshipDisplay.FullName(Championship.EuropeanLeMansSeries));
+    Equal("Le Mans Cup", ChampionshipDisplay.ShortName(Championship.MichelinLeMansCup));
+    Equal("Michelin Le Mans Cup", ChampionshipDisplay.FullName(Championship.MichelinLeMansCup));
+    Equal("HY", ChampionshipDisplay.CompactCategory(Championship.WorldEnduranceChampionship, "HYPERCAR"));
+    Equal("LMGT3", ChampionshipDisplay.CompactCategory(Championship.WorldEnduranceChampionship, "LMGT3"));
+    Equal("HYPERCAR", ChampionshipDisplay.CompactCategory(Championship.Imsa, "HYPERCAR"));
     Equal("Moto3 Silverstone", ChampionshipDisplay.CompactEvent(moto3));
     Equal("Moto3 · British Grand Prix", ChampionshipDisplay.FullEvent(moto3));
     Equal("FE London", ChampionshipDisplay.CompactEvent(formulaE));
@@ -1563,6 +1587,12 @@ static void ChampionshipVisibility()
     }
     True(defaults.IsChampionshipVisible(Championship.Formula1));
     True(defaults.EnableFormula1);
+    True(defaults.IsChampionshipVisible(Championship.WorldEnduranceChampionship));
+    True(defaults.EnableWec);
+    False(defaults.IsChampionshipVisible(Championship.EuropeanLeMansSeries));
+    False(defaults.EnableElms);
+    False(defaults.IsChampionshipVisible(Championship.MichelinLeMansCup));
+    False(defaults.EnableMichelinLeMansCup);
 
     // A settings file written before visibility existed keeps whatever the user had already enabled.
     var legacy = new UserSettings { EnableFormula2 = true, EnableIndyCar = true }.Normalize();
@@ -1598,6 +1628,7 @@ static void ChampionshipVisibility()
     {
         EnableFormula1 = false,
         EnableGtWorldChallengeEurope = false,
+        EnableWec = false,
         EnableWrc = false,
         HiddenChampionships = [Championship.Formula1]
     }.Normalize();
@@ -1630,6 +1661,24 @@ static void ChampionshipVisibility()
         // An explicit list is authoritative: unlisted championships stay visible even while switched off.
         True(reloaded.IsChampionshipVisible(Championship.IndyCar));
         False(reloaded.EnableIndyCar);
+
+        // Version 1 predates the two Le Mans series, so migration must not expose them unexpectedly.
+        File.WriteAllText(path, """{"Version":1,"HiddenChampionships":[]}""");
+        var upgraded = store.Load();
+        Equal(UserSettingsStore.CurrentVersion, upgraded.Version);
+        False(upgraded.IsChampionshipVisible(Championship.EuropeanLeMansSeries));
+        False(upgraded.IsChampionshipVisible(Championship.MichelinLeMansCup));
+
+        // Once explicitly shown and enabled, a current settings file preserves that choice.
+        store.Save(new UserSettings
+        {
+            EnableElms = true,
+            HiddenChampionships = [Championship.MichelinLeMansCup]
+        });
+        var enabledElms = store.Load();
+        True(enabledElms.IsChampionshipVisible(Championship.EuropeanLeMansSeries));
+        True(enabledElms.EnableElms);
+        False(enabledElms.IsChampionshipVisible(Championship.MichelinLeMansCup));
     }
     finally
     {
@@ -1650,6 +1699,7 @@ static void UserSettingsPersistence()
         var legacy = store.Load();
         True(legacy.AutoStartOnWindowsBoot);
         True(legacy.EnableGtWorldChallengeEurope);
+        True(legacy.EnableWec);
         False(legacy.EnableImsa);
         store.Save(new UserSettings
         {
@@ -1657,6 +1707,7 @@ static void UserSettingsPersistence()
             EnableFormula2 = false,
             EnableFormula3 = false,
             EnableGtWorldChallengeEurope = false,
+            EnableWec = false,
             EnableWrc = false,
             EnableImsa = false,
             DriverCount = 99,
@@ -1678,6 +1729,9 @@ static void UserSettingsPersistence()
         False(loaded.DisplayFor(Championship.Formula2).FlyoutShowTyre);
         True(loaded.DisplayFor(Championship.Moto3).FlyoutUseManufacturerLogos);
         False(loaded.DisplayFor(Championship.Moto3).FlyoutShowTyre);
+        False(loaded.DisplayFor(Championship.WorldEnduranceChampionship).FlyoutShowTyre);
+        False(loaded.DisplayFor(Championship.EuropeanLeMansSeries).FlyoutShowTyre);
+        False(loaded.DisplayFor(Championship.MichelinLeMansCup).FlyoutShowTyre);
         False(loaded.DisplayFor(Championship.WorldRallyChampionship).FlyoutShowTeamNames);
         False(loaded.AutoStartOnWindowsBoot);
         False(loaded.EnableGtWorldChallengeEurope);
@@ -1687,6 +1741,7 @@ static void UserSettingsPersistence()
             EnableFormula2 = false,
             EnableFormula3 = false,
             EnableGtWorldChallengeEurope = true,
+            EnableWec = false,
             EnableWrc = false,
             EnableImsa = false
         }.Normalize();
@@ -1698,6 +1753,7 @@ static void UserSettingsPersistence()
             EnableFormula2 = false,
             EnableFormula3 = false,
             EnableGtWorldChallengeEurope = false,
+            EnableWec = false,
             EnableWrc = false,
             EnableImsa = true
         }.Normalize();
@@ -1710,6 +1766,7 @@ static void UserSettingsPersistence()
             EnableFormula3 = false,
             EnableMoto3 = true,
             EnableGtWorldChallengeEurope = false,
+            EnableWec = false,
             EnableWrc = false,
             EnableImsa = false
         }.Normalize();
@@ -1725,6 +1782,7 @@ static void UserSettingsPersistence()
             EnableFormula2 = false,
             EnableFormula3 = false,
             EnableGtWorldChallengeEurope = false,
+            EnableWec = false,
             EnableWrc = false,
             EnableImsa = false,
             EnableFormulaE = true
@@ -1737,6 +1795,7 @@ static void UserSettingsPersistence()
             EnableFormula2 = false,
             EnableFormula3 = false,
             EnableGtWorldChallengeEurope = false,
+            EnableWec = false,
             EnableWrc = false,
             EnableImsa = false,
             EnableDtm = true
@@ -1749,12 +1808,22 @@ static void UserSettingsPersistence()
             EnableFormula2 = false,
             EnableFormula3 = false,
             EnableGtWorldChallengeEurope = false,
+            EnableWec = false,
             EnableWrc = false,
             EnableImsa = false,
             EnableIndyCar = true
         }.Normalize();
         False(indyCarOnly.EnableFormula1);
         True(indyCarOnly.EnableIndyCar);
+        var wecOnly = new UserSettings
+        {
+            EnableFormula1 = false,
+            EnableGtWorldChallengeEurope = false,
+            EnableWec = true,
+            EnableWrc = false
+        }.Normalize();
+        False(wecOnly.EnableFormula1);
+        True(wecOnly.EnableWec);
 
         var formula1Display = new ChampionshipDisplaySettings
         {
@@ -1776,6 +1845,7 @@ static void UserSettingsPersistence()
             EnableFormula3 = false,
             EnableMotoGp = true,
             EnableGtWorldChallengeEurope = false,
+            EnableWec = false,
             EnableWrc = false,
             WidgetPosition = TaskbarWidgetPosition.RightOfStart,
             ChampionshipDisplay = ChampionshipDisplayProfiles.Create(formula1Display)
@@ -1794,7 +1864,9 @@ static void UserSettingsPersistence()
         {
             Championship.Formula1, Championship.Formula2, Championship.Formula3,
             Championship.MotoGp, Championship.Moto2, Championship.Moto3,
-            Championship.GtWorldChallengeEurope, Championship.WorldRallyChampionship, Championship.Imsa,
+            Championship.GtWorldChallengeEurope, Championship.WorldEnduranceChampionship,
+            Championship.EuropeanLeMansSeries, Championship.MichelinLeMansCup,
+            Championship.WorldRallyChampionship, Championship.Imsa,
             Championship.FormulaE, Championship.Dtm, Championship.IndyCar
         };
         var mappedProfiles = new ChampionshipDisplayProfiles();
@@ -1916,15 +1988,32 @@ static void ChampionshipCalendarSelection()
     // Without a published timetable every class falls back to the weekend start.
     True(motorcycle.All(item => item.StartUtc == new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero)));
 
-    var dtm = ChampionshipCalendars.NextDtm(JsonNode.Parse("""
+    var griiipSessions = JsonNode.Parse("""
     [
-      { "name": "Race 2", "startTime": "2026-09-13T12:00:00+00:00", "event": { "name": "07 Sachsenring" } },
-      { "name": "Free Practice", "startTime": "2026-09-11T07:00:00+00:00", "event": { "name": "07 Sachsenring", "trackConfig": { "track": { "name": "Sachsenring" } } } }
+      { "name": "Free Practice 2", "startTime": "2026-09-04T21:00:00+00:00", "series": { "name": "FIA World Endurance Championship" }, "event": { "name": "FIA WEC - Lone Star Le Mans", "trackConfig": { "track": { "name": "Circuit of the Americas" } } } },
+      { "name": "Free Practice 1", "startTime": "2026-09-11T09:00:00+00:00", "series": { "name": "European Le Mans Series" }, "event": { "name": "ELMS - Silverstone Circuit", "trackConfig": { "track": { "name": "Silverstone" } } } },
+      { "name": "Free Practice 1", "startTime": "2026-09-11T05:00:00+00:00", "series": { "name": "Michelin Le Mans Cup" }, "event": { "name": "MLMC - Silverstone Round", "trackConfig": { "track": { "name": "Silverstone" } } } },
+      { "name": "Race 2", "startTime": "2026-09-13T12:00:00+00:00", "series": { "name": "DTM" }, "event": { "name": "07 Sachsenring" } },
+      { "name": "Free Practice", "startTime": "2026-09-11T07:00:00+00:00", "series": { "name": "DTM" }, "event": { "name": "07 Sachsenring", "trackConfig": { "track": { "name": "Sachsenring" } } } }
     ]
-    """) as JsonArray, now);
+    """) as JsonArray;
+    var dtm = ChampionshipCalendars.NextDtm(griiipSessions, now);
     Equal("07 Sachsenring", dtm!.EventName);
     Equal("Free Practice", dtm.SessionName);
     Equal("Sachsenring", dtm.Venue);
+    var wec = ChampionshipCalendars.NextWorldEnduranceChampionship(griiipSessions, now);
+    Equal(Championship.WorldEnduranceChampionship, wec!.Championship);
+    Equal("FIA WEC - Lone Star Le Mans", wec.EventName);
+    Equal("Free Practice 2", wec.SessionName);
+    Equal("Circuit of the Americas", wec.Venue);
+    var elms = ChampionshipCalendars.NextEuropeanLeMansSeries(griiipSessions, now);
+    Equal(Championship.EuropeanLeMansSeries, elms!.Championship);
+    Equal("ELMS - Silverstone Circuit", elms.EventName);
+    Equal("Silverstone", elms.Venue);
+    var michelinLeMansCup = ChampionshipCalendars.NextMichelinLeMansCup(griiipSessions, now);
+    Equal(Championship.MichelinLeMansCup, michelinLeMansCup!.Championship);
+    Equal("MLMC - Silverstone Round", michelinLeMansCup.EventName);
+    Equal("Silverstone", michelinLeMansCup.Venue);
 
     // GT World Challenge publishes day-precision meeting windows in dd.MM.yyyy form.
     const string gtwcSeason = """
@@ -2017,6 +2106,7 @@ static void ChampionshipCalendarSelection()
     Equal(null, ChampionshipCalendars.NextFormula1([], now));
     Equal(0, ChampionshipCalendars.NextMotorcycleGrandPrix(null, now).Count);
     Equal(null, ChampionshipCalendars.NextDtm(null, now));
+    Equal(null, ChampionshipCalendars.NextWorldEnduranceChampionship(null, now));
     Equal(null, ChampionshipCalendars.NextGtWorldChallengeMeeting(null, now));
 
     Equal("in 3 days", ChampionshipCalendars.DescribeTimeUntil(now.AddDays(3), now));
@@ -2756,6 +2846,88 @@ static void DtmSessionSelection()
          {"id":3,"name":"Race 1","isRunning":true,"startTime":"2026-08-15T11:30:00Z","series":{"name":"DTM"}}]
         """)!.AsArray();
     Equal(3, JsonSupport.Int(DtmLiveTimingSource.ActiveSession(sessions)?["id"]));
+}
+
+static void GriiipEnduranceBootstrapTiming()
+{
+    var session = JsonNode.Parse("""
+        {"id":18139,"name":"Free Practice 1","isRunning":true,"hasResult":false,"hasSeenChequered":false,
+         "event":{"name":"FIA WEC - Lone Star Le Mans"},"series":{"name":"FIA World Endurance Championship"}}
+        """)!.AsObject();
+    var bootstrap = JsonNode.Parse("""
+        {"sessionInfo":{"eventName":"FIA WEC - Lone Star Le Mans","sessionName":"Free Practice 1",
+             "trackName":"Circuit of the Americas","isStarted":true,"hasSeenChequered":false},
+         "participants":[
+           {"pid":415019,"carNumber":"51","displayName":"AF CORSE","threeLettersName":"AFC",
+            "teamName":"AF CORSE","manufacturer":"Ferrari 499P","classId":"HYPERCAR","currentDriverId":"2",
+            "drivers":[{"externalDriverID":"1","displayName":"Driver One","threeLettersName":"ONE"},
+                       {"externalDriverID":"2","displayName":"Antonio FUOCO","threeLettersName":"FUO"}]},
+           {"pid":415030,"carNumber":"87","displayName":"AKKODIS ASP TEAM","threeLettersName":"ASP",
+            "teamName":"AKKODIS ASP TEAM","manufacturer":"Lexus RC F LMGT3","classId":"LMGT3","currentDriverId":"3",
+            "drivers":[{"externalDriverID":"1","displayName":"Petru UMBRĂRESCU","threeLettersName":"UMB"},
+                       {"externalDriverID":"3","displayName":"Clemens SCHMID","threeLettersName":"SCH"}]}],
+         "ranks":[{"pid":415019,"overallPosition":1},{"pid":415030,"overallPosition":2}],
+         "gaps":[{"pid":415019,"gapToFirstMillis":0,"gapToAheadMillis":0},
+                 {"pid":415030,"gapToFirstMillis":1301,"gapToAheadMillis":251}],
+         "bestLaps":[{"pid":415019,"lapNumber":20,"lapTimeMillis":113824,"isValid":true},
+                     {"pid":415030,"lapNumber":19,"lapTimeMillis":116100,"isValid":true}],
+         "laps":[{"pid":415019,"lapNumber":24,"lapTimeMillis":115001},
+                 {"pid":415030,"lapNumber":23,"lapTimeMillis":119140}],
+         "runningStatuses":[{"pid":415019,"status":"Running"},{"pid":415030,"status":"Running"}],
+         "carLocations":[{"pid":415019,"carLocation":"Track"},{"pid":415030,"carLocation":"Pit"}],
+         "raceFlags":[{"flag":"Yellow"}],"chequeredFlags":[],
+         "sessionLengthLimit":{"sessionLengthType":"TimeOnly","lapsLimit":-1,"timeLimitSeconds":5400},
+         "sessionClock":{"startTime":"2026-09-04T16:30:00Z","tsNow":"2026-09-04T17:30:00Z"}}
+        """)!.AsObject();
+
+    var now = new DateTimeOffset(2026, 9, 4, 17, 30, 0, TimeSpan.Zero);
+    var snapshot = GriiipTiming.BuildSnapshot(session, bootstrap, now, ConnectionState.Connected, GriiipSeries.Wec);
+
+    Equal(Championship.WorldEnduranceChampionship, snapshot.Championship);
+    Equal(SessionLifecycle.Live, snapshot.Lifecycle);
+    Equal("FIA WEC - Lone Star Le Mans", snapshot.Meeting);
+    Equal("Circuit of the Americas", snapshot.Circuit);
+    Equal("Free Practice 1", snapshot.Session);
+    Equal(24, snapshot.CurrentLap);
+    Equal("00:30:00", snapshot.TimeRemaining);
+    Equal(TrackCondition.Yellow, snapshot.TrackCondition);
+    Equal("FUO", snapshot.Competitors[0].Code);
+    Equal("Antonio FUOCO", snapshot.Competitors[0].Name);
+    Equal("Ferrari", snapshot.Competitors[0].Manufacturer);
+    Equal("SCH", snapshot.Competitors[1].Code);
+    Equal("Clemens SCHMID", snapshot.Competitors[1].Name);
+    Equal("AKKODIS ASP TEAM", snapshot.Competitors[1].Team);
+    Equal("LMGT3", snapshot.Competitors[1].Category);
+    Equal("Lexus", snapshot.Competitors[1].Manufacturer);
+    Equal("+1.301", snapshot.Competitors[1].GapToLeader);
+    Equal("1:59.140", snapshot.Competitors[1].LastLapTime);
+    True(snapshot.Competitors[1].InPit);
+    Equal("Alpine", AlkamelTiming.ManufacturerFromVehicle("Alpine A424"));
+    Equal("Genesis", AlkamelTiming.ManufacturerFromVehicle("Genesis GMR-001"));
+    Equal("Peugeot", AlkamelTiming.ManufacturerFromVehicle("Peugeot 9X8"));
+    Equal("Toyota", AlkamelTiming.ManufacturerFromVehicle("Toyota GR010 Hybrid"));
+
+    var elms = GriiipTiming.BuildSnapshot(session, bootstrap, now, ConnectionState.Connected, GriiipSeries.Elms);
+    Equal(Championship.EuropeanLeMansSeries, elms.Championship);
+    Equal("FUO", elms.Competitors[0].Code);
+    var michelinLeMansCup = GriiipTiming.BuildSnapshot(
+        session, bootstrap, now, ConnectionState.Connected, GriiipSeries.MichelinLeMansCup);
+    Equal(Championship.MichelinLeMansCup, michelinLeMansCup.Championship);
+    Equal("FUO", michelinLeMansCup.Competitors[0].Code);
+}
+
+static void GriiipSessionSelection()
+{
+    var sessions = JsonNode.Parse("""
+        [{"id":1,"name":"DTM","isRunning":true,"series":{"name":"DTM"}},
+         {"id":2,"name":"WEC Future","isRunning":false,"series":{"name":"FIA World Endurance Championship"}},
+         {"id":3,"name":"WEC Live","isRunning":true,"startTime":"2026-09-04T16:30:00Z","series":{"name":"FIA World Endurance Championship"}},
+         {"id":4,"name":"ELMS Live","isRunning":true,"startTime":"2026-09-04T16:30:00Z","series":{"name":"European Le Mans Series"}},
+         {"id":5,"name":"Le Mans Cup Live","isRunning":true,"startTime":"2026-09-04T16:30:00Z","series":{"name":"Michelin Le Mans Cup"}}]
+        """)!.AsArray();
+    Equal(3, JsonSupport.Int(GriiipLiveTimingSource.ActiveSession(sessions, GriiipSeries.Wec)?["id"]));
+    Equal(4, JsonSupport.Int(GriiipLiveTimingSource.ActiveSession(sessions, GriiipSeries.Elms)?["id"]));
+    Equal(5, JsonSupport.Int(GriiipLiveTimingSource.ActiveSession(sessions, GriiipSeries.MichelinLeMansCup)?["id"]));
 }
 
 static void IndyCarPracticeTiming()

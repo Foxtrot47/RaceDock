@@ -19,7 +19,10 @@ public enum Championship
     Moto3 = 9,
     FormulaE = 10,
     Dtm = 11,
-    IndyCar = 12
+    IndyCar = 12,
+    WorldEnduranceChampionship = 13,
+    EuropeanLeMansSeries = 14,
+    MichelinLeMansCup = 15
 }
 public enum TrackCondition { Unknown, AllClear, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, RedFlag }
 public enum AlertKind { Information, SessionStart, FastestLap, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, Chequered, RedFlag }

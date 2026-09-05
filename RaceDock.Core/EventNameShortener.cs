@@ -22,7 +22,8 @@ public static class EventNameShortener
             ["Mobil 1 Twelve Hours of Sebring"] = "12 Hours of Sebring",
             ["Sahlen's Six Hours of The Glen"] = "6 Hours of The Glen",
             ["Motul Petit Le Mans"] = "Petit Le Mans",
-            ["Motul SportsCar Endurance Grand Prix"] = "SportsCar Endurance Grand Prix"
+            ["Motul SportsCar Endurance Grand Prix"] = "SportsCar Endurance Grand Prix",
+            ["FIA WEC - Bapco Energies 8 Hours of Bahrain"] = "8 Hours of Bahrain"
         };
 
     // Longer and localized markers come first where one title could otherwise match another.
@@ -178,6 +179,9 @@ public static class EventNameShortener
             Championship.IndyCar => Match(value, IndyCarAliases) ?? value,
             Championship.Imsa => Match(value, ImsaAliases) ?? value,
             Championship.GtWorldChallengeEurope => ShortenGtWorldChallenge(value),
+            Championship.WorldEnduranceChampionship => StripPrefix(value, "FIA WEC - "),
+            Championship.EuropeanLeMansSeries => StripPrefix(value, "ELMS - "),
+            Championship.MichelinLeMansCup => StripPrefix(value, "MLMC - "),
             Championship.Dtm => StripDtmRound(value),
             _ => value
         };
@@ -201,6 +205,9 @@ public static class EventNameShortener
         var separator = value.IndexOf(' ');
         return separator > 0 && int.TryParse(value[..separator], out _) ? value[(separator + 1)..] : value;
     }
+
+    private static string StripPrefix(string value, string prefix) =>
+        value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? value[prefix.Length..] : value;
 
     private static string StripYear(string value)
     {

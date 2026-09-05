@@ -396,7 +396,9 @@ public sealed class ClassificationFlyout : Window
     }
 
     private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Championship == Championship.WorldRallyChampionship || snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
-    private static bool IsEnduranceSnapshot(TimingSnapshot snapshot) => snapshot.Championship is Championship.GtWorldChallengeEurope or Championship.Imsa;
+    private static bool IsEnduranceSnapshot(TimingSnapshot snapshot) => snapshot.Championship is
+        Championship.GtWorldChallengeEurope or Championship.WorldEnduranceChampionship
+            or Championship.EuropeanLeMansSeries or Championship.MichelinLeMansCup or Championship.Imsa;
 
     private static string SessionProgress(TimingSnapshot snapshot)
     {

@@ -81,7 +81,21 @@ public static class ChampionshipCalendars
             .FirstOrDefault();
 
     public static UpcomingSession? NextDtm(JsonArray? sessions, DateTimeOffset now) =>
+        NextGriiip(sessions, now, GriiipSeries.Dtm);
+
+    public static UpcomingSession? NextWorldEnduranceChampionship(JsonArray? sessions, DateTimeOffset now) =>
+        NextGriiip(sessions, now, GriiipSeries.Wec);
+
+    public static UpcomingSession? NextEuropeanLeMansSeries(JsonArray? sessions, DateTimeOffset now) =>
+        NextGriiip(sessions, now, GriiipSeries.Elms);
+
+    public static UpcomingSession? NextMichelinLeMansCup(JsonArray? sessions, DateTimeOffset now) =>
+        NextGriiip(sessions, now, GriiipSeries.MichelinLeMansCup);
+
+    internal static UpcomingSession? NextGriiip(JsonArray? sessions, DateTimeOffset now, GriiipSeries series) =>
         sessions?.OfType<JsonObject>()
+            .Where(item => string.Equals(JsonSupport.String(item["series"]?["name"]),
+                series.ProviderName, StringComparison.OrdinalIgnoreCase))
             .Select(item => (
                 Event: JsonSupport.String(item["event"]?["name"]),
                 Session: JsonSupport.String(item["name"]),
@@ -89,7 +103,8 @@ public static class ChampionshipCalendars
                 Start: ParseDate(JsonSupport.String(item["startTime"]))))
             .Where(item => item.Start > now)
             .OrderBy(item => item.Start)
-            .Select(item => new UpcomingSession(Championship.Dtm, item.Event ?? "DTM", item.Session, item.Start!.Value, item.Venue))
+            .Select(item => new UpcomingSession(
+                series.Championship, item.Event ?? series.FallbackEvent, item.Session, item.Start!.Value, item.Venue))
             .FirstOrDefault();
 
     /// <summary>A GT World Challenge round, identified so its session timetable can be fetched.</summary>

@@ -88,7 +88,8 @@ public sealed record ChampionshipDisplaySettings
         },
         // Bike and sportscar feeds carry no tyre compound, so the column would only hold placeholders.
         Championship.MotoGp or Championship.Moto2 or Championship.Moto3
-            or Championship.GtWorldChallengeEurope or Championship.Imsa
+            or Championship.GtWorldChallengeEurope or Championship.WorldEnduranceChampionship
+            or Championship.EuropeanLeMansSeries or Championship.MichelinLeMansCup or Championship.Imsa
             or Championship.FormulaE or Championship.Dtm => this with
         {
             FlyoutShowTyre = false
@@ -120,6 +121,9 @@ public sealed record ChampionshipDisplayProfiles
     public ChampionshipDisplaySettings Moto2 { get; init; } = new();
     public ChampionshipDisplaySettings Moto3 { get; init; } = new();
     public ChampionshipDisplaySettings GtWorldChallengeEurope { get; init; } = new();
+    public ChampionshipDisplaySettings WorldEnduranceChampionship { get; init; } = new();
+    public ChampionshipDisplaySettings EuropeanLeMansSeries { get; init; } = new();
+    public ChampionshipDisplaySettings MichelinLeMansCup { get; init; } = new();
     public ChampionshipDisplaySettings WorldRallyChampionship { get; init; } = new();
     public ChampionshipDisplaySettings Imsa { get; init; } = new();
     public ChampionshipDisplaySettings FormulaE { get; init; } = new();
@@ -134,6 +138,9 @@ public sealed record ChampionshipDisplayProfiles
         Championship.Moto2 => Moto2,
         Championship.Moto3 => Moto3,
         Championship.GtWorldChallengeEurope => GtWorldChallengeEurope,
+        Championship.WorldEnduranceChampionship => WorldEnduranceChampionship,
+        Championship.EuropeanLeMansSeries => EuropeanLeMansSeries,
+        Championship.MichelinLeMansCup => MichelinLeMansCup,
         Championship.WorldRallyChampionship => WorldRallyChampionship,
         Championship.Imsa => Imsa,
         Championship.FormulaE => FormulaE,
@@ -151,6 +158,9 @@ public sealed record ChampionshipDisplayProfiles
             Championship.Moto2 => this with { Moto2 = settings },
             Championship.Moto3 => this with { Moto3 = settings },
             Championship.GtWorldChallengeEurope => this with { GtWorldChallengeEurope = settings },
+            Championship.WorldEnduranceChampionship => this with { WorldEnduranceChampionship = settings },
+            Championship.EuropeanLeMansSeries => this with { EuropeanLeMansSeries = settings },
+            Championship.MichelinLeMansCup => this with { MichelinLeMansCup = settings },
             Championship.WorldRallyChampionship => this with { WorldRallyChampionship = settings },
             Championship.Imsa => this with { Imsa = settings },
             Championship.FormulaE => this with { FormulaE = settings },
@@ -168,6 +178,9 @@ public sealed record ChampionshipDisplayProfiles
         Moto2 = (Moto2 ?? new()).Normalize(),
         Moto3 = (Moto3 ?? new()).Normalize(),
         GtWorldChallengeEurope = (GtWorldChallengeEurope ?? new()).Normalize(),
+        WorldEnduranceChampionship = (WorldEnduranceChampionship ?? new()).Normalize(),
+        EuropeanLeMansSeries = (EuropeanLeMansSeries ?? new()).Normalize(),
+        MichelinLeMansCup = (MichelinLeMansCup ?? new()).Normalize(),
         WorldRallyChampionship = (WorldRallyChampionship ?? new()).Normalize(),
         Imsa = (Imsa ?? new()).Normalize(),
         FormulaE = (FormulaE ?? new()).Normalize(),
@@ -184,6 +197,9 @@ public sealed record ChampionshipDisplayProfiles
         Moto2 = settings,
         Moto3 = settings,
         GtWorldChallengeEurope = settings,
+        WorldEnduranceChampionship = settings,
+        EuropeanLeMansSeries = settings,
+        MichelinLeMansCup = settings,
         WorldRallyChampionship = settings,
         Imsa = settings,
         FormulaE = settings,
@@ -207,6 +223,9 @@ public sealed record UserSettings
         Championship.Moto2,
         Championship.Moto3,
         Championship.GtWorldChallengeEurope,
+        Championship.WorldEnduranceChampionship,
+        Championship.EuropeanLeMansSeries,
+        Championship.MichelinLeMansCup,
         Championship.WorldRallyChampionship,
         Championship.Imsa
     ];
@@ -220,7 +239,9 @@ public sealed record UserSettings
         Championship.Moto2,
         Championship.Moto3,
         Championship.Dtm,
-        Championship.IndyCar
+        Championship.IndyCar,
+        Championship.EuropeanLeMansSeries,
+        Championship.MichelinLeMansCup
     ];
 
     public int Version { get; init; }
@@ -231,6 +252,9 @@ public sealed record UserSettings
     public bool EnableMoto2 { get; init; }
     public bool EnableMoto3 { get; init; }
     public bool EnableGtWorldChallengeEurope { get; init; } = true;
+    public bool EnableWec { get; init; } = true;
+    public bool EnableElms { get; init; }
+    public bool EnableMichelinLeMansCup { get; init; }
     public bool EnableWrc { get; init; } = true;
     public bool EnableImsa { get; init; }
     public bool EnableFormulaE { get; init; }
@@ -278,6 +302,9 @@ public sealed record UserSettings
         Championship.Moto2 => EnableMoto2,
         Championship.Moto3 => EnableMoto3,
         Championship.GtWorldChallengeEurope => EnableGtWorldChallengeEurope,
+        Championship.WorldEnduranceChampionship => EnableWec,
+        Championship.EuropeanLeMansSeries => EnableElms,
+        Championship.MichelinLeMansCup => EnableMichelinLeMansCup,
         Championship.WorldRallyChampionship => EnableWrc,
         Championship.Imsa => EnableImsa,
         Championship.FormulaE => EnableFormulaE,
@@ -295,6 +322,9 @@ public sealed record UserSettings
         Championship.Moto2 => this with { EnableMoto2 = false },
         Championship.Moto3 => this with { EnableMoto3 = false },
         Championship.GtWorldChallengeEurope => this with { EnableGtWorldChallengeEurope = false },
+        Championship.WorldEnduranceChampionship => this with { EnableWec = false },
+        Championship.EuropeanLeMansSeries => this with { EnableElms = false },
+        Championship.MichelinLeMansCup => this with { EnableMichelinLeMansCup = false },
         Championship.WorldRallyChampionship => this with { EnableWrc = false },
         Championship.Imsa => this with { EnableImsa = false },
         Championship.FormulaE => this with { EnableFormulaE = false },
@@ -303,7 +333,7 @@ public sealed record UserSettings
         _ => this
     };
 
-    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 || EnableMoto3 || EnableGtWorldChallengeEurope || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar;
+    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 || EnableMoto3 || EnableGtWorldChallengeEurope || EnableWec || EnableElms || EnableMichelinLeMansCup || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar;
     public ChampionshipDisplaySettings DisplayFor(Championship championship) =>
         (ChampionshipDisplay ?? ChampionshipDisplayProfiles.Create(ChampionshipDisplaySettings.FromLegacy(this)))
         .For(championship)
@@ -334,7 +364,7 @@ public sealed class UserSettingsStore(string? path = null, string? legacyPath = 
 {
     private readonly string? _legacyPath = legacyPath;
     /// <summary>Raise it when a stored field needs migrating.</summary>
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -351,7 +381,7 @@ public sealed class UserSettingsStore(string? path = null, string? legacyPath = 
             var settings = JsonSerializer.Deserialize<UserSettings>(File.ReadAllText(Path), JsonOptions) ?? new UserSettings();
             if (settings.Version > CurrentVersion)
                 AppLog.Warning("Settings", $"Settings were written by a newer build (version {settings.Version}); unrecognised fields are ignored.");
-            return settings.Normalize();
+            return Upgrade(settings).Normalize();
         }
         catch (JsonException exception)
         {
@@ -374,7 +404,7 @@ public sealed class UserSettingsStore(string? path = null, string? legacyPath = 
         {
             var settings = JsonSerializer.Deserialize<UserSettings>(File.ReadAllText(legacyPath), JsonOptions);
             if (settings is null) return null;
-            var normalized = settings.Normalize();
+            var normalized = Upgrade(settings).Normalize();
             Save(normalized);
             AppLog.Info("Settings", $"Imported settings from the previous installation at {legacyPath}.");
             return normalized;
@@ -389,6 +419,15 @@ public sealed class UserSettingsStore(string? path = null, string? legacyPath = 
             AppLog.Warning("Settings", "The previous installation settings could not be imported.", failure);
             return null;
         }
+    }
+
+    private static UserSettings Upgrade(UserSettings settings)
+    {
+        if (settings.Version >= 2 || settings.HiddenChampionships is null) return settings;
+        var hidden = settings.HiddenChampionships.ToHashSet();
+        hidden.Add(Championship.EuropeanLeMansSeries);
+        hidden.Add(Championship.MichelinLeMansCup);
+        return settings with { Version = 2, HiddenChampionships = [.. hidden] };
     }
 
     /// <summary>Moves the unreadable file aside and returns where it went, or null if it could not be kept.</summary>

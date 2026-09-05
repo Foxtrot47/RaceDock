@@ -239,7 +239,9 @@ internal sealed class ClassificationRow
         if (display.FlyoutShowTyre) UpdateTyre(standing.Tyre);
 
         if (display.FlyoutShowCategoryOrLap)
-            SetValue(_category, format.CategoryInsteadOfLap ? standing.Category ?? "—" : standing.Lap.ToString());
+            SetValue(_category, format.CategoryInsteadOfLap
+                ? ChampionshipDisplay.CompactCategory(championship, standing.Category)
+                : standing.Lap.ToString());
 
         if (display.FlyoutShowStatus) UpdateStatus(standing);
 

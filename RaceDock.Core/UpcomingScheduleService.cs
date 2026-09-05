@@ -22,14 +22,15 @@ internal sealed class MotorcycleGrandPrixCalendar(MotoGpScheduleClient client) :
         ChampionshipCalendars.NextMotorcycleGrandPrix(await client.GetEventsAsync(now, cancellationToken), now);
 }
 
-internal sealed class DtmCalendar(IDtmApiClient client) : IChampionshipCalendar
+internal sealed class GriiipCalendar(IGriiipApiClient client, GriiipSeries series) : IChampionshipCalendar
 {
-    public IReadOnlyList<Championship> Championships { get; } = [Championship.Dtm];
+    public IReadOnlyList<Championship> Championships { get; } = [series.Championship];
 
     public async Task<IReadOnlyList<UpcomingSession>> GetUpcomingAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
         var sessions = await client.GetSessionsAsync(now, cancellationToken);
-        return ChampionshipCalendars.NextDtm(sessions, now) is { } next ? [next] : [];
+        var next = ChampionshipCalendars.NextGriiip(sessions, now, series);
+        return next is null ? [] : [next];
     }
 }
 
@@ -145,16 +146,22 @@ public sealed class UpcomingScheduleService : IDisposable
         _sourceTimeout = sourceTimeout ?? TimeSpan.FromSeconds(15);
         var f1 = new F1ScheduleClient();
         var motogp = new MotoGpScheduleClient();
-        var dtm = new DtmApiClient();
+        var dtm = new GriiipApiClient(GriiipSeries.Dtm);
+        var wec = new GriiipApiClient(GriiipSeries.Wec);
+        var elms = new GriiipApiClient(GriiipSeries.Elms);
+        var michelinLeMansCup = new GriiipApiClient(GriiipSeries.MichelinLeMansCup);
         var gtwc = new GtwcApiClient();
         var wrc = new WrcApiClient();
-        _owned = [f1, motogp, dtm, gtwc, wrc];
+        _owned = [f1, motogp, dtm, wec, elms, michelinLeMansCup, gtwc, wrc];
         _calendars =
         [
             new Formula1Calendar(f1),
             new MotorcycleGrandPrixCalendar(motogp),
             new WrcCalendar(wrc),
-            new DtmCalendar(dtm),
+            new GriiipCalendar(dtm, GriiipSeries.Dtm),
+            new GriiipCalendar(wec, GriiipSeries.Wec),
+            new GriiipCalendar(elms, GriiipSeries.Elms),
+            new GriiipCalendar(michelinLeMansCup, GriiipSeries.MichelinLeMansCup),
             new GtWorldChallengeCalendar(gtwc),
         ];
     }

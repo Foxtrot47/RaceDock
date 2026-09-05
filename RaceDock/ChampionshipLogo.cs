@@ -24,6 +24,9 @@ internal static class ChampionshipLogo
         [Championship.Moto3] = "moto3",
         [Championship.WorldRallyChampionship] = "wrc",
         [Championship.GtWorldChallengeEurope] = "gtwc",
+        [Championship.WorldEnduranceChampionship] = "wec",
+        [Championship.EuropeanLeMansSeries] = "elms",
+        [Championship.MichelinLeMansCup] = "mlmc",
         [Championship.Imsa] = "imsa",
         [Championship.Dtm] = "dtm",
         [Championship.IndyCar] = "indycar",
@@ -37,6 +40,9 @@ internal static class ChampionshipLogo
         Championship.MotoGp,
         Championship.WorldRallyChampionship,
         Championship.GtWorldChallengeEurope,
+        Championship.WorldEnduranceChampionship,
+        Championship.EuropeanLeMansSeries,
+        Championship.MichelinLeMansCup,
         Championship.Imsa,
         Championship.Dtm,
         Championship.IndyCar
@@ -46,7 +52,9 @@ internal static class ChampionshipLogo
     [
         Championship.MotoGp,
         Championship.Moto2,
-        Championship.Moto3
+        Championship.Moto3,
+        Championship.EuropeanLeMansSeries,
+        Championship.MichelinLeMansCup
     ];
 
     private static readonly HashSet<Championship> FlatBackgroundArtwork =

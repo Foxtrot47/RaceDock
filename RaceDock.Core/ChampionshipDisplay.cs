@@ -24,6 +24,13 @@ public static class ChampionshipDisplay
     public static string FullEvent(TimingSnapshot snapshot) =>
         Join(FullName(snapshot.Championship), ShortEventName(snapshot.Championship, snapshot.Meeting), " · ");
 
+    public static string CompactCategory(Championship championship, string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category)) return "—";
+        return championship == Championship.WorldEnduranceChampionship &&
+            category.Equals("HYPERCAR", StringComparison.OrdinalIgnoreCase) ? "HY" : category;
+    }
+
     /// <summary>
     /// Practice and qualifying are judged on the best lap set; sprints and races on the most recent
     /// lap. Qualifying wins over sprint so "Sprint Qualifying" reports a best lap. Rally stages keep
@@ -52,6 +59,9 @@ public static class ChampionshipDisplay
         Championship.Moto3 => "Moto3",
         Championship.WorldRallyChampionship => "WRC",
         Championship.GtWorldChallengeEurope => "GTWC",
+        Championship.WorldEnduranceChampionship => "WEC",
+        Championship.EuropeanLeMansSeries => "ELMS",
+        Championship.MichelinLeMansCup => "Le Mans Cup",
         Championship.Imsa => "IMSA",
         Championship.FormulaE => "FE",
         Championship.Dtm => "DTM",
@@ -69,6 +79,9 @@ public static class ChampionshipDisplay
         Championship.Moto3 => "Moto3",
         Championship.WorldRallyChampionship => "World Rally Championship",
         Championship.GtWorldChallengeEurope => "GT World Challenge Europe",
+        Championship.WorldEnduranceChampionship => "World Endurance Championship",
+        Championship.EuropeanLeMansSeries => "European Le Mans Series",
+        Championship.MichelinLeMansCup => "Michelin Le Mans Cup",
         Championship.Imsa => "IMSA WeatherTech SportsCar Championship",
         Championship.FormulaE => "Formula E",
         Championship.Dtm => "DTM",
