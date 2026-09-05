@@ -29,7 +29,7 @@ The leaders stay visible in a small strip on the taskbar. Click it and the full 
 - Up to five leading drivers in the taskbar, with the full field one click away.
 - A countdown to the next session of the championships you follow while nothing is running.
 - Lap, stage, gap, tyre, class, pit, status, and flag details when the series publishes them.
-- 12 championships: F1, F2, F3, Formula E, DTM, INDYCAR, MotoGP, Moto2, Moto3, GT World Challenge Europe, IMSA WeatherTech, and WRC.
+- 15 championships: F1, F2, F3, Formula E, DTM, INDYCAR, MotoGP, Moto2, Moto3, WEC, ELMS, Michelin Le Mans Cup, GT World Challenge Europe, IMSA WeatherTech, and WRC.
 - Follow several series at once — RaceDock rotates between the ones currently live.
 - Position cards or team and manufacturer logos, in a light or dark look that follows Windows.
 - Replay recorded sessions, so you can try the app without waiting for a race.
@@ -68,6 +68,8 @@ Settings and logs are stored in `%LocalAppData%\RaceDock`. Deleting that folder 
 | DTM | Public Griiip Insights timing feed |
 | NTT INDYCAR SERIES | Public INDYCAR race-control timing feed |
 | MotoGP, Moto2, Moto3 | Official MotoGP live-timing gateway |
+| World Endurance Championship | Public Griiip Insights timing feed |
+| European Le Mans Series & Michelin Le Mans Cup | Public Griiip Insights timing feed |
 | GT World Challenge Europe | Public Swiss Timing SRO cache |
 | IMSA WeatherTech | Al Kamel live-timing stream |
 | World Rally Championship | Public WRC Promoter API |

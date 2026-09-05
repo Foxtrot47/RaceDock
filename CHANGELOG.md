@@ -2,6 +2,17 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
+## [Unreleased]
+
+### Added
+
+- Live timing and upcoming-session schedules for the World Endurance Championship, including compact Hypercar and LMGT3 classifications; WEC is enabled by default.
+- Hidden, disabled-by-default live timing and schedule integrations for the European Le Mans Series and Michelin Le Mans Cup.
+
+### Fixed
+
+- Formula 1 pre-session staging rows are no longer presented as a live classification before the session starts.
+
 ## [1.2.0] — 2026-08-31
 
 ### Added
