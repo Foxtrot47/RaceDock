@@ -658,7 +658,24 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
 
     private void RefreshDashboardChampionshipStatuses()
     {
-        var visible = ChampionshipStatuses.Where(status => status.IsVisible && (status.IsChampionshipEnabled || status.HasTiming)).ToList();
+        var visible = ChampionshipStatuses
+            .Where(status => status.IsVisible && (status.IsChampionshipEnabled || status.HasTiming))
+            .OrderBy(status => status.Championship switch
+            {
+                Championship.Formula1 => 0,
+                Championship.WorldEnduranceChampionship => 1,
+                Championship.MotoGp => 2,
+                Championship.WorldRallyChampionship => 3,
+                Championship.FormulaE => 4,
+                Championship.Imsa => 5,
+                Championship.IndyCar => 6,
+                Championship.GtWorldChallengeEurope => 7,
+                Championship.Dtm => 8,
+                Championship.EuropeanLeMansSeries => 9,
+                Championship.MichelinLeMansCup => 10,
+                _ => 11
+            })
+            .ToList();
         // Timing updates arrive several times a second, so only rebuild the cards when the set itself changes.
         if (DashboardChampionshipStatuses.SequenceEqual(visible)) return;
         DashboardChampionshipStatuses.Clear();

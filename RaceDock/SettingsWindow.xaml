@@ -87,19 +87,44 @@
                         <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f1.png" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="Formula 2" Tag="Championship:Formula2" Click="NavigationItem_Click">
-                    <ui:NavigationViewItem.Icon>
-                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f2.png" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="Formula 3" Tag="Championship:Formula3" Click="NavigationItem_Click">
-                    <ui:NavigationViewItem.Icon>
-                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f3.png" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
                 <ui:NavigationViewItem Content="World Endurance Championship" Tag="Championship:WorldEnduranceChampionship" Click="NavigationItem_Click">
                     <ui:NavigationViewItem.Icon>
                         <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/wec.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="MotoGP" Tag="Championship:MotoGp" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/motogp.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="World Rally Championship" Tag="Championship:WorldRallyChampionship" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/wrc.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Formula E" Tag="Championship:FormulaE" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/formulae.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="IMSA WeatherTech" Tag="Championship:Imsa" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/imsa.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="INDYCAR" Tag="Championship:IndyCar" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/indycar.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="GT World Challenge" Tag="Championship:GtWorldChallengeEurope" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/gtwc.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="DTM" Tag="Championship:Dtm" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/dtm.png" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem Content="European Le Mans Series" Tag="Championship:EuropeanLeMansSeries" Click="NavigationItem_Click">
@@ -112,24 +137,14 @@
                         <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/mlmc.png" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="Formula E" Tag="Championship:FormulaE" Click="NavigationItem_Click">
+                <ui:NavigationViewItem Content="Formula 2" Tag="Championship:Formula2" Click="NavigationItem_Click">
                     <ui:NavigationViewItem.Icon>
-                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/formulae.png" />
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f2.png" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="DTM" Tag="Championship:Dtm" Click="NavigationItem_Click">
+                <ui:NavigationViewItem Content="Formula 3" Tag="Championship:Formula3" Click="NavigationItem_Click">
                     <ui:NavigationViewItem.Icon>
-                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/dtm.png" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="INDYCAR" Tag="Championship:IndyCar" Click="NavigationItem_Click">
-                    <ui:NavigationViewItem.Icon>
-                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/indycar.png" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="MotoGP" Tag="Championship:MotoGp" Click="NavigationItem_Click">
-                    <ui:NavigationViewItem.Icon>
-                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/motogp.png" />
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f3.png" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem Content="Moto2" Tag="Championship:Moto2" Click="NavigationItem_Click">
@@ -140,21 +155,6 @@
                 <ui:NavigationViewItem Content="Moto3" Tag="Championship:Moto3" Click="NavigationItem_Click">
                     <ui:NavigationViewItem.Icon>
                         <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/moto3-sidebar.png" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="GT World Challenge" Tag="Championship:GtWorldChallengeEurope" Click="NavigationItem_Click">
-                    <ui:NavigationViewItem.Icon>
-                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/gtwc.png" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="World Rally Championship" Tag="Championship:WorldRallyChampionship" Click="NavigationItem_Click">
-                    <ui:NavigationViewItem.Icon>
-                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/wrc.png" />
-                    </ui:NavigationViewItem.Icon>
-                </ui:NavigationViewItem>
-                <ui:NavigationViewItem Content="IMSA WeatherTech" Tag="Championship:Imsa" Click="NavigationItem_Click">
-                    <ui:NavigationViewItem.Icon>
-                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/imsa.png" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
                 <!--  Everything lives in the menu list: the footer list is pinned and cannot scroll, so items there become unreachable in a short window.  -->
