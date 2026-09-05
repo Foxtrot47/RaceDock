@@ -55,6 +55,12 @@
                     <ComboBoxItem Content="Right of Start" Tag="{x:Static core:TaskbarWidgetPosition.RightOfStart}" />
                 </ComboBox>
             </ui:CardControl>
+            <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon NumberSymbol24}">
+                <ui:CardControl.Header>
+                        <TextBlock Text="Use a one-row taskbar layout" Style="{StaticResource SettingsCardTitleStyle}" />
+                </ui:CardControl.Header>
+                <ui:ToggleSwitch IsChecked="{Binding UseSingleRowTaskbar, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
+            </ui:CardControl>
             <ui:CardControl Style="{StaticResource SettingsCardStyle}" Icon="{ui:SymbolIcon Timer24}">
                 <ui:CardControl.Header>
                     <StackPanel HorizontalAlignment="Left">

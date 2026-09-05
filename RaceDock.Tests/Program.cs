@@ -1694,6 +1694,7 @@ static void UserSettingsPersistence()
     {
         var store = new UserSettingsStore(path);
         True(new UserSettings().AutoStartOnWindowsBoot);
+        False(new UserSettings().UseSingleRowTaskbar);
         Directory.CreateDirectory(directory);
         File.WriteAllText(path, "{\"EnableFormula1\":true}");
         var legacy = store.Load();
@@ -1714,7 +1715,8 @@ static void UserSettingsPersistence()
             RotationSeconds = 1,
             CompletedSessionRetentionMinutes = 99,
             UseManufacturerLogos = true,
-            AutoStartOnWindowsBoot = false
+            AutoStartOnWindowsBoot = false,
+            UseSingleRowTaskbar = true
         });
         var loaded = store.Load();
         False(loaded.HasEnabledStream);
@@ -1734,6 +1736,7 @@ static void UserSettingsPersistence()
         False(loaded.DisplayFor(Championship.MichelinLeMansCup).FlyoutShowTyre);
         False(loaded.DisplayFor(Championship.WorldRallyChampionship).FlyoutShowTeamNames);
         False(loaded.AutoStartOnWindowsBoot);
+        True(loaded.UseSingleRowTaskbar);
         False(loaded.EnableGtWorldChallengeEurope);
         var gtwcOnly = new UserSettings
         {

@@ -60,15 +60,18 @@ internal sealed class IdleTaskbarView
 
     public FrameworkElement Element => _surface;
 
-    public void Update(UpcomingSession session, DateTimeOffset now, TimeZoneInfo timeZone)
+    public void Update(UpcomingSession session, DateTimeOffset now, TimeZoneInfo timeZone, bool singleRow)
     {
         if (_logoChampionship != session.Championship)
         {
             _logoChampionship = session.Championship;
             _logo.Child = ChampionshipLogo.Create(session.Championship, _logo.Width, _logo.Height);
         }
-        _event.Text = ChampionshipDisplay.ShortEventName(session.Championship, session.EventName).ToUpperInvariant();
-        _detail.Text = NextSessionDisplay.Detail(session, now, timeZone);
+        var eventName = ChampionshipDisplay.ShortEventName(session.Championship, session.EventName).ToUpperInvariant();
+        var detail = NextSessionDisplay.Detail(session, now, timeZone);
+        _event.Text = singleRow ? $"{eventName} · {detail}" : eventName;
+        _detail.Text = detail;
+        _detail.Visibility = singleRow ? Visibility.Collapsed : Visibility.Visible;
         var tooltip = NextSessionDisplay.Tooltip(session, timeZone);
         _surface.ToolTip = tooltip;
         System.Windows.Automation.AutomationProperties.SetName(_surface, tooltip);

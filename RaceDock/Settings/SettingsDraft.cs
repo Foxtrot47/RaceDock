@@ -224,6 +224,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private int _rotationSeconds;
     private int _completedSessionRetentionMinutes;
     private TaskbarWidgetPosition _widgetPosition;
+    private bool _useSingleRowTaskbar;
     private Championship _selectedChampionship;
     private int _taskbarCompetitorCount;
     private bool _taskbarUseManufacturerLogos;
@@ -311,6 +312,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     public int RotationSeconds { get => _rotationSeconds; set => Set(ref _rotationSeconds, value); }
     public int CompletedSessionRetentionMinutes { get => _completedSessionRetentionMinutes; set => Set(ref _completedSessionRetentionMinutes, value); }
     public TaskbarWidgetPosition WidgetPosition { get => _widgetPosition; set => Set(ref _widgetPosition, value); }
+    public bool UseSingleRowTaskbar { get => _useSingleRowTaskbar; set => Set(ref _useSingleRowTaskbar, value); }
 
     public Championship SelectedChampionship
     {
@@ -527,6 +529,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         RotationSeconds = normalized.RotationSeconds;
         CompletedSessionRetentionMinutes = normalized.CompletedSessionRetentionMinutes;
         WidgetPosition = normalized.WidgetPosition;
+        UseSingleRowTaskbar = normalized.UseSingleRowTaskbar;
         _profiles = normalized.ChampionshipDisplay!;
         SelectedChampionship = Championship.Formula1;
         LoadProfile(_profiles.For(SelectedChampionship));
@@ -547,6 +550,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         RotationSeconds = defaults.RotationSeconds;
         CompletedSessionRetentionMinutes = defaults.CompletedSessionRetentionMinutes;
         WidgetPosition = defaults.WidgetPosition;
+        UseSingleRowTaskbar = defaults.UseSingleRowTaskbar;
     }
 
     /// <summary>Restores the taskbar and flyout profile of the championship currently on screen, plus its power switch.</summary>
@@ -600,6 +604,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             FlyoutAcrylicBlur = FlyoutAcrylicBlur,
             FlyoutBlurTint = FlyoutBlurTint,
             WidgetPosition = WidgetPosition,
+            UseSingleRowTaskbar = UseSingleRowTaskbar,
             ChampionshipDisplay = _profiles.Normalize()
         }.Normalize();
     }

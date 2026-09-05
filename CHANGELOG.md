@@ -8,6 +8,7 @@ All notable RaceDock changes are recorded here. Release packages include the cor
 
 - Live timing and upcoming-session schedules for the World Endurance Championship, including compact Hypercar and LMGT3 classifications; WEC is enabled by default.
 - Hidden, disabled-by-default live timing and schedule integrations for the European Le Mans Series and Michelin Le Mans Cup.
+- An optional one-row taskbar layout with inline positions, driver codes, and intervals.
 
 ### Fixed
 

@@ -28,19 +28,24 @@ internal sealed class TaskbarCell
 
     private readonly Border _container;
     private readonly Grid _layout;
+    private readonly ColumnDefinition _markerColumn;
     private readonly Border _markerHost;
     private readonly Border _positionCard;
     private readonly TextBlock _positionText;
-    private readonly StackPanel _details;
+    private readonly Grid _details;
+    private readonly RowDefinition _detailSecondRow;
+    private readonly TextBlock _inlinePosition;
     private readonly TextBlock _driver;
     private readonly TextBlock _interval;
 
     private string _logoKey = "";
+    private bool? _singleRow;
 
     public TaskbarCell()
     {
         _layout = new Grid();
-        _layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
+        _markerColumn = new ColumnDefinition { Width = new GridLength(30) };
+        _layout.ColumnDefinitions.Add(_markerColumn);
         _layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         _positionText = new TextBlock
@@ -72,6 +77,8 @@ internal sealed class TaskbarCell
         _markerHost = new Border { Margin = new Thickness(1), Child = _positionCard };
         _layout.Children.Add(_markerHost);
 
+        _inlinePosition = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, Visibility = Visibility.Collapsed };
+        _inlinePosition.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");
         _driver = new TextBlock
         {
             FontSize = 11,
@@ -81,7 +88,17 @@ internal sealed class TaskbarCell
         _driver.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");
         _interval = new TextBlock { FontSize = 11, MinHeight = 11, TextTrimming = TextTrimming.CharacterEllipsis };
         _interval.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        _details = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 0, 0) };
+        _details = new Grid { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 0, 0) };
+        _details.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _details.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _details.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _details.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _detailSecondRow = new RowDefinition { Height = GridLength.Auto };
+        _details.RowDefinitions.Add(_detailSecondRow);
+        Grid.SetColumnSpan(_driver, 3);
+        Grid.SetRow(_interval, 1);
+        Grid.SetColumnSpan(_interval, 3);
+        _details.Children.Add(_inlinePosition);
         _details.Children.Add(_driver);
         _details.Children.Add(_interval);
         Grid.SetColumn(_details, 1);
@@ -99,22 +116,16 @@ internal sealed class TaskbarCell
     public UIElement Element => _container;
 
     public void Update(CompetitorStanding standing, Championship championship, ChampionshipDisplaySettings display,
-        string driverText)
+        string driverText, bool singleRow)
     {
+        ApplyLayout(singleRow);
         _details.Visibility = Visibility.Visible;
+        _inlinePosition.Text = standing.Position.ToString();
         _driver.Text = driverText;
         _driver.ToolTip = standing.Name;
         _interval.Text = standing.Position == 1 ? "LEAD" : standing.IntervalToPositionAhead ?? "—";
 
-        var logoKey = display.TaskbarUseManufacturerLogos ? $"{championship}|{standing.Manufacturer}|{standing.Team}" : "";
-        if (logoKey != _logoKey)
-        {
-            _logoKey = logoKey;
-            _markerHost.Child = logoKey.Length > 0 &&
-                ManufacturerLogo.TryCreateForStanding(standing, championship, 26, out var logo)
-                    ? logo
-                    : _positionCard;
-        }
+        UpdateMarker(standing, championship, display, singleRow);
         if (!ReferenceEquals(_markerHost.Child, _positionCard)) return;
         _positionText.Text = standing.Position.ToString();
         _positionCard.Background = CardBrush(standing.Position);
@@ -122,15 +133,73 @@ internal sealed class TaskbarCell
     }
 
     /// <summary>Renders the placeholder used for positions the feed has not filled yet.</summary>
-    public void UpdateEmpty(int position)
+    public void UpdateEmpty(int position, bool singleRow)
     {
-        _details.Visibility = Visibility.Collapsed;
+        ApplyLayout(singleRow);
+        _details.Visibility = singleRow ? Visibility.Visible : Visibility.Collapsed;
+        _inlinePosition.Text = position.ToString();
+        _driver.Text = "—";
         _driver.ToolTip = null;
+        _interval.Text = "";
         _logoKey = "";
         _markerHost.Child = _positionCard;
         _positionText.Text = "—";
         _positionCard.Background = CardBrush(position);
         _positionCard.Opacity = .45;
+    }
+
+    private void UpdateMarker(
+        CompetitorStanding standing, Championship championship, ChampionshipDisplaySettings display, bool singleRow)
+    {
+        var logoKey = !singleRow && display.TaskbarUseManufacturerLogos
+            ? $"{championship}|{standing.Manufacturer}|{standing.Team}"
+            : "";
+        if (logoKey == _logoKey) return;
+        _logoKey = logoKey;
+        _markerHost.Child = logoKey.Length > 0 &&
+            ManufacturerLogo.TryCreateForStanding(standing, championship, 26, out var logo)
+                ? logo
+                : _positionCard;
+    }
+
+    private void ApplyLayout(bool singleRow)
+    {
+        if (_singleRow == singleRow) return;
+        _singleRow = singleRow;
+        if (singleRow) ApplySingleRowLayout();
+        else ApplyTwoRowLayout();
+    }
+
+    private void ApplySingleRowLayout()
+    {
+        _markerColumn.Width = new GridLength(0);
+        _markerHost.Visibility = Visibility.Collapsed;
+        _details.Margin = new Thickness(2, 0, 0, 0);
+        _detailSecondRow.Height = new GridLength(0);
+        _inlinePosition.Visibility = Visibility.Visible;
+        Grid.SetColumn(_driver, 1);
+        Grid.SetColumnSpan(_driver, 1);
+        Grid.SetRow(_interval, 0);
+        Grid.SetColumn(_interval, 2);
+        Grid.SetColumnSpan(_interval, 1);
+        _driver.Margin = new Thickness(4, 0, 0, 0);
+        _interval.Margin = new Thickness(5, 0, 0, 0);
+    }
+
+    private void ApplyTwoRowLayout()
+    {
+        _markerColumn.Width = new GridLength(30);
+        _markerHost.Visibility = Visibility.Visible;
+        _details.Margin = new Thickness(5, 0, 0, 0);
+        _detailSecondRow.Height = GridLength.Auto;
+        _inlinePosition.Visibility = Visibility.Collapsed;
+        Grid.SetColumn(_driver, 0);
+        Grid.SetColumnSpan(_driver, 3);
+        Grid.SetRow(_interval, 1);
+        Grid.SetColumn(_interval, 0);
+        Grid.SetColumnSpan(_interval, 3);
+        _driver.Margin = new Thickness(0);
+        _interval.Margin = new Thickness(0);
     }
 
     private static Brush CardBrush(int position) =>

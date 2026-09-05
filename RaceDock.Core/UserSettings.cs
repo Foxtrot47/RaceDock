@@ -284,6 +284,7 @@ public sealed record UserSettings
     /// desktop through; higher approaches a solid panel.</summary>
     public int FlyoutBlurTint { get; init; } = 70;
     public TaskbarWidgetPosition WidgetPosition { get; init; } = TaskbarWidgetPosition.LeftOfStart;
+    public bool UseSingleRowTaskbar { get; init; }
     public ChampionshipDisplayProfiles? ChampionshipDisplay { get; init; }
 
     /// <summary>Optional championships the user has hidden; <c>null</c> means a settings file written before visibility existed.</summary>

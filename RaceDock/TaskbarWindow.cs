@@ -21,6 +21,7 @@ public sealed class TaskbarWindow : Window
     private readonly ColumnDefinition _stripColumn = new() { Width = new GridLength(1, GridUnitType.Star) };
     private readonly UniformGrid _strip = new() { Rows = 1, Columns = 5, Margin = new(2) };
     private readonly Grid _raceContext = new() { Margin = new(6, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
+    private readonly RowDefinition _contextSecondRow = new() { Height = GridLength.Auto };
     private readonly ScrollingTextBlock _raceText = new() { FontSize = 10.5, FontWeight = FontWeights.SemiBold };
     private readonly TextBlock _lapText = new() { FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Grid _eventHeader = new() { MaxWidth = 150 };
@@ -74,7 +75,7 @@ public sealed class TaskbarWindow : Window
         _root.ColumnDefinitions.Add(_contextColumn);
         _root.ColumnDefinitions.Add(_stripColumn);
         _raceContext.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        _raceContext.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _raceContext.RowDefinitions.Add(_contextSecondRow);
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Grid.SetColumn(_raceText, 0); Grid.SetColumn(_alert, 1);
@@ -117,15 +118,25 @@ public sealed class TaskbarWindow : Window
         SurfaceMotion.Enabled = _settings.InterfaceAnimations;
         _host.ApplyPosition(_settings.WidgetPosition);
         ApplyDisplay(_snapshot?.Championship ?? Championship.Formula1);
+        ApplyTaskbarLayout();
         _flyout.ApplySettings(_settings);
         SetAlert(_currentAlert);
         if (_snapshot is not null) UpdateSnapshot(_snapshot);
+        else if (_nextSession is not null) _idle.Update(_nextSession, DateTimeOffset.UtcNow,
+            TimeZoneInfo.Local, _settings.UseSingleRowTaskbar);
     }
 
     private void ApplyDisplay(Championship championship)
     {
         _display = _settings.DisplayFor(championship);
         _strip.Columns = _display.TaskbarCompetitorCount;
+    }
+
+    private void ApplyTaskbarLayout()
+    {
+        var singleRow = _settings.UseSingleRowTaskbar;
+        _contextSecondRow.Height = singleRow ? new GridLength(0) : GridLength.Auto;
+        _lapText.Visibility = singleRow ? Visibility.Collapsed : Visibility.Visible;
     }
 
     /// <summary>
@@ -142,7 +153,7 @@ public sealed class TaskbarWindow : Window
         _stripColumn.Width = new GridLength(0);
         _contextColumn.MaxWidth = double.PositiveInfinity;
         _eventHeader.MaxWidth = double.PositiveInfinity;
-        _idle.Update(session, now, TimeZoneInfo.Local);
+        _idle.Update(session, now, TimeZoneInfo.Local, _settings.UseSingleRowTaskbar);
         _idle.Element.Visibility = Visibility.Visible;
         System.Windows.Automation.AutomationProperties.SetName(this,
             NextSessionDisplay.Tooltip(session, TimeZoneInfo.Local));
@@ -169,9 +180,11 @@ public sealed class TaskbarWindow : Window
         }
         _snapshot = snapshot;
         ApplyDisplay(snapshot.Championship);
-        _raceText.Text = ChampionshipDisplay.CompactEvent(snapshot);
+        var eventName = ChampionshipDisplay.CompactEvent(snapshot);
+        var progress = FormatSessionProgress(snapshot);
+        _raceText.Text = _settings.UseSingleRowTaskbar ? $"{eventName} · {progress}" : eventName;
         _raceText.ToolTip = ChampionshipDisplay.FullEvent(snapshot);
-        _lapText.Text = FormatSessionProgress(snapshot);
+        _lapText.Text = progress;
         UpdateCells(snapshot);
         _flyout.UpdateSnapshot(snapshot);
         RefreshFlag();
@@ -335,8 +348,9 @@ public sealed class TaskbarWindow : Window
         for (var index = 0; index < count; index++)
         {
             if (index < standings.Count)
-                _cells[index].Update(standings[index], snapshot.Championship, _display, standings[index].Code);
-            else _cells[index].UpdateEmpty(index + 1);
+                _cells[index].Update(standings[index], snapshot.Championship, _display, standings[index].Code,
+                    _settings.UseSingleRowTaskbar);
+            else _cells[index].UpdateEmpty(index + 1, _settings.UseSingleRowTaskbar);
         }
     }
 
