@@ -170,8 +170,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         var statusText = LatestSessionStatus(sessionData?["StatusSeries"])
             ?? JsonSupport.String(_topics.GetValueOrDefault("SessionStatus")?["Status"] ?? _topics.GetValueOrDefault("SessionStatus")?["Started"])
             ?? JsonSupport.String(info?["SessionStatus"]);
-        var ended = alerts.Current?.Kind == AlertKind.Chequered || IsEndedSessionStatus(statusText);
-        var lifecycle = standings.Count == 0 ? SessionLifecycle.OffSession : ended ? SessionLifecycle.Ended : SessionLifecycle.Live;
+        var lifecycle = SessionLifecycleFor(standings.Count, statusText, alerts.Current?.Kind == AlertKind.Chequered);
         Publish(new(JsonSupport.String(meeting?["Name"]) ?? "F1", SessionName(info, timing, sessionData),
             JsonSupport.String(meeting?["Circuit"]?["ShortName"]) ?? "", JsonSupport.Int(lapCount?["CurrentLap"]) ?? standings.FirstOrDefault()?.Lap ?? 0,
             JsonSupport.Int(lapCount?["TotalLaps"]), _track, standings, timestamp ?? clock.UtcNow, lifecycle, _connection, null, Championship.Formula1));
@@ -202,8 +201,18 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         _ => null
     };
 
+    private static SessionLifecycle SessionLifecycleFor(int standingsCount, string? status, bool chequered)
+    {
+        if (standingsCount == 0) return SessionLifecycle.OffSession;
+        if (chequered || IsEndedSessionStatus(status)) return SessionLifecycle.Ended;
+        return IsPreSessionStatus(status) ? SessionLifecycle.PreSession : SessionLifecycle.Live;
+    }
+
     private static bool IsEndedSessionStatus(string? value) => value?.Trim().ToUpperInvariant() is
         "FINISHED" or "FINALISED" or "FINALIZED" or "ENDED" or "ENDS" or "COMPLETE" or "COMPLETED";
+
+    private static bool IsPreSessionStatus(string? value) =>
+        string.Equals(value?.Trim(), "Inactive", StringComparison.OrdinalIgnoreCase);
 
     private void Publish(TimingSnapshot snapshot) { Current = snapshot; SnapshotChanged?.Invoke(snapshot); }
     private string DriverCode(string key) => JsonSupport.String(_topics.GetValueOrDefault("DriverList")?[key]?["Tla"]) ?? key;

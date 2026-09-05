@@ -17,6 +17,7 @@ var tests = new (string Name, Action Run)[]
     ("render throttling keeps newest immediate state", Throttling),
     ("DPI geometry and Explorer recovery", GeometryAndRecovery),
     ("stale and off-session transitions", FreshnessAndVisibility),
+    ("pre-session F1 grid remains hidden", PreSessionF1Grid),
     ("archived F1 startup data remains hidden", ArchivedF1Startup),
     ("scenario timeline integration", ScenarioIntegration),
     ("Timing71 ZIP archives replay full and incremental states", TimingArchiveZipReplay),
@@ -236,6 +237,24 @@ static void FreshnessAndVisibility()
     p.ProcessInitial(BaseState());
     p.ProcessDelta("SessionStatus", new JsonObject { ["Status"] = "Finalised", ["Started"] = "Finished" }, clock.UtcNow);
     Equal(SessionLifecycle.Ended, p.Current.Lifecycle);
+}
+
+static void PreSessionF1Grid()
+{
+    var (clock, _, processor) = Fixture();
+    processor.ProcessInitial(JsonNode.Parse("""
+        {"SessionInfo":{"Name":"Practice 1","Meeting":{"Name":"Italian Grand Prix"}},
+         "SessionStatus":{"Status":"Inactive","Started":"Inactive"},
+         "ExtrapolatedClock":{"Remaining":"01:00:00","Extrapolating":false},
+         "DriverList":{"4":{"Tla":"NOR"},"5":{"Tla":"BOR"}},
+         "TimingData":{"Lines":{"4":{"Position":1},"5":{"Position":2}}}}
+        """)!.AsObject());
+    Equal(SessionLifecycle.PreSession, processor.Current.Lifecycle);
+    Equal("NOR", processor.Current.Competitors[0].Code);
+    Equal("BOR", processor.Current.Competitors[1].Code);
+
+    processor.ProcessDelta("SessionStatus", new JsonObject { ["Status"] = "Started", ["Started"] = "Started" }, clock.UtcNow);
+    Equal(SessionLifecycle.Live, processor.Current.Lifecycle);
 }
 
 static void ArchivedF1Startup()
