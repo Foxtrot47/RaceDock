@@ -23,7 +23,8 @@ public static class EventNameShortener
             ["Sahlen's Six Hours of The Glen"] = "6 Hours of The Glen",
             ["Motul Petit Le Mans"] = "Petit Le Mans",
             ["Motul SportsCar Endurance Grand Prix"] = "SportsCar Endurance Grand Prix",
-            ["FIA WEC - Bapco Energies 8 Hours of Bahrain"] = "8 Hours of Bahrain"
+            ["FIA WEC - Bapco Energies 8 Hours of Bahrain"] = "8 Hours of Bahrain",
+            ["Circuit of the Americas"] = "COTA"
         };
 
     // Longer and localized markers come first where one title could otherwise match another.

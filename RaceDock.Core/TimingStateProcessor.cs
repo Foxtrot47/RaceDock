@@ -116,53 +116,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
     private void Rebuild(DateTimeOffset? timestamp = null)
     {
         var timing = _topics.GetValueOrDefault("TimingData");
-        var lines = timing?["Lines"] as JsonObject;
-        var drivers = _topics.GetValueOrDefault("DriverList");
-        var appLines = _topics.GetValueOrDefault("TimingAppData")?["Lines"] as JsonObject;
-        List<CompetitorStanding> standings = [];
-        Dictionary<string, double> bestLaps = [];
-        if (lines is not null)
-        {
-            foreach (var pair in lines)
-            {
-                if (pair.Value is not JsonObject line) continue;
-                if (line["ShowPosition"] is { } showPosition && !JsonSupport.Bool(showPosition)) continue;
-                var meta = drivers?[pair.Key] as JsonObject;
-                var bestLap = JsonSupport.TimingValue(line["BestLapTime"]);
-                var bestSeconds = bestLap is null ? null : ParseLapSeconds(bestLap);
-                if (bestSeconds.HasValue) bestLaps[pair.Key] = bestSeconds.Value;
-                var pos = JsonSupport.Int(line["Position"]) ?? int.MaxValue;
-                standings.Add(new(pair.Key, pos, JsonSupport.String(meta?["Tla"]) ?? pair.Key,
-                    JsonSupport.String(meta?["FullName"]) ?? "", JsonSupport.String(meta?["TeamName"]) ?? "",
-                    JsonSupport.TimingValue(line["GapToLeader"]),
-                    JsonSupport.TimingValue(line["IntervalToPositionAhead"]), LatestCompound(appLines?[pair.Key] as JsonObject),
-                    JsonSupport.Int(line["NumberOfLaps"]) ?? 0, JsonSupport.Bool(line["InPit"]),
-                    JsonSupport.Bool(line["Retired"]), JsonSupport.Bool(line["Stopped"]), pair.Key == _fastestDriver,
-                    ResultTime: bestLap,
-                    LastLapTime: JsonSupport.TimingValue(line["LastLapTime"])));
-            }
-        }
-        standings = [.. standings.Where(x => x.Position > 0 && x.Position < int.MaxValue).OrderBy(x => x.Position)];
-        if (standings.Count > 0)
-        {
-            standings[0] = standings[0] with { GapToLeader = "LEAD" };
-            var hasLeaderBest = bestLaps.TryGetValue(standings[0].DriverId, out var leaderBest);
-            for (var index = 1; index < standings.Count; index++)
-            {
-                var standing = standings[index];
-                var gap = IsLeaderLabel(standing.GapToLeader) ? null : standing.GapToLeader;
-                var interval = standing.IntervalToPositionAhead;
-                if (hasLeaderBest && bestLaps.TryGetValue(standing.DriverId, out var best))
-                {
-                    gap ??= FormatLapDelta(best - leaderBest);
-                    if (bestLaps.TryGetValue(standings[index - 1].DriverId, out var previousBest))
-                        interval ??= FormatLapDelta(best - previousBest);
-                }
-                if (gap is null && standing.Position == standings[0].Position) gap = FormatLapDelta(0);
-                if (interval is null && standing.Position == standings[index - 1].Position) interval = FormatLapDelta(0);
-                standings[index] = standing with { GapToLeader = gap, IntervalToPositionAhead = interval };
-            }
-        }
+        var standings = BuildStandings(timing);
         var info = _topics.GetValueOrDefault("SessionInfo");
         var meeting = info?["Meeting"] as JsonObject;
         var lapCount = _topics.GetValueOrDefault("LapCount");
@@ -170,10 +124,70 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         var statusText = LatestSessionStatus(sessionData?["StatusSeries"])
             ?? JsonSupport.String(_topics.GetValueOrDefault("SessionStatus")?["Status"] ?? _topics.GetValueOrDefault("SessionStatus")?["Started"])
             ?? JsonSupport.String(info?["SessionStatus"]);
-        var lifecycle = SessionLifecycleFor(standings.Count, statusText, alerts.Current?.Kind == AlertKind.Chequered);
-        Publish(new(JsonSupport.String(meeting?["Name"]) ?? "F1", SessionName(info, timing, sessionData),
+        var sessionName = SessionName(info, timing, sessionData);
+        var requiresTimedClassification = RequiresTimedClassification(info, sessionName);
+        var classificationReady = !requiresTimedClassification || standings.Any(HasTimedResult);
+        var lifecycle = SessionLifecycleFor(
+            standings.Count, statusText, alerts.Current?.Kind == AlertKind.Chequered, classificationReady);
+        if (lifecycle == SessionLifecycle.Live && requiresTimedClassification)
+            standings = [.. standings.Where(HasTimedResult)];
+        Publish(new(JsonSupport.String(meeting?["Name"]) ?? "F1", sessionName,
             JsonSupport.String(meeting?["Circuit"]?["ShortName"]) ?? "", JsonSupport.Int(lapCount?["CurrentLap"]) ?? standings.FirstOrDefault()?.Lap ?? 0,
             JsonSupport.Int(lapCount?["TotalLaps"]), _track, standings, timestamp ?? clock.UtcNow, lifecycle, _connection, null, Championship.Formula1));
+    }
+
+    private List<CompetitorStanding> BuildStandings(JsonObject? timing)
+    {
+        var lines = timing?["Lines"] as JsonObject;
+        if (lines is null) return [];
+        var drivers = _topics.GetValueOrDefault("DriverList");
+        var appLines = _topics.GetValueOrDefault("TimingAppData")?["Lines"] as JsonObject;
+        List<CompetitorStanding> standings = [];
+        Dictionary<string, double> bestLaps = [];
+        foreach (var pair in lines)
+        {
+            if (pair.Value is not JsonObject line) continue;
+            if (line["ShowPosition"] is { } showPosition && !JsonSupport.Bool(showPosition)) continue;
+            var meta = drivers?[pair.Key] as JsonObject;
+            var bestLap = JsonSupport.TimingValue(line["BestLapTime"]);
+            var bestSeconds = bestLap is null ? null : ParseLapSeconds(bestLap);
+            if (bestSeconds.HasValue) bestLaps[pair.Key] = bestSeconds.Value;
+            var position = JsonSupport.Int(line["Position"]) ?? int.MaxValue;
+            standings.Add(new(pair.Key, position, JsonSupport.String(meta?["Tla"]) ?? pair.Key,
+                JsonSupport.String(meta?["FullName"]) ?? "", JsonSupport.String(meta?["TeamName"]) ?? "",
+                JsonSupport.TimingValue(line["GapToLeader"]),
+                JsonSupport.TimingValue(line["IntervalToPositionAhead"]), LatestCompound(appLines?[pair.Key] as JsonObject),
+                JsonSupport.Int(line["NumberOfLaps"]) ?? 0, JsonSupport.Bool(line["InPit"]),
+                JsonSupport.Bool(line["Retired"]), JsonSupport.Bool(line["Stopped"]), pair.Key == _fastestDriver,
+                ResultTime: bestLap,
+                LastLapTime: JsonSupport.TimingValue(line["LastLapTime"])));
+        }
+        standings = [.. standings.Where(x => x.Position > 0 && x.Position < int.MaxValue).OrderBy(x => x.Position)];
+        NormalizeStandings(standings, bestLaps);
+        return standings;
+    }
+
+    private static void NormalizeStandings(
+        List<CompetitorStanding> standings, IReadOnlyDictionary<string, double> bestLaps)
+    {
+        if (standings.Count == 0) return;
+        standings[0] = standings[0] with { GapToLeader = "LEAD" };
+        var hasLeaderBest = bestLaps.TryGetValue(standings[0].DriverId, out var leaderBest);
+        for (var index = 1; index < standings.Count; index++)
+        {
+            var standing = standings[index];
+            var gap = IsLeaderLabel(standing.GapToLeader) ? null : standing.GapToLeader;
+            var interval = standing.IntervalToPositionAhead;
+            if (hasLeaderBest && bestLaps.TryGetValue(standing.DriverId, out var best))
+            {
+                gap ??= FormatLapDelta(best - leaderBest);
+                if (bestLaps.TryGetValue(standings[index - 1].DriverId, out var previousBest))
+                    interval ??= FormatLapDelta(best - previousBest);
+            }
+            if (gap is null && standing.Position == standings[0].Position) gap = FormatLapDelta(0);
+            if (interval is null && standing.Position == standings[index - 1].Position) interval = FormatLapDelta(0);
+            standings[index] = standing with { GapToLeader = gap, IntervalToPositionAhead = interval };
+        }
     }
 
     private static string SessionName(JsonObject? info, JsonObject? timing, JsonObject? sessionData)
@@ -201,12 +215,30 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         _ => null
     };
 
-    private static SessionLifecycle SessionLifecycleFor(int standingsCount, string? status, bool chequered)
+    private static SessionLifecycle SessionLifecycleFor(
+        int standingsCount, string? status, bool chequered, bool classificationReady)
     {
         if (standingsCount == 0) return SessionLifecycle.OffSession;
         if (chequered || IsEndedSessionStatus(status)) return SessionLifecycle.Ended;
-        return IsPreSessionStatus(status) ? SessionLifecycle.PreSession : SessionLifecycle.Live;
+        return IsPreSessionStatus(status) || !classificationReady
+            ? SessionLifecycle.PreSession
+            : SessionLifecycle.Live;
     }
+
+    private static bool RequiresTimedClassification(JsonObject? info, string sessionName)
+    {
+        var type = JsonSupport.String(info?["Type"]) ?? "";
+        return MentionsTimedSession(type) || MentionsTimedSession(sessionName);
+    }
+
+    private static bool MentionsTimedSession(string value) =>
+        value.Contains("practice", StringComparison.OrdinalIgnoreCase) ||
+        value.Contains("qualif", StringComparison.OrdinalIgnoreCase) ||
+        value.Contains("shootout", StringComparison.OrdinalIgnoreCase) ||
+        value.Contains("warm", StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasTimedResult(CompetitorStanding standing) =>
+        !string.IsNullOrWhiteSpace(standing.ResultTime) || !string.IsNullOrWhiteSpace(standing.LastLapTime);
 
     private static bool IsEndedSessionStatus(string? value) => value?.Trim().ToUpperInvariant() is
         "FINISHED" or "FINALISED" or "FINALIZED" or "ENDED" or "ENDS" or "COMPLETE" or "COMPLETED";

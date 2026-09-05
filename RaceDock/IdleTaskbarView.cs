@@ -46,7 +46,12 @@ internal sealed class IdleTaskbarView
         Grid.SetColumn(_logo, 0);
         layout.Children.Add(_logo);
 
-        var copy = new Grid { VerticalAlignment = VerticalAlignment.Center };
+        var copy = new Grid
+        {
+            Width = 145,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center
+        };
         copy.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         copy.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _event.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");

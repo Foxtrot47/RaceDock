@@ -245,18 +245,34 @@ static void PreSessionF1Grid()
 {
     var (clock, _, processor) = Fixture();
     processor.ProcessInitial(JsonNode.Parse("""
-        {"SessionInfo":{"Name":"Practice 1","Meeting":{"Name":"Italian Grand Prix"}},
+        {"SessionInfo":{"Name":"Practice 1","Type":"Practice","Meeting":{"Name":"Italian Grand Prix"}},
          "SessionStatus":{"Status":"Inactive","Started":"Inactive"},
          "ExtrapolatedClock":{"Remaining":"01:00:00","Extrapolating":false},
          "DriverList":{"4":{"Tla":"NOR"},"5":{"Tla":"BOR"}},
-         "TimingData":{"Lines":{"4":{"Position":1},"5":{"Position":2}}}}
+         "TimingData":{"Lines":{"4":{"Position":1,"NumberOfLaps":1,"Sectors":[{"Value":"38.623"}]},"5":{"Position":2}}}}
         """)!.AsObject());
     Equal(SessionLifecycle.PreSession, processor.Current.Lifecycle);
     Equal("NOR", processor.Current.Competitors[0].Code);
     Equal("BOR", processor.Current.Competitors[1].Code);
 
     processor.ProcessDelta("SessionStatus", new JsonObject { ["Status"] = "Started", ["Started"] = "Started" }, clock.UtcNow);
+    Equal(SessionLifecycle.PreSession, processor.Current.Lifecycle);
+    processor.ProcessDelta("TimingData", new JsonObject
+    {
+        ["Lines"] = new JsonObject
+        {
+            ["4"] = new JsonObject { ["BestLapTime"] = new JsonObject { ["Value"] = "1:22.410" } }
+        }
+    }, clock.UtcNow);
     Equal(SessionLifecycle.Live, processor.Current.Lifecycle);
+    Equal(1, processor.Current.Competitors.Count);
+    Equal("NOR", processor.Current.Competitors[0].Code);
+
+    var (_, _, raceProcessor) = Fixture();
+    var race = BaseState();
+    race["SessionStatus"] = new JsonObject { ["Status"] = "Started", ["Started"] = "Started" };
+    raceProcessor.ProcessInitial(race);
+    Equal(SessionLifecycle.Live, raceProcessor.Current.Lifecycle);
 }
 
 static void ArchivedF1Startup()
@@ -1456,7 +1472,7 @@ static void ChampionshipLabels()
     Equal("GT World Challenge Europe · Magny-Cours", ChampionshipDisplay.FullEvent(gtwc));
     Equal("IMSA Road America", ChampionshipDisplay.CompactEvent(imsa));
     Equal("IMSA WeatherTech SportsCar Championship · SportsCar Endurance Grand Prix", ChampionshipDisplay.FullEvent(imsa));
-    Equal("WEC Circuit of the Americas", ChampionshipDisplay.CompactEvent(wec));
+    Equal("WEC COTA", ChampionshipDisplay.CompactEvent(wec));
     Equal("World Endurance Championship · Lone Star Le Mans", ChampionshipDisplay.FullEvent(wec));
     Equal("ELMS", ChampionshipDisplay.ShortName(Championship.EuropeanLeMansSeries));
     Equal("European Le Mans Series", ChampionshipDisplay.FullName(Championship.EuropeanLeMansSeries));
@@ -1478,6 +1494,8 @@ static void ChampionshipLabels()
     Equal("San Marino Grand Prix", ChampionshipDisplay.ShortEventName(Championship.MotoGp, "RED Bull Grand Prix of SAN Marino and the Rimini Riviera"));
     Equal("Rally Paraguay", ChampionshipDisplay.ShortEventName(Championship.WorldRallyChampionship, "Ueno Rally Del Paraguay"));
     Equal("Italian Grand Prix", ChampionshipDisplay.ShortEventName(Championship.Formula1, "Italian Grand Prix"));
+    Equal("COTA", ChampionshipDisplay.ShortEventName(Championship.WorldEnduranceChampionship, "Circuit of the Americas"));
+    Equal("COTA", ChampionshipDisplay.ShortVenue("Circuit of the Americas"));
     Equal("MotoGP Silverstone", ChampionshipDisplay.CompactEvent(moto3 with
     {
         Championship = Championship.MotoGp,
@@ -2211,6 +2229,8 @@ static void NextSessionPresentation()
     Equal("Practice 1 · Autodromo Nazionale Monza", NextSessionDisplay.RowSubtitle(monza));
     Equal("Practice 1", NextSessionDisplay.RowSubtitle(next));
     Equal("Autodromo Nazionale Monza", NextSessionDisplay.RowSubtitle(next with { SessionName = null, Venue = "Autodromo Nazionale Monza" }));
+    Equal("Free Practice 1 · COTA", NextSessionDisplay.RowSubtitle(new(
+        Championship.WorldEnduranceChampionship, "Lone Star Le Mans", "Free Practice 1", now, "Circuit of the Americas")));
     Equal("", NextSessionDisplay.RowSubtitle(next with { SessionName = null }));
 
     // A venue the event name already carries is not repeated.

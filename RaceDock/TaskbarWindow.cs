@@ -137,6 +137,22 @@ public sealed class TaskbarWindow : Window
         var singleRow = _settings.UseSingleRowTaskbar;
         _contextSecondRow.Height = singleRow ? new GridLength(0) : GridLength.Auto;
         _lapText.Visibility = singleRow ? Visibility.Collapsed : Visibility.Visible;
+        _raceContext.Margin = singleRow ? new Thickness(4, 2, 2, 2) : new Thickness(6, 2, 4, 2);
+        if (_snapshot is null) return;
+        var contextWidth = singleRow ? 150 : 100;
+        _contextColumn.Width = GridLength.Auto;
+        _contextColumn.MaxWidth = contextWidth;
+        _eventHeader.MaxWidth = contextWidth - _raceContext.Margin.Left - _raceContext.Margin.Right;
+        ConstrainRaceText(contextWidth);
+    }
+
+    private void ConstrainRaceText(double contextWidth)
+    {
+        var contextMargin = _raceContext.Margin.Left + _raceContext.Margin.Right;
+        var alertWidth = _alert.Visibility == Visibility.Visible
+            ? _alert.Width + _alert.Margin.Left + _alert.Margin.Right
+            : 0;
+        _raceText.MaxWidth = Math.Max(0, contextWidth - contextMargin - alertWidth);
     }
 
     /// <summary>
@@ -151,6 +167,7 @@ public sealed class TaskbarWindow : Window
         _raceContext.Visibility = Visibility.Collapsed;
         _strip.Visibility = Visibility.Collapsed;
         _stripColumn.Width = new GridLength(0);
+        _contextColumn.Width = new GridLength(1, GridUnitType.Star);
         _contextColumn.MaxWidth = double.PositiveInfinity;
         _eventHeader.MaxWidth = double.PositiveInfinity;
         _idle.Update(session, now, TimeZoneInfo.Local, _settings.UseSingleRowTaskbar);
@@ -180,6 +197,7 @@ public sealed class TaskbarWindow : Window
         }
         _snapshot = snapshot;
         ApplyDisplay(snapshot.Championship);
+        ApplyTaskbarLayout();
         var eventName = ChampionshipDisplay.CompactEvent(snapshot);
         var progress = FormatSessionProgress(snapshot);
         _raceText.Text = _settings.UseSingleRowTaskbar ? $"{eventName} · {progress}" : eventName;
@@ -293,6 +311,7 @@ public sealed class TaskbarWindow : Window
         var kind = _snapshot is null ? null : TaskbarFlagDisplay.Resolve(_snapshot.TrackCondition, transient);
         var show = kind is not null && _snapshot is not null && !IsRallySnapshot(_snapshot);
         _alert.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (_snapshot is not null) ConstrainRaceText(_settings.UseSingleRowTaskbar ? 150 : 100);
         if (!show || kind is null) return;
         _secondFlagShape.Visibility = kind == AlertKind.DoubleYellow ? Visibility.Visible : Visibility.Collapsed;
         _flagShape.Fill = FlagBrush(kind.Value);

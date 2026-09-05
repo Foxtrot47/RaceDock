@@ -34,7 +34,9 @@ public static class NextSessionDisplay
     /// </summary>
     public static string RowSubtitle(UpcomingSession session)
     {
-        var venue = Repeats(ChampionshipDisplay.ShortEventName(session.Championship, session.EventName), session.Venue) ? null : session.Venue;
+        var eventName = ChampionshipDisplay.ShortEventName(session.Championship, session.EventName);
+        var venue = ChampionshipDisplay.ShortVenue(session.Venue);
+        if (Repeats(eventName, venue)) venue = null;
         return string.Join(" \u00b7 ", new[] { session.SessionName, venue }.Where(part => !string.IsNullOrWhiteSpace(part)));
     }
 

@@ -11,6 +11,11 @@ public static class ChampionshipDisplay
     /// <summary>Compatibility overload for callers that do not know which series supplied the name.</summary>
     public static string ShortEventName(string eventName) => EventNameShortener.Shorten(Championship.Unknown, eventName);
 
+    public static string? ShortVenue(string? venue) =>
+        venue?.Trim().Equals("Circuit of the Americas", StringComparison.OrdinalIgnoreCase) == true
+            ? "COTA"
+            : venue?.Trim();
+
     public static string CompactEvent(TimingSnapshot snapshot)
     {
         var championship = ShortName(snapshot.Championship);
@@ -91,7 +96,7 @@ public static class ChampionshipDisplay
 
     private static string CompactCircuit(string circuit, string meeting)
     {
-        var value = string.IsNullOrWhiteSpace(circuit) ? meeting : circuit;
+        var value = ShortVenue(string.IsNullOrWhiteSpace(circuit) ? meeting : circuit) ?? "";
         value = RemovePrefix(value, "Circuit de ");
         if (value.EndsWith(" Circuit", StringComparison.OrdinalIgnoreCase)) value = value[..^8];
         var hyphen = value.IndexOf('-');

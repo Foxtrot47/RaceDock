@@ -33,6 +33,9 @@ internal sealed class TaskbarCell
     private readonly Border _positionCard;
     private readonly TextBlock _positionText;
     private readonly Grid _details;
+    private readonly ColumnDefinition _inlinePositionColumn;
+    private readonly ColumnDefinition _driverColumn;
+    private readonly ColumnDefinition _intervalColumn;
     private readonly RowDefinition _detailSecondRow;
     private readonly TextBlock _inlinePosition;
     private readonly TextBlock _driver;
@@ -89,9 +92,12 @@ internal sealed class TaskbarCell
         _interval = new TextBlock { FontSize = 11, MinHeight = 11, TextTrimming = TextTrimming.CharacterEllipsis };
         _interval.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         _details = new Grid { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 0, 0) };
-        _details.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        _details.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _details.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _inlinePositionColumn = new ColumnDefinition { Width = GridLength.Auto };
+        _driverColumn = new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) };
+        _intervalColumn = new ColumnDefinition { Width = GridLength.Auto };
+        _details.ColumnDefinitions.Add(_inlinePositionColumn);
+        _details.ColumnDefinitions.Add(_driverColumn);
+        _details.ColumnDefinitions.Add(_intervalColumn);
         _details.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _detailSecondRow = new RowDefinition { Height = GridLength.Auto };
         _details.RowDefinitions.Add(_detailSecondRow);
@@ -174,7 +180,12 @@ internal sealed class TaskbarCell
     {
         _markerColumn.Width = new GridLength(0);
         _markerHost.Visibility = Visibility.Collapsed;
-        _details.Margin = new Thickness(2, 0, 0, 0);
+        _container.Margin = new Thickness(1);
+        _details.Margin = new Thickness(0);
+        _details.HorizontalAlignment = HorizontalAlignment.Center;
+        _inlinePositionColumn.Width = GridLength.Auto;
+        _driverColumn.Width = GridLength.Auto;
+        _intervalColumn.Width = GridLength.Auto;
         _detailSecondRow.Height = new GridLength(0);
         _inlinePosition.Visibility = Visibility.Visible;
         Grid.SetColumn(_driver, 1);
@@ -190,7 +201,12 @@ internal sealed class TaskbarCell
     {
         _markerColumn.Width = new GridLength(30);
         _markerHost.Visibility = Visibility.Visible;
+        _container.Margin = new Thickness(2);
         _details.Margin = new Thickness(5, 0, 0, 0);
+        _details.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _inlinePositionColumn.Width = GridLength.Auto;
+        _driverColumn.Width = new GridLength(1, GridUnitType.Star);
+        _intervalColumn.Width = GridLength.Auto;
         _detailSecondRow.Height = GridLength.Auto;
         _inlinePosition.Visibility = Visibility.Collapsed;
         Grid.SetColumn(_driver, 0);

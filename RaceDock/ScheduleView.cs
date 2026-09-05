@@ -92,8 +92,9 @@ internal sealed class ScheduleView
         copy.Children.Add(EventName(ChampionshipDisplay.ShortEventName(session.Championship, session.EventName), 16));
         if (!string.IsNullOrWhiteSpace(session.SessionName))
             copy.Children.Add(Secondary(session.SessionName!, 12.5, new Thickness(0, 2, 0, 0)));
-        if (!string.IsNullOrWhiteSpace(session.Venue))
-            copy.Children.Add(Secondary(session.Venue!, 11, new Thickness(0, 3, 0, 0), tertiary: true));
+        var venue = ChampionshipDisplay.ShortVenue(session.Venue);
+        if (!string.IsNullOrWhiteSpace(venue))
+            copy.Children.Add(Secondary(venue, 11, new Thickness(0, 3, 0, 0), tertiary: true));
         layout.Children.Add(copy);
 
         var when = new StackPanel
