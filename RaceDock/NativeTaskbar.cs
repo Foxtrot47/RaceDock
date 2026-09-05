@@ -18,7 +18,7 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
     private IntPtr _hwnd;
     private TaskbarWidgetPosition _position;
     private DateTime _lastAutomationScanUtc = DateTime.MinValue;
-    private IReadOnlyList<PixelRect> _automationRectangles = [];
+    private IReadOnlyList<PixelRect> _occupiedRectangles = [];
     public event Action? ExplorerRestarted;
     public event Action<bool>? PositionChanged;
 
@@ -54,16 +54,52 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
     {
         var taskbar = FindWindow("Shell_TrayWnd", null); if (taskbar == IntPtr.Zero || _hwnd == IntPtr.Zero) return;
         var style = GetWindowLongPtr(_hwnd, GwlStyle).ToInt64(); SetWindowLongPtr(_hwnd, GwlStyle, new IntPtr((style & ~WsPopup) | WsChild));
-        SetParent(_hwnd, taskbar);
+        var parentChanged = Reparent(taskbar);
         if (!GetWindowRect(taskbar, out var rect)) return;
         var taskbarRect = new PixelRect(rect.Left, rect.Top, rect.Right, rect.Bottom);
-        var geometry = TaskbarGeometry.CalculateChild(taskbarRect, GetDpiForWindow(taskbar), _position, FindOccupiedRectangles(taskbar, taskbarRect), LogicalWidth, minimumLogicalWidth: MinimumLogicalWidth);
-        if (geometry is null) { ShowWindow(_hwnd, SwHide); PositionChanged?.Invoke(false); return; }
+        var geometry = TaskbarGeometry.CalculateChild(taskbarRect, GetDpiForWindow(taskbar), _position,
+            FindOccupiedRectangles(taskbar, taskbarRect), LogicalWidth, minimumLogicalWidth: MinimumLogicalWidth);
+        if (geometry is null)
+        {
+            Hide();
+            return;
+        }
         var placement = geometry.Value;
+        if (!parentChanged && HasPlacement(taskbarRect, placement)) return;
+        ApplyPlacement(taskbar, taskbarRect, placement);
+    }
+
+    private bool Reparent(IntPtr taskbar)
+    {
+        if (GetParent(_hwnd) == taskbar) return false;
+        SetParent(_hwnd, taskbar);
+        _lastAutomationScanUtc = DateTime.MinValue;
+        _occupiedRectangles = [];
+        return true;
+    }
+
+    private void Hide()
+    {
+        if (!IsWindowVisible(_hwnd)) return;
+        ShowWindow(_hwnd, SwHide);
+        PositionChanged?.Invoke(false);
+    }
+
+    private bool HasPlacement(PixelRect taskbar, (int X, int Y, int Width, int Height) placement)
+    {
+        if (!IsWindowVisible(_hwnd) || !GetWindowRect(_hwnd, out var current)) return false;
+        return current.Left == taskbar.Left + placement.X && current.Top == taskbar.Top + placement.Y &&
+            current.Right - current.Left == placement.Width && current.Bottom - current.Top == placement.Height;
+    }
+
+    private void ApplyPlacement(IntPtr taskbar, PixelRect taskbarRect, (int X, int Y, int Width, int Height) placement)
+    {
         var parentPoint = new Point { X = taskbarRect.Left + placement.X, Y = taskbarRect.Top + placement.Y };
         MapWindowPoints(IntPtr.Zero, taskbar, ref parentPoint, 1);
-        SetWindowPos(_hwnd, IntPtr.Zero, parentPoint.X, parentPoint.Y, placement.Width, placement.Height, SwpNoZOrder | SwpNoActivate | SwpShowWindow);
-        var region = CreateRectRgn(0, 0, placement.Width, placement.Height); SetWindowRgn(_hwnd, region, true);
+        SetWindowPos(_hwnd, IntPtr.Zero, parentPoint.X, parentPoint.Y, placement.Width, placement.Height,
+            SwpNoZOrder | SwpNoActivate | SwpShowWindow);
+        var region = CreateRectRgn(0, 0, placement.Width, placement.Height);
+        SetWindowRgn(_hwnd, region, true);
         PositionChanged?.Invoke(true);
     }
 
@@ -94,59 +130,69 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
         List<PixelRect> result = [];
         EnumChildWindows(taskbar, (child, _) =>
         {
-            if (child != _hwnd && IsWindowVisible(child) && GetWindowRect(child, out var r))
-            {
-                var windowRect = new PixelRect(r.Left, r.Top, r.Right, r.Bottom);
-                var visibleRect = GetVisibleWindowRect(child, windowRect);
-                if (visibleRect is { } visible) Add(visible.Left, visible.Top, visible.Right, visible.Bottom);
-            }
+            if (child != _hwnd && IsWindowVisible(child) && GetWindowRect(child, out var window))
+                AddOccupiedRectangle(result,
+                    GetVisibleWindowRect(child, new(window.Left, window.Top, window.Right, window.Bottom)), bounds);
             return true;
         }, IntPtr.Zero);
 
-        if (DateTime.UtcNow - _lastAutomationScanUtc >= TimeSpan.FromSeconds(30))
+        if (RefreshAutomationRectangles(taskbar, bounds) is { } refreshed)
         {
-            _lastAutomationScanUtc = DateTime.UtcNow;
-            try
-            {
-                var automationRectangles = new List<PixelRect>();
-                var root = AutomationElement.FromHandle(taskbar);
-                var controls = root.FindAll(TreeScope.Descendants, new OrCondition(
-                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
-                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem),
-                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Thumb),
-                    new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Hyperlink)));
-                foreach (AutomationElement control in controls)
-                {
-                    if (control.Current.IsOffscreen) continue;
-                    var r = control.Current.BoundingRectangle;
-                    var clipped = Clip((int)Math.Floor(r.Left), (int)Math.Floor(r.Top),
-                        (int)Math.Ceiling(r.Right), (int)Math.Ceiling(r.Bottom));
-                    if (clipped is { } rectangle) automationRectangles.Add(rectangle);
-                }
-                _automationRectangles = automationRectangles;
-            }
-            catch (ElementNotAvailableException) { }
-            catch (InvalidOperationException) { }
-            catch (COMException) { }
+            foreach (var rectangle in refreshed) AddOccupiedRectangle(result, rectangle, bounds);
+            _occupiedRectangles = result.ToArray();
         }
-
-        foreach (var rectangle in _automationRectangles)
-            Add(rectangle.Left, rectangle.Top, rectangle.Right, rectangle.Bottom);
+        else
+        {
+            foreach (var rectangle in _occupiedRectangles) AddOccupiedRectangle(result, rectangle, bounds);
+        }
         return result;
+    }
 
-        void Add(int left, int top, int right, int bottom)
-        {
-            var clipped = Clip(left, top, right, bottom);
-            if (clipped is not { } rectangle) return;
-            if (result.Any(x => Math.Abs(x.Left - rectangle.Left) <= 2 && Math.Abs(x.Right - rectangle.Right) <= 2)) return;
-            result.Add(rectangle);
-        }
+    private static void AddOccupiedRectangle(List<PixelRect> result, PixelRect? candidate, PixelRect bounds)
+    {
+        if (candidate is not { } value || Clip(value, bounds) is not { } rectangle) return;
+        if (result.Any(item => Math.Abs(item.Left - rectangle.Left) <= 2 &&
+            Math.Abs(item.Right - rectangle.Right) <= 2)) return;
+        result.Add(rectangle);
+    }
 
-        PixelRect? Clip(int left, int top, int right, int bottom)
+    private IReadOnlyList<PixelRect>? RefreshAutomationRectangles(IntPtr taskbar, PixelRect bounds)
+    {
+        if (DateTime.UtcNow - _lastAutomationScanUtc < TimeSpan.FromSeconds(30)) return null;
+        _lastAutomationScanUtc = DateTime.UtcNow;
+        try
         {
-            var clipped = new PixelRect(Math.Max(bounds.Left, left), Math.Max(bounds.Top, top), Math.Min(bounds.Right, right), Math.Min(bounds.Bottom, bottom));
-            return clipped.Width <= 0 || clipped.Height < bounds.Height / 3 || clipped.Width > bounds.Width / 2 ? null : clipped;
+            List<PixelRect> result = [];
+            var root = AutomationElement.FromHandle(taskbar);
+            var controls = root.FindAll(TreeScope.Descendants, new OrCondition(
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.MenuItem),
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Thumb),
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Hyperlink)));
+            foreach (AutomationElement control in controls)
+            {
+                if (control.Current.IsOffscreen) continue;
+                var rectangle = control.Current.BoundingRectangle;
+                if (Clip(new((int)Math.Floor(rectangle.Left), (int)Math.Floor(rectangle.Top),
+                    (int)Math.Ceiling(rectangle.Right), (int)Math.Ceiling(rectangle.Bottom)), bounds) is { } clipped)
+                    result.Add(clipped);
+            }
+            // Start and Search temporarily remove every taskbar automation peer. Keep the last complete scan.
+            return result.Count == 0 ? null : result;
         }
+        catch (Exception failure) when (failure is ElementNotAvailableException or InvalidOperationException or COMException)
+        {
+            return null;
+        }
+    }
+
+    private static PixelRect? Clip(PixelRect rectangle, PixelRect bounds)
+    {
+        var clipped = new PixelRect(Math.Max(bounds.Left, rectangle.Left), Math.Max(bounds.Top, rectangle.Top),
+            Math.Min(bounds.Right, rectangle.Right), Math.Min(bounds.Bottom, rectangle.Bottom));
+        return clipped.Width <= 0 || clipped.Height < bounds.Height / 3 || clipped.Width > bounds.Width / 2
+            ? null
+            : clipped;
     }
 
     private static PixelRect? GetVisibleWindowRect(IntPtr hwnd, PixelRect windowRect)
@@ -180,6 +226,7 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
     [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string className, string? title);
     [DllImport("user32.dll")] private static extern IntPtr SetParent(IntPtr child, IntPtr parent);
+    [DllImport("user32.dll")] private static extern IntPtr GetParent(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern int MapWindowPoints(IntPtr from, IntPtr to, ref Point point, uint count);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr value);

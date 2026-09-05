@@ -45,7 +45,6 @@ public sealed class ClassificationFlyout : Window
     private TimingSnapshot? _snapshot;
     private readonly ScheduleView _schedule = new();
     private FrameworkElement _classification = null!;
-    private IReadOnlyList<UpcomingSession>? _scheduleSessions;
     private double _driverColumnWidth = MinimumDriverColumn;
     private readonly TranslateTransform _slide = new();
     private readonly Border _panel;
@@ -232,8 +231,7 @@ public sealed class ClassificationFlyout : Window
     public void ShowSchedule(IReadOnlyList<UpcomingSession> sessions, DateTimeOffset now)
     {
         _snapshot = null;
-        _scheduleSessions = sessions;
-        _panel.Child = _schedule.Element;
+        if (!ReferenceEquals(_panel.Child, _schedule.Element)) _panel.Child = _schedule.Element;
         Width = ScheduleView.Width;
         _schedule.Update(sessions, now, TimeZoneInfo.Local);
     }
@@ -242,7 +240,6 @@ public sealed class ClassificationFlyout : Window
     {
         _snapshot = snapshot;
         // Timing takes the flyout back from the schedule as soon as a session reports in.
-        _scheduleSessions = null;
         _panel.Child = _classification;
         // A closed flyout is redrawn when it opens, so keeping it current while hidden is pure cost.
         if (!IsVisible) return;
@@ -298,12 +295,12 @@ public sealed class ClassificationFlyout : Window
         }
     }
 
-    /// <summary>Redraws from what was retained, used when the flyout becomes visible again.</summary>
+    /// <summary>Redraws a retained classification when the flyout becomes visible again.</summary>
     private void RefreshFromSnapshot()
     {
         if (_snapshot is { } snapshot) UpdateSnapshot(snapshot);
-        // Reopening restates the schedule so its days and times are read against the current clock.
-        else if (_scheduleSessions is { } sessions) ShowSchedule(sessions, DateTimeOffset.UtcNow);
+        // TaskbarWindow prepares schedules immediately before Show. Rebuilding the list again from this
+        // visibility callback would clear the newly visible tree and make cached logos appear to flicker.
     }
 
     /// <summary>
