@@ -12,7 +12,8 @@
 [![License](https://img.shields.io/github/license/Foxtrot47/RaceDock)](LICENSE)
 [![Issues](https://img.shields.io/github/issues/Foxtrot47/RaceDock?logo=github)](https://github.com/Foxtrot47/RaceDock/issues)
 
-[Download](https://github.com/Foxtrot47/RaceDock/releases/latest) ·
+[Microsoft Store](https://apps.microsoft.com/detail/9pcxqvr2g106) ·
+[Portable download](https://github.com/Foxtrot47/RaceDock/releases/latest) ·
 [Contribute](CONTRIBUTING.md) ·
 [Changelog](CHANGELOG.md) ·
 [Privacy](PRIVACY.md)
@@ -39,13 +40,14 @@ The leaders stay visible in a small strip on the taskbar. Click it and the full 
 
 RaceDock needs Windows 10 version 1809 or newer, including Windows 11, on a 64-bit PC.
 
+Install RaceDock from the [Microsoft Store](https://apps.microsoft.com/detail/9pcxqvr2g106).
+
+For a portable installation:
+
 1. Open the [latest release](https://github.com/Foxtrot47/RaceDock/releases/latest).
 2. Download `RaceDock-vX.Y.Z-win-x64.zip`.
 3. Extract it to a folder you plan to keep.
 4. Run `RaceDock.exe`.
-
-
-> A Microsoft Store listing is in certification. Until it is published, the GitHub release above is the official download.
 
 ## Using it
 

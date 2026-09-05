@@ -2,7 +2,7 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
-## [Unreleased]
+## [1.3.0] — 2026-09-05
 
 ### Added
 
@@ -12,7 +12,7 @@ All notable RaceDock changes are recorded here. Release packages include the cor
 
 ### Fixed
 
-- Formula 1 pre-session staging rows are no longer presented as a live classification before the session starts.
+- Formula 1 practice and qualifying placeholders remain hidden until a driver records a valid lap time.
 
 ## [1.2.0] — 2026-08-31
 
