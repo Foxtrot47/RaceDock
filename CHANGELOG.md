@@ -2,6 +2,18 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
+## [1.3.1] — 2026-09-05
+
+### Changed
+
+- Dashboard cards and championship navigation follow a popularity-focused order.
+- Circuit of the Americas is shown as COTA on compact live and schedule surfaces.
+
+### Fixed
+
+- One-row classifications, live session context, and upcoming-session titles use constrained layouts to prevent clipping and excessive spacing.
+- WEC entrants without explicit manufacturer data now resolve to the appropriate Ferrari, Mercedes-AMG, or Aston Martin mark, and Peugeot artwork retains its original colors.
+
 ## [1.3.0] — 2026-09-05
 
 ### Added
