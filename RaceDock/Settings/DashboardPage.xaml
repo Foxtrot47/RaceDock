@@ -93,12 +93,20 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
                   <TextBlock Text="{Binding DisplayName}"
-                             FontWeight="SemiBold"
+                             FontFamily="Segoe UI Variable, Microsoft YaHei UI, Yu Gothic UI"
+                             FontSize="12"
+                             FontWeight="Normal"
+                             TextOptions.TextRenderingMode="ClearType"
+                             TextOptions.TextFormattingMode="Ideal"
                              TextTrimming="CharacterEllipsis" />
                   <TextBlock Text="{Binding UpcomingSummary}"
-                             FontSize="11"
-                             Opacity="0.6"
-                             Margin="0,2,0,0"
+                             FontFamily="Segoe UI Variable, Microsoft YaHei UI, Yu Gothic UI"
+                             FontSize="12"
+                             FontWeight="Normal"
+                             Opacity="0.5"
+                             Margin="0,-1.35,0,0"
+                             TextOptions.TextRenderingMode="ClearType"
+                             TextOptions.TextFormattingMode="Ideal"
                              TextTrimming="CharacterEllipsis"
                              Visibility="{Binding HasUpcoming, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>

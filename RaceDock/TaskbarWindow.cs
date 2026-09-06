@@ -14,6 +14,7 @@ namespace RaceDock.App;
 
 public sealed class TaskbarWindow : Window
 {
+    private static readonly FontFamily TaskbarFont = new("Segoe UI Variable, Microsoft YaHei UI, Yu Gothic UI");
     private readonly Grid _root = new();
     private readonly IdleTaskbarView _idle = new();
     private readonly Border _hoverSurface;
@@ -21,9 +22,10 @@ public sealed class TaskbarWindow : Window
     private readonly ColumnDefinition _stripColumn = new() { Width = new GridLength(1, GridUnitType.Star) };
     private readonly UniformGrid _strip = new() { Rows = 1, Columns = 5, Margin = new(2) };
     private readonly Grid _raceContext = new() { Margin = new(6, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
-    private readonly RowDefinition _contextSecondRow = new() { Height = GridLength.Auto };
-    private readonly ScrollingTextBlock _raceText = new() { FontSize = 10.5, FontWeight = FontWeights.SemiBold };
-    private readonly TextBlock _lapText = new() { FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly RowDefinition _contextFirstRow = new() { Height = new GridLength(17) };
+    private readonly RowDefinition _contextSecondRow = new() { Height = new GridLength(17) };
+    private readonly ScrollingTextBlock _raceText = new() { FontSize = 12, FontWeight = FontWeights.Normal };
+    private readonly TextBlock _lapText = new() { FontSize = 12, FontWeight = FontWeights.Normal, Opacity = 0.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _eventHeader = new() { MaxWidth = 150 };
     private readonly Border _alert = new()
     {
@@ -64,17 +66,19 @@ public sealed class TaskbarWindow : Window
         _display = _settings.DisplayFor(Championship.Formula1);
         _flyout = new ClassificationFlyout(_settings);
         Width = 520; Height = 40; MinHeight = 40; MaxHeight = 40; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; ShowInTaskbar = false; AllowsTransparency = true; Background = Brushes.Transparent; Topmost = true;
-        UseLayoutRounding = true; SnapsToDevicePixels = true; TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
+        UseLayoutRounding = true; SnapsToDevicePixels = true;
+        TextOptions.SetTextRenderingMode(this, TextRenderingMode.ClearType);
+        TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);
         RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
         RenderOptions.SetEdgeMode(this, EdgeMode.Unspecified);
-        SetResourceReference(FontFamilyProperty, "MotorsportFontFamily");
+        FontFamily = TaskbarFont;
         _root.Background = Brushes.Transparent;
         _flagCanvas.Children.Add(_flagPole); Canvas.SetLeft(_flagPole, 1); Canvas.SetTop(_flagPole, 1);
         _flagCanvas.Children.Add(_flagShape); _flagCanvas.Children.Add(_secondFlagShape);
         _alert.Child = _flagCanvas;
         _root.ColumnDefinitions.Add(_contextColumn);
         _root.ColumnDefinitions.Add(_stripColumn);
-        _raceContext.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _raceContext.RowDefinitions.Add(_contextFirstRow);
         _raceContext.RowDefinitions.Add(_contextSecondRow);
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -122,8 +126,11 @@ public sealed class TaskbarWindow : Window
         _flyout.ApplySettings(_settings);
         SetAlert(_currentAlert);
         if (_snapshot is not null) UpdateSnapshot(_snapshot);
-        else if (_nextSession is not null) _idle.Update(_nextSession, DateTimeOffset.UtcNow,
-            TimeZoneInfo.Local, _settings.UseSingleRowTaskbar);
+        else if (_nextSession is not null)
+        {
+            _idle.Update(_nextSession, DateTimeOffset.UtcNow, TimeZoneInfo.Local, _settings.UseSingleRowTaskbar);
+            ApplyIdleWidth();
+        }
     }
 
     private void ApplyDisplay(Championship championship)
@@ -135,7 +142,8 @@ public sealed class TaskbarWindow : Window
     private void ApplyTaskbarLayout()
     {
         var singleRow = _settings.UseSingleRowTaskbar;
-        _contextSecondRow.Height = singleRow ? new GridLength(0) : GridLength.Auto;
+        _contextFirstRow.Height = singleRow ? GridLength.Auto : new GridLength(17);
+        _contextSecondRow.Height = singleRow ? new GridLength(0) : new GridLength(17);
         _lapText.Visibility = singleRow ? Visibility.Collapsed : Visibility.Visible;
         _raceContext.Margin = singleRow ? new Thickness(4, 2, 2, 2) : new Thickness(6, 2, 4, 2);
         if (_snapshot is null) return;
@@ -175,9 +183,13 @@ public sealed class TaskbarWindow : Window
         System.Windows.Automation.AutomationProperties.SetName(this,
             NextSessionDisplay.Tooltip(session, TimeZoneInfo.Local));
         RefreshFlag();
-        _host.ApplyWidth(IdleLogicalWidth, IdleMinimumLogicalWidth);
+        ApplyIdleWidth();
         if (!IsVisible) Show();
     }
+
+    private void ApplyIdleWidth() => _host.ApplyWidth(
+        _settings.UseSingleRowTaskbar ? _idle.LogicalWidth : IdleLogicalWidth,
+        IdleMinimumLogicalWidth);
 
     // Two short lines, so the widget gives back most of the room a classification needs.
     private const double IdleLogicalWidth = 210, IdleMinimumLogicalWidth = 180;

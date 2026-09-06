@@ -8,10 +8,13 @@ All notable RaceDock changes are recorded here. Release packages include the cor
 
 - Dashboard cards and championship navigation follow a popularity-focused order.
 - Circuit of the Americas is shown as COTA on compact live and schedule surfaces.
+- Idle taskbar schedules size to their content, keep session details stationary in one-row mode, and use consistent taskbar typography.
 
 ### Fixed
 
 - One-row classifications, live session context, and upcoming-session titles use constrained layouts to prevent clipping and excessive spacing.
+- Overflowing taskbar text now loops continuously across transient Windows shell visibility changes.
+- The packaged app icon no longer places an opaque square behind the speedometer artwork.
 - WEC entrants without explicit manufacturer data now resolve to the appropriate Ferrari, Mercedes-AMG, or Aston Martin mark, and Peugeot artwork retains its original colors.
 
 ## [1.3.0] — 2026-09-05

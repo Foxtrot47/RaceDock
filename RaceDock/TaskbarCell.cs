@@ -36,6 +36,7 @@ internal sealed class TaskbarCell
     private readonly ColumnDefinition _inlinePositionColumn;
     private readonly ColumnDefinition _driverColumn;
     private readonly ColumnDefinition _intervalColumn;
+    private readonly RowDefinition _detailFirstRow;
     private readonly RowDefinition _detailSecondRow;
     private readonly TextBlock _inlinePosition;
     private readonly TextBlock _driver;
@@ -54,7 +55,7 @@ internal sealed class TaskbarCell
         _positionText = new TextBlock
         {
             FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
+            FontWeight = FontWeights.Normal,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = Brushes.White
@@ -80,17 +81,18 @@ internal sealed class TaskbarCell
         _markerHost = new Border { Margin = new Thickness(1), Child = _positionCard };
         _layout.Children.Add(_markerHost);
 
-        _inlinePosition = new TextBlock { FontSize = 11, FontWeight = FontWeights.SemiBold, Visibility = Visibility.Collapsed };
+        _inlinePosition = new TextBlock { FontSize = 12, FontWeight = FontWeights.Normal, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
         _inlinePosition.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");
         _driver = new TextBlock
         {
-            FontSize = 11,
-            FontWeight = FontWeights.SemiBold,
+            FontSize = 12,
+            FontWeight = FontWeights.Normal,
+            VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
         _driver.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-        _interval = new TextBlock { FontSize = 11, MinHeight = 11, TextTrimming = TextTrimming.CharacterEllipsis };
-        _interval.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        _interval = new TextBlock { FontSize = 12, FontWeight = FontWeights.Normal, MinHeight = 12, Opacity = 0.5, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        _interval.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
         _details = new Grid { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 0, 0) };
         _inlinePositionColumn = new ColumnDefinition { Width = GridLength.Auto };
         _driverColumn = new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) };
@@ -98,8 +100,9 @@ internal sealed class TaskbarCell
         _details.ColumnDefinitions.Add(_inlinePositionColumn);
         _details.ColumnDefinitions.Add(_driverColumn);
         _details.ColumnDefinitions.Add(_intervalColumn);
-        _details.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        _detailSecondRow = new RowDefinition { Height = GridLength.Auto };
+        _detailFirstRow = new RowDefinition { Height = new GridLength(17) };
+        _details.RowDefinitions.Add(_detailFirstRow);
+        _detailSecondRow = new RowDefinition { Height = new GridLength(17) };
         _details.RowDefinitions.Add(_detailSecondRow);
         Grid.SetColumnSpan(_driver, 3);
         Grid.SetRow(_interval, 1);
@@ -186,6 +189,7 @@ internal sealed class TaskbarCell
         _inlinePositionColumn.Width = GridLength.Auto;
         _driverColumn.Width = GridLength.Auto;
         _intervalColumn.Width = GridLength.Auto;
+        _detailFirstRow.Height = GridLength.Auto;
         _detailSecondRow.Height = new GridLength(0);
         _inlinePosition.Visibility = Visibility.Visible;
         Grid.SetColumn(_driver, 1);
@@ -207,7 +211,8 @@ internal sealed class TaskbarCell
         _inlinePositionColumn.Width = GridLength.Auto;
         _driverColumn.Width = new GridLength(1, GridUnitType.Star);
         _intervalColumn.Width = GridLength.Auto;
-        _detailSecondRow.Height = GridLength.Auto;
+        _detailFirstRow.Height = new GridLength(17);
+        _detailSecondRow.Height = new GridLength(17);
         _inlinePosition.Visibility = Visibility.Collapsed;
         Grid.SetColumn(_driver, 0);
         Grid.SetColumnSpan(_driver, 3);

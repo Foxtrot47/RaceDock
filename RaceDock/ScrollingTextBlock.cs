@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 using System.Diagnostics;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 
 namespace RaceDock.App;
 
@@ -22,10 +22,10 @@ internal sealed class ScrollingTextClock
     }
 }
 
-/// <summary>Uses WPF's animation clock to loop overflowing single-line text on the render thread.</summary>
+/// <summary>Loops overflowing single-line text continuously while preserving its offset across shell visibility changes.</summary>
 internal sealed class ScrollingTextBlock : System.Windows.Controls.UserControl
 {
-    private const double LoopGap = 18;
+    private const string LoopSpacer = "\u00A0\u00A0\u00A0\u00A0\u00A0";
     private const double PixelsPerSecond = 28;
     private static readonly ScrollingTextClock SharedClock = new();
 
@@ -41,13 +41,14 @@ internal sealed class ScrollingTextBlock : System.Windows.Controls.UserControl
         typeof(ScrollingTextBlock), new FrameworkPropertyMetadata(TextTrimming.None, OnLayoutPropertyChanged));
 
     private readonly Canvas _viewport = new() { ClipToBounds = true };
-    private readonly Canvas _track = new();
-    private readonly TextBlock _first = new() { TextWrapping = TextWrapping.NoWrap };
-    private readonly TextBlock _second = new() { TextWrapping = TextWrapping.NoWrap };
+    private readonly TextBlock _text = new() { TextWrapping = TextWrapping.NoWrap };
     private readonly TranslateTransform _translation = new();
     private ScrollViewer? _scrollViewer;
-    private AnimationClock? _animationClock;
     private ScrollingTextClock _clock = SharedClock;
+    private long _lastRenderTimestamp;
+    private double _scrollOffset;
+    private double _scrollPeriod;
+    private bool _rendering;
     private double _textWidth;
     private double _textHeight;
     private bool _overflowing;
@@ -58,10 +59,8 @@ internal sealed class ScrollingTextBlock : System.Windows.Controls.UserControl
         Focusable = false;
         ClipToBounds = true;
         SnapsToDevicePixels = true;
-        _track.RenderTransform = _translation;
-        _track.Children.Add(_first);
-        _track.Children.Add(_second);
-        _viewport.Children.Add(_track);
+        _text.RenderTransform = _translation;
+        _viewport.Children.Add(_text);
         Content = _viewport;
 
         Loaded += OnLoaded;
@@ -98,6 +97,7 @@ internal sealed class ScrollingTextBlock : System.Windows.Controls.UserControl
             var next = value ?? SharedClock;
             if (ReferenceEquals(_clock, next)) return;
             StopAnimation();
+            _scrollOffset = 0;
             UnsubscribeClock();
             _clock = next;
             SubscribeClock();
@@ -159,34 +159,42 @@ internal sealed class ScrollingTextBlock : System.Windows.Controls.UserControl
         control.UpdateAnimationState();
     }
 
-    private void SyncText()
-    {
-        _first.Text = Text;
-        _second.Text = Text;
-    }
+    private void SyncText() => _text.Text = Text;
 
     private void SyncTypography()
     {
-        foreach (var text in new[] { _first, _second })
-        {
-            text.FontFamily = FontFamily;
-            text.FontSize = FontSize;
-            text.FontStyle = FontStyle;
-            text.FontWeight = FontWeight;
-            text.FontStretch = FontStretch;
-            text.Foreground = Foreground;
-            text.FlowDirection = FlowDirection;
-            text.Language = Language;
-            TextOptions.SetTextFormattingMode(text, TextOptions.GetTextFormattingMode(this));
-            TextOptions.SetTextRenderingMode(text, TextOptions.GetTextRenderingMode(this));
-        }
+        _text.FontFamily = FontFamily;
+        _text.FontSize = FontSize;
+        _text.FontStyle = FontStyle;
+        _text.FontWeight = FontWeight;
+        _text.FontStretch = FontStretch;
+        _text.Foreground = Foreground;
+        _text.FlowDirection = FlowDirection;
+        _text.Language = Language;
+        TextOptions.SetTextFormattingMode(_text, TextOptions.GetTextFormattingMode(this));
+        TextOptions.SetTextRenderingMode(_text, TextOptions.GetTextRenderingMode(this));
     }
 
     private void MeasureText()
     {
-        _first.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
-        _textWidth = Math.Ceiling(_first.DesiredSize.Width);
-        _textHeight = Math.Ceiling(_first.DesiredSize.Height);
+        var size = MeasureString(Text);
+        _textWidth = Math.Ceiling(size.Width);
+        _textHeight = Math.Ceiling(size.Height);
+    }
+
+    private double MeasureLoopSpacer() => Math.Ceiling(MeasureString(LoopSpacer).Width);
+
+    private System.Windows.Size MeasureString(string value)
+    {
+        var formatted = new FormattedText(
+            value,
+            CultureInfo.CurrentCulture,
+            FlowDirection,
+            new Typeface(FontFamily, FontStyle, FontWeight, FontStretch),
+            FontSize,
+            Brushes.Transparent,
+            VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        return new System.Windows.Size(formatted.WidthIncludingTrailingWhitespace, formatted.Height);
     }
 
     private void UpdateAnimationState()
@@ -205,37 +213,33 @@ internal sealed class ScrollingTextBlock : System.Windows.Controls.UserControl
         MeasureText();
         _overflowing = _textWidth > width + 0.5;
         var y = Math.Max(0, (height - _textHeight) / 2);
-        Canvas.SetTop(_first, y);
-        Canvas.SetTop(_second, y);
-        _first.TextTrimming = _overflowing ? TextTrimming.None : TextTrimming;
-        _second.TextTrimming = TextTrimming.None;
+        Canvas.SetTop(_text, y);
+        _text.TextTrimming = _overflowing ? TextTrimming.None : TextTrimming;
 
         if (!_overflowing || _textWidth <= 0)
         {
             StopAnimation();
-            _first.Width = double.NaN;
-            _first.TextAlignment = TextAlignment.Left;
+            _scrollOffset = 0;
+            _translation.X = 0;
+            _text.Text = Text;
+            _text.Width = double.NaN;
+            _text.TextAlignment = TextAlignment.Left;
             var x = TextAlignment switch
             {
                 TextAlignment.Center => Math.Max(0, (width - _textWidth) / 2),
                 TextAlignment.Right => Math.Max(0, width - _textWidth),
                 _ => 0
             };
-            Canvas.SetLeft(_first, x);
-            _second.Visibility = Visibility.Collapsed;
-            _track.Width = Math.Max(0, width);
-            _track.Height = height;
+            Canvas.SetLeft(_text, x);
             return;
         }
 
-        _first.Width = double.NaN;
-        _first.TextAlignment = TextAlignment.Left;
-        _second.Visibility = Visibility.Visible;
-        var period = _textWidth + LoopGap;
-        Canvas.SetLeft(_first, 0);
-        Canvas.SetLeft(_second, period);
-        _track.Width = period + _textWidth;
-        _track.Height = height;
+        var spacerWidth = MeasureLoopSpacer();
+        var period = _textWidth + spacerWidth;
+        _text.Text = Text + LoopSpacer + Text;
+        _text.Width = double.NaN;
+        _text.TextAlignment = TextAlignment.Left;
+        Canvas.SetLeft(_text, 0);
         if (IsLoaded && IsVisible && IsInsideViewport()) StartAnimation(period);
         else StopAnimation();
     }
@@ -243,32 +247,31 @@ internal sealed class ScrollingTextBlock : System.Windows.Controls.UserControl
     private void StartAnimation(double period)
     {
         if (period <= 0) return;
-        var duration = TimeSpan.FromSeconds(period / PixelsPerSecond);
-        if (_animationClock?.Timeline.Duration.TimeSpan == duration) return;
-
-        StopAnimation();
-        var animation = new DoubleAnimation(0, -period, new Duration(duration))
-        {
-            RepeatBehavior = RepeatBehavior.Forever,
-            FillBehavior = FillBehavior.HoldEnd
-        };
-        animation.Freeze();
-        _animationClock = (AnimationClock)animation.CreateClock(true);
-        _translation.ApplyAnimationClock(TranslateTransform.XProperty, _animationClock);
-        _animationClock.Controller?.Begin();
-        _animationClock.Controller?.SeekAlignedToLastTick(
-            TimeSpan.FromSeconds(Clock.ElapsedSeconds % duration.TotalSeconds), TimeSeekOrigin.BeginTime);
+        _scrollPeriod = period;
+        _scrollOffset %= period;
+        _translation.X = -_scrollOffset;
+        if (_rendering) return;
+        _lastRenderTimestamp = Stopwatch.GetTimestamp();
+        CompositionTarget.Rendering += OnRendering;
+        _rendering = true;
     }
 
     private void StopAnimation()
     {
-        if (_animationClock is not null)
-        {
-            _animationClock.Controller?.Stop();
-            _translation.ApplyAnimationClock(TranslateTransform.XProperty, null);
-            _animationClock = null;
-        }
-        _translation.X = 0;
+        if (_rendering) CompositionTarget.Rendering -= OnRendering;
+        _rendering = false;
+        _lastRenderTimestamp = 0;
+        _scrollPeriod = 0;
+    }
+
+    private void OnRendering(object? sender, EventArgs eventArgs)
+    {
+        if (!_rendering || _scrollPeriod <= 0) return;
+        var now = Stopwatch.GetTimestamp();
+        var elapsed = Stopwatch.GetElapsedTime(_lastRenderTimestamp, now).TotalSeconds;
+        _lastRenderTimestamp = now;
+        _scrollOffset = (_scrollOffset + elapsed * PixelsPerSecond) % _scrollPeriod;
+        _translation.X = -_scrollOffset;
     }
 
     private void SubscribeClock()
@@ -288,6 +291,7 @@ internal sealed class ScrollingTextBlock : System.Windows.Controls.UserControl
     private void OnClockReset()
     {
         StopAnimation();
+        _scrollOffset = 0;
         UpdateAnimationState();
     }
 
