@@ -56,6 +56,10 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXIT
 Copy-Item (Join-Path $publish '*') $stage -Recurse -Force
 Copy-Item (Join-Path $root 'RaceDock/Assets/AppIcon/racedock-44.png') (Join-Path $stage 'Assets/Square44x44Logo.png') -Force
 Copy-Item (Join-Path $root 'RaceDock/Assets/AppIcon/racedock-150.png') (Join-Path $stage 'Assets/Square150x150Logo.png') -Force
+foreach ($targetSize in 16, 24, 32, 48, 256) {
+    Copy-Item (Join-Path $root "RaceDock/Assets/AppIcon/racedock-$targetSize.png") `
+        (Join-Path $stage "Assets/Square44x44Logo.targetsize-$targetSize`_altform-unplated.png") -Force
+}
 $manifest = (Get-Content (Join-Path $root 'RaceDock.Package/Package.appxmanifest.template') -Raw).Replace('__VERSION__', $packageVersion)
 $manifestDocument = [xml]$manifest
 Assert-StoreIdentity $manifestDocument.Package.Identity 'Package manifest'

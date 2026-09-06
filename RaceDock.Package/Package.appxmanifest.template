@@ -31,7 +31,7 @@
                  EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements DisplayName="RaceDock"
                            Description="Live motorsport timing and upcoming race schedules in the Windows taskbar."
-                           BackgroundColor="#111923"
+                           BackgroundColor="transparent"
                            Square150x150Logo="Assets\Square150x150Logo.png"
                            Square44x44Logo="Assets\Square44x44Logo.png" />
       <Extensions>
