@@ -2,6 +2,16 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
+## [1.3.2] — 2026-09-06
+
+### Added
+
+- Formula 1 classifications can optionally show colour-coded S1, S2, and S3 timing for the current or last lap, or for each driver's official best lap.
+
+### Fixed
+
+- Formula 1 practice and qualifying now derive gaps and intervals from ranked best laps instead of showing race-style values such as lap counts.
+
 ## [1.3.1] — 2026-09-05
 
 ### Changed
