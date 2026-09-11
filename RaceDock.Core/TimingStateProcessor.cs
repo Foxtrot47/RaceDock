@@ -116,7 +116,6 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
     private void Rebuild(DateTimeOffset? timestamp = null)
     {
         var timing = _topics.GetValueOrDefault("TimingData");
-        var standings = BuildStandings(timing);
         var info = _topics.GetValueOrDefault("SessionInfo");
         var meeting = info?["Meeting"] as JsonObject;
         var lapCount = _topics.GetValueOrDefault("LapCount");
@@ -126,6 +125,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
             ?? JsonSupport.String(info?["SessionStatus"]);
         var sessionName = SessionName(info, timing, sessionData);
         var requiresTimedClassification = RequiresTimedClassification(info, sessionName);
+        var standings = BuildStandings(timing, requiresTimedClassification);
         var classificationReady = !requiresTimedClassification || standings.Any(HasTimedResult);
         var lifecycle = SessionLifecycleFor(
             standings.Count, statusText, alerts.Current?.Kind == AlertKind.Chequered, classificationReady);
@@ -136,7 +136,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
             JsonSupport.Int(lapCount?["TotalLaps"]), _track, standings, timestamp ?? clock.UtcNow, lifecycle, _connection, null, Championship.Formula1));
     }
 
-    private List<CompetitorStanding> BuildStandings(JsonObject? timing)
+    private List<CompetitorStanding> BuildStandings(JsonObject? timing, bool useBestLapDeltas)
     {
         var lines = timing?["Lines"] as JsonObject;
         if (lines is null) return [];
@@ -163,12 +163,12 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
                 LastLapTime: JsonSupport.TimingValue(line["LastLapTime"])));
         }
         standings = [.. standings.Where(x => x.Position > 0 && x.Position < int.MaxValue).OrderBy(x => x.Position)];
-        NormalizeStandings(standings, bestLaps);
+        NormalizeStandings(standings, bestLaps, useBestLapDeltas);
         return standings;
     }
 
     private static void NormalizeStandings(
-        List<CompetitorStanding> standings, IReadOnlyDictionary<string, double> bestLaps)
+        List<CompetitorStanding> standings, IReadOnlyDictionary<string, double> bestLaps, bool useBestLapDeltas)
     {
         if (standings.Count == 0) return;
         standings[0] = standings[0] with { GapToLeader = "LEAD" };
@@ -180,9 +180,13 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
             var interval = standing.IntervalToPositionAhead;
             if (hasLeaderBest && bestLaps.TryGetValue(standing.DriverId, out var best))
             {
-                gap ??= FormatLapDelta(best - leaderBest);
+                var bestLapGap = FormatLapDelta(best - leaderBest);
+                gap = useBestLapDeltas ? bestLapGap : gap ?? bestLapGap;
                 if (bestLaps.TryGetValue(standings[index - 1].DriverId, out var previousBest))
-                    interval ??= FormatLapDelta(best - previousBest);
+                {
+                    var bestLapInterval = FormatLapDelta(best - previousBest);
+                    interval = useBestLapDeltas ? bestLapInterval : interval ?? bestLapInterval;
+                }
             }
             if (gap is null && standing.Position == standings[0].Position) gap = FormatLapDelta(0);
             if (interval is null && standing.Position == standings[index - 1].Position) interval = FormatLapDelta(0);

@@ -7,6 +7,7 @@ var tests = new (string Name, Action Run)[]
 {
     ("deep merge and mixed primitive fields", DeepMerge),
     ("leader gaps, intervals, ordering and missing values", TimingParsing),
+    ("F1 timed sessions use best-lap deltas", F1TimedSessionDeltas),
     ("tied F1 times produce one leader", TiedF1Times),
     ("hidden F1 substitutions are excluded", HiddenF1Substitution),
     ("retired and fastest lap detection", FastestAndRetired),
@@ -123,6 +124,24 @@ static void TimingParsing()
 {
     var (_, _, processor) = Fixture(); processor.ProcessInitial(JsonNode.Parse("""{"DriverList":{"1":{"Tla":"AAA"},"2":{"Tla":"BBB"},"3":{"Tla":"CCC"}},"TimingData":{"Lines":{"1":{"Position":"2","GapToLeader":{"Value":"+1.2"},"IntervalToPositionAhead":0.4},"2":{"Position":1,"GapToLeader":0},"3":{"Position":"3","GapToLeader":"-","IntervalToPositionAhead":{"Value":"+2.0"}}}}}""")!.AsObject());
     Equal("BBB", processor.Current.Competitors[0].Code); Equal("LEAD", processor.Current.Competitors[0].GapToLeader); Equal("+1.2", processor.Current.Competitors[1].GapToLeader); Equal("0.4", processor.Current.Competitors[1].IntervalToPositionAhead); Equal(null, processor.Current.Competitors[2].GapToLeader);
+}
+
+static void F1TimedSessionDeltas()
+{
+    var (_, _, processor) = Fixture();
+    processor.ProcessInitial(JsonNode.Parse("""
+        {"SessionInfo":{"Name":"Practice 1","Type":"Practice"},
+         "DriverList":{"44":{"Tla":"HAM"},"16":{"Tla":"LEC"},"30":{"Tla":"LAW"}},
+         "TimingData":{"Lines":{
+           "44":{"Position":1,"BestLapTime":{"Value":"1:36.066"}},
+           "16":{"Position":2,"GapToLeader":"22L","IntervalToPositionAhead":"22L","BestLapTime":{"Value":"1:36.725"}},
+           "30":{"Position":3,"GapToLeader":"+1.492","IntervalToPositionAhead":"+1.492","BestLapTime":{"Value":"1:36.833"}}}}}
+        """)!.AsObject());
+
+    Equal("+0.659", processor.Current.Competitors[1].GapToLeader);
+    Equal("+0.659", processor.Current.Competitors[1].IntervalToPositionAhead);
+    Equal("+0.767", processor.Current.Competitors[2].GapToLeader);
+    Equal("+0.108", processor.Current.Competitors[2].IntervalToPositionAhead);
 }
 
 static void TiedF1Times()
