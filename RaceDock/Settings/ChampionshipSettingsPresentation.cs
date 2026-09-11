@@ -25,13 +25,17 @@ internal sealed record ChampionshipSettingsPresentation
     public bool ShowTeamSetting { get; init; } = true;
     /// <summary>Whether this championship's feed carries a tyre compound worth a column.</summary>
     public bool ShowResultSetting { get; init; } = true;
+    public bool ShowSectorTimingSetting { get; init; }
     public string LapTimeTitle { get; init; } = "Lap time";
     public string LapTimeDescription { get; init; } =
         "Show the best lap in practice and qualifying, and the last lap in sprints and races.";
 
     public static ChampionshipSettingsPresentation For(Championship championship) => championship switch
     {
-        Championship.Formula1 => Circuit("Formula 1", "drivers", "Driver", "constructor", showManufacturer: true, showTyres: true),
+        Championship.Formula1 => Circuit("Formula 1", "drivers", "Driver", "constructor", showManufacturer: true, showTyres: true) with
+        {
+            ShowSectorTimingSetting = true
+        },
         Championship.Formula2 => Circuit("Formula 2", "drivers", "Driver", "team", showManufacturer: false, showTyres: false),
         Championship.Formula3 => Circuit("Formula 3", "drivers", "Driver", "team", showManufacturer: false, showTyres: false),
         Championship.MotoGp => Moto("MotoGP"),

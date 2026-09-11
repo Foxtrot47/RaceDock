@@ -17,12 +17,13 @@ public enum TaskbarWidgetPosition
 /// </summary>
 public enum FlyoutColumn
 {
-    Gap,
-    Interval,
-    LapTime,
-    Tyre,
-    Category,
-    Status
+    Gap = 0,
+    Interval = 1,
+    LapTime = 2,
+    Tyre = 3,
+    Category = 4,
+    Status = 5,
+    Sectors = 6
 }
 
 public sealed record ChampionshipDisplaySettings
@@ -39,6 +40,8 @@ public sealed record ChampionshipDisplaySettings
     public bool FlyoutShowGaps { get; init; }
     public bool FlyoutShowIntervals { get; init; } = true;
     public bool FlyoutShowLapTime { get; init; } = true;
+    public bool FlyoutShowSectorTimes { get; init; }
+    public SectorTimeMode FlyoutSectorTimeMode { get; init; } = SectorTimeMode.CurrentLast;
     public bool FlyoutShowTyre { get; init; } = true;
     public bool FlyoutShowCategoryOrLap { get; init; } = true;
     public bool FlyoutShowStatus { get; init; } = true;
@@ -50,6 +53,7 @@ public sealed record ChampionshipDisplaySettings
         FlyoutColumn.Gap,
         FlyoutColumn.Interval,
         FlyoutColumn.LapTime,
+        FlyoutColumn.Sectors,
         FlyoutColumn.Tyre,
         FlyoutColumn.Category,
         FlyoutColumn.Status
@@ -74,6 +78,7 @@ public sealed record ChampionshipDisplaySettings
     public ChampionshipDisplaySettings Normalize() => this with
     {
         FlyoutColumnOrder = NormalizeColumnOrder(),
+        FlyoutSectorTimeMode = Enum.IsDefined(FlyoutSectorTimeMode) ? FlyoutSectorTimeMode : SectorTimeMode.CurrentLast,
         TaskbarCompetitorCount = Math.Clamp(TaskbarCompetitorCount, 1, 5),
         FlyoutCompetitorCount = Math.Clamp(FlyoutCompetitorCount, 5, 40)
     };
@@ -84,7 +89,8 @@ public sealed record ChampionshipDisplaySettings
         {
             TaskbarUseManufacturerLogos = false,
             FlyoutUseManufacturerLogos = false,
-            FlyoutShowTyre = false
+            FlyoutShowTyre = false,
+            FlyoutShowSectorTimes = false
         },
         // Bike and sportscar feeds carry no tyre compound, so the column would only hold placeholders.
         Championship.MotoGp or Championship.Moto2 or Championship.Moto3
@@ -92,14 +98,18 @@ public sealed record ChampionshipDisplaySettings
             or Championship.EuropeanLeMansSeries or Championship.MichelinLeMansCup or Championship.Imsa
             or Championship.FormulaE or Championship.Dtm => this with
         {
-            FlyoutShowTyre = false
+            FlyoutShowTyre = false,
+            FlyoutShowSectorTimes = false
         },
         Championship.WorldRallyChampionship => this with
         {
             FlyoutShowTeamNames = false,
-            FlyoutShowTyre = false
+            FlyoutShowTyre = false,
+            FlyoutShowSectorTimes = false
         },
-        _ => this
+        Championship.IndyCar => this with { FlyoutShowSectorTimes = false },
+        Championship.Formula1 => this,
+        _ => this with { FlyoutShowSectorTimes = false }
     };
 
     internal static ChampionshipDisplaySettings FromLegacy(UserSettings settings) => new()

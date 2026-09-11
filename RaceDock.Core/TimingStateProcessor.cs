@@ -9,6 +9,8 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
     private readonly Dictionary<string, JsonObject> _topics = [];
     private readonly HashSet<string> _raceControlKeys = [];
     private readonly Dictionary<string, string> _lastBestLap = [];
+    private readonly Dictionary<string, SectorTimingSet> _bestLapSectors = [];
+    private readonly Dictionary<string, string> _capturedSectorLap = [];
     private TrackCondition _track = TrackCondition.Unknown;
     private string? _fastestDriver;
     private double? _fastestSeconds;
@@ -26,7 +28,8 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
 
     public void ProcessInitial(JsonObject initial)
     {
-        _topics.Clear(); _raceControlKeys.Clear(); _lastBestLap.Clear(); _fastestDriver = null; _fastestSeconds = null; _track = TrackCondition.Unknown;
+        _topics.Clear(); _raceControlKeys.Clear(); _lastBestLap.Clear(); _bestLapSectors.Clear(); _capturedSectorLap.Clear();
+        _fastestDriver = null; _fastestSeconds = null; _track = TrackCondition.Unknown;
         foreach (var pair in initial)
             if (pair.Value is JsonObject value) _topics[pair.Key] = (JsonObject)value.DeepClone();
         ProcessTrackStatus(_topics.GetValueOrDefault("TrackStatus"));
@@ -150,6 +153,8 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
             if (line["ShowPosition"] is { } showPosition && !JsonSupport.Bool(showPosition)) continue;
             var meta = drivers?[pair.Key] as JsonObject;
             var bestLap = JsonSupport.TimingValue(line["BestLapTime"]);
+            var currentSectors = ParseSectors(line["Sectors"]);
+            CaptureBestLapSectors(pair.Key, line, bestLap, currentSectors);
             var bestSeconds = bestLap is null ? null : ParseLapSeconds(bestLap);
             if (bestSeconds.HasValue) bestLaps[pair.Key] = bestSeconds.Value;
             var position = JsonSupport.Int(line["Position"]) ?? int.MaxValue;
@@ -160,12 +165,66 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
                 JsonSupport.Int(line["NumberOfLaps"]) ?? 0, JsonSupport.Bool(line["InPit"]),
                 JsonSupport.Bool(line["Retired"]), JsonSupport.Bool(line["Stopped"]), pair.Key == _fastestDriver,
                 ResultTime: bestLap,
-                LastLapTime: JsonSupport.TimingValue(line["LastLapTime"])));
+                LastLapTime: JsonSupport.TimingValue(line["LastLapTime"]),
+                CurrentSectors: currentSectors,
+                BestLapSectors: _bestLapSectors.GetValueOrDefault(pair.Key)));
         }
         standings = [.. standings.Where(x => x.Position > 0 && x.Position < int.MaxValue).OrderBy(x => x.Position)];
         NormalizeStandings(standings, bestLaps, useBestLapDeltas);
         return standings;
     }
+
+    private void CaptureBestLapSectors(
+        string driverId, JsonObject line, string? bestLap, SectorTimingSet? currentSectors)
+    {
+        if (bestLap is null || _capturedSectorLap.GetValueOrDefault(driverId) == bestLap) return;
+        // A new best time invalidates the old split set even when its replacement sectors have not arrived yet.
+        _bestLapSectors.Remove(driverId);
+        _capturedSectorLap.Remove(driverId);
+        if (currentSectors is null || !HasAllSectors(currentSectors)) return;
+
+        var bestLapNumber = JsonSupport.Int(line["BestLapTime"]?["Lap"]);
+        var completedLaps = JsonSupport.Int(line["NumberOfLaps"]);
+        var lastLap = JsonSupport.TimingValue(line["LastLapTime"]);
+        var lapMatches = bestLapNumber.HasValue && bestLapNumber == completedLaps;
+        var timeMatches = string.Equals(bestLap, lastLap, StringComparison.Ordinal);
+        if (!lapMatches && !timeMatches) return;
+
+        _bestLapSectors[driverId] = currentSectors;
+        _capturedSectorLap[driverId] = bestLap;
+    }
+
+    private static SectorTimingSet? ParseSectors(JsonNode? node)
+    {
+        var sectors = new SectorTimingSet(
+            ParseSector(SectorAt(node, 0)),
+            ParseSector(SectorAt(node, 1)),
+            ParseSector(SectorAt(node, 2)));
+        return sectors.Sector1 is null && sectors.Sector2 is null && sectors.Sector3 is null ? null : sectors;
+    }
+
+    private static JsonNode? SectorAt(JsonNode? node, int index) => node switch
+    {
+        JsonArray array when index < array.Count => array[index],
+        JsonObject obj => obj[index.ToString(System.Globalization.CultureInfo.InvariantCulture)],
+        _ => null
+    };
+
+    private static SectorTiming? ParseSector(JsonNode? node)
+    {
+        var value = JsonSupport.TimingValue(node);
+        if (value is null) return null;
+        var sector = node as JsonObject;
+        var state = JsonSupport.Bool(sector?["OverallFastest"])
+            ? SectorTimingState.OverallBest
+            : JsonSupport.Bool(sector?["PersonalFastest"])
+                ? SectorTimingState.PersonalBest
+                : SectorTimingState.Slower;
+        return new(value, state);
+    }
+
+    private static bool HasAllSectors(SectorTimingSet sectors) =>
+        sectors.Sector1 is not null && sectors.Sector2 is not null && sectors.Sector3 is not null;
 
     private static void NormalizeStandings(
         List<CompetitorStanding> standings, IReadOnlyDictionary<string, double> bestLaps, bool useBestLapDeltas)

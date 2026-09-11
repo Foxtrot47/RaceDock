@@ -168,6 +168,23 @@
                 </ui:CardControl.Header>
                 <ui:ToggleSwitch IsChecked="{Binding FlyoutShowPositionColors, Mode=TwoWay}" Style="{StaticResource SettingsToggleStyle}" />
             </ui:CardControl>
+            <ui:CardControl Style="{StaticResource SettingsCardStyle}"
+                            Icon="{ui:SymbolIcon Timer24}"
+                            Visibility="{Binding SelectedChampionshipPresentation.ShowSectorTimingSetting, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <ui:CardControl.Header>
+                    <StackPanel HorizontalAlignment="Left">
+                        <TextBlock Text="Sector timing mode" Style="{StaticResource SettingsCardTitleStyle}" />
+                        <TextBlock Text="Choose current/last-lap sectors or the sectors from each driver’s best lap."
+                                   Style="{StaticResource SettingsCardDescriptionStyle}" />
+                    </StackPanel>
+                </ui:CardControl.Header>
+                <ComboBox SelectedValue="{Binding FlyoutSectorTimeMode, Mode=TwoWay}"
+                          SelectedValuePath="Tag"
+                          Style="{StaticResource SettingsComboBoxStyle}">
+                    <ComboBoxItem Content="Current / last lap" Tag="{x:Static core:SectorTimeMode.CurrentLast}" />
+                    <ComboBoxItem Content="Best lap" Tag="{x:Static core:SectorTimeMode.BestLap}" />
+                </ComboBox>
+            </ui:CardControl>
             <TextBlock Text="Columns" Style="{StaticResource SettingsSubsectionTitleStyle}" />
             <TextBlock Text="Shown after the position and driver, in this order."
                        Style="{StaticResource SettingsSectionDescriptionStyle}" />

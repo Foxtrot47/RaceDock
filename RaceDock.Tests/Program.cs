@@ -8,6 +8,7 @@ var tests = new (string Name, Action Run)[]
     ("deep merge and mixed primitive fields", DeepMerge),
     ("leader gaps, intervals, ordering and missing values", TimingParsing),
     ("F1 timed sessions use best-lap deltas", F1TimedSessionDeltas),
+    ("F1 sectors preserve current and best-lap timing", F1SectorTiming),
     ("tied F1 times produce one leader", TiedF1Times),
     ("hidden F1 substitutions are excluded", HiddenF1Substitution),
     ("retired and fastest lap detection", FastestAndRetired),
@@ -142,6 +143,43 @@ static void F1TimedSessionDeltas()
     Equal("+0.659", processor.Current.Competitors[1].IntervalToPositionAhead);
     Equal("+0.767", processor.Current.Competitors[2].GapToLeader);
     Equal("+0.108", processor.Current.Competitors[2].IntervalToPositionAhead);
+}
+
+static void F1SectorTiming()
+{
+    var (_, _, processor) = Fixture();
+    processor.ProcessInitial(JsonNode.Parse("""
+        {"SessionInfo":{"Name":"Practice 1","Type":"Practice"},
+         "DriverList":{"44":{"Tla":"HAM"}},
+         "TimingData":{"Lines":{"44":{
+           "Position":1,"NumberOfLaps":5,
+           "LastLapTime":{"Value":"1:36.066"},
+           "BestLapTime":{"Value":"1:36.066","Lap":5},
+           "Sectors":[
+             {"Value":"29.842","OverallFastest":true,"PersonalFastest":true},
+             {"Value":"31.104","PersonalFastest":true},
+             {"Value":"35.120"}]}}}}
+        """)!.AsObject());
+
+    var standing = processor.Current.Competitors.Single();
+    Equal("29.842", standing.CurrentSectors?.Sector1?.Value);
+    Equal(SectorTimingState.OverallBest, standing.CurrentSectors?.Sector1?.State);
+    Equal(SectorTimingState.PersonalBest, standing.CurrentSectors?.Sector2?.State);
+    Equal(SectorTimingState.Slower, standing.CurrentSectors?.Sector3?.State);
+    Equal("35.120", standing.BestLapSectors?.Sector3?.Value);
+
+    processor.ProcessDelta("TimingData", JsonNode.Parse("""
+        {"Lines":{"44":{"NumberOfLaps":6,"LastLapTime":{"Value":"1:37.000"},
+          "Sectors":[{"Value":"30.000"},{"Value":"31.500"},{"Value":"35.500"}]}}}
+        """)!, DateTimeOffset.UtcNow);
+    standing = processor.Current.Competitors.Single();
+    Equal("30.000", standing.CurrentSectors?.Sector1?.Value);
+    Equal("29.842", standing.BestLapSectors?.Sector1?.Value);
+
+    processor.ProcessDelta("TimingData", JsonNode.Parse("""
+        {"Lines":{"44":{"BestLapTime":{"Value":"1:35.900"}}}}
+        """)!, DateTimeOffset.UtcNow);
+    Equal<SectorTimingSet?>(null, processor.Current.Competitors.Single().BestLapSectors);
 }
 
 static void TiedF1Times()
@@ -1164,13 +1202,28 @@ static void FiaRosterTeams(string series, string season, Championship championsh
 
 static void FlyoutColumnOrderNormalization()
 {
+    Equal(3, (int)FlyoutColumn.Tyre);
+    Equal(5, (int)FlyoutColumn.Status);
+    Equal(6, (int)FlyoutColumn.Sectors);
+    var defaults = new ChampionshipDisplaySettings();
+    False(defaults.FlyoutShowSectorTimes);
+    Equal(SectorTimeMode.CurrentLast, defaults.FlyoutSectorTimeMode);
+    var configured = new UserSettings
+    {
+        ChampionshipDisplay = new ChampionshipDisplayProfiles()
+            .With(Championship.Formula1, defaults with { FlyoutShowSectorTimes = true })
+            .With(Championship.Formula2, defaults with { FlyoutShowSectorTimes = true })
+    };
+    True(configured.DisplayFor(Championship.Formula1).FlyoutShowSectorTimes);
+    False(configured.DisplayFor(Championship.Formula2).FlyoutShowSectorTimes);
+
     // A hand-edited order that repeats a column, names one that no longer exists, and omits four others.
     var repaired = new ChampionshipDisplaySettings
     {
         FlyoutColumnOrder = [FlyoutColumn.Status, FlyoutColumn.Status, (FlyoutColumn)99, FlyoutColumn.Tyre]
     }.Normalize().FlyoutColumnOrder;
     // The columns that were named keep their position, then the missing ones follow in the canonical order.
-    Equal("Status,Tyre,Gap,Interval,LapTime,Category", string.Join(",", repaired));
+    Equal("Status,Tyre,Gap,Interval,LapTime,Sectors,Category", string.Join(",", repaired));
 
     var canonical = string.Join(",", ChampionshipDisplaySettings.DefaultColumnOrder);
     Equal(canonical, string.Join(",", new ChampionshipDisplaySettings { FlyoutColumnOrder = [] }.Normalize().FlyoutColumnOrder));
@@ -1183,15 +1236,23 @@ static void FlyoutColumnOrderNormalization()
     try
     {
         var store = new UserSettingsStore(path);
-        var order = new[] { FlyoutColumn.Status, FlyoutColumn.LapTime, FlyoutColumn.Tyre, FlyoutColumn.Category, FlyoutColumn.Interval, FlyoutColumn.Gap };
+        var order = new[] { FlyoutColumn.Status, FlyoutColumn.LapTime, FlyoutColumn.Sectors, FlyoutColumn.Tyre, FlyoutColumn.Category, FlyoutColumn.Interval, FlyoutColumn.Gap };
         store.Save(new UserSettings
         {
             ChampionshipDisplay = new ChampionshipDisplayProfiles()
-                .With(Championship.Formula1, new ChampionshipDisplaySettings { FlyoutColumnOrder = order })
+                .With(Championship.Formula1, new ChampionshipDisplaySettings
+                {
+                    FlyoutColumnOrder = order,
+                    FlyoutShowSectorTimes = true,
+                    FlyoutSectorTimeMode = SectorTimeMode.BestLap
+                })
         });
         // The enum is written by name, so the file stays readable to anyone editing it by hand.
         True(File.ReadAllText(path).Contains("\"Status\""));
-        Equal(string.Join(",", order), string.Join(",", store.Load().DisplayFor(Championship.Formula1).FlyoutColumnOrder));
+        var loaded = store.Load().DisplayFor(Championship.Formula1);
+        Equal(string.Join(",", order), string.Join(",", loaded.FlyoutColumnOrder));
+        True(loaded.FlyoutShowSectorTimes);
+        Equal(SectorTimeMode.BestLap, loaded.FlyoutSectorTimeMode);
     }
     finally
     {

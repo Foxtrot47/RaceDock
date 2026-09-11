@@ -35,6 +35,7 @@ public sealed class ClassificationFlyout : Window
     private ScrollingTextBlock _gapHeader = null!;
     private ScrollingTextBlock _intervalHeader = null!;
     private ScrollingTextBlock _lapTimeHeader = null!;
+    private Grid _sectorHeader = null!;
     private ScrollingTextBlock _tyreHeader = null!;
     private ScrollingTextBlock _categoryHeader = null!;
     private ScrollingTextBlock _statusHeader = null!;
@@ -351,6 +352,7 @@ public sealed class ClassificationFlyout : Window
         _gapHeader.Visibility = _display.FlyoutShowGaps ? Visibility.Visible : Visibility.Collapsed;
         _intervalHeader.Visibility = _display.FlyoutShowIntervals ? Visibility.Visible : Visibility.Collapsed;
         _lapTimeHeader.Visibility = _display.FlyoutShowLapTime ? Visibility.Visible : Visibility.Collapsed;
+        _sectorHeader.Visibility = _display.FlyoutShowSectorTimes ? Visibility.Visible : Visibility.Collapsed;
         _tyreHeader.Visibility = _display.FlyoutShowTyre ? Visibility.Visible : Visibility.Collapsed;
         _categoryHeader.Visibility = _display.FlyoutShowCategoryOrLap ? Visibility.Visible : Visibility.Collapsed;
         _statusHeader.Visibility = _display.FlyoutShowStatus ? Visibility.Visible : Visibility.Collapsed;
@@ -460,9 +462,11 @@ public sealed class ClassificationFlyout : Window
         _gapHeader = AddHeaderLabel(header, "GAP", 2);
         _intervalHeader = AddHeaderLabel(header, "INTERVAL", 3);
         _lapTimeHeader = AddHeaderLabel(header, "BEST", 4);
-        _tyreHeader = AddHeaderLabel(header, "TYRE", 5, TextAlignment.Center);
-        _categoryHeader = AddHeaderLabel(header, "LAP", 6, TextAlignment.Center);
-        _statusHeader = AddHeaderLabel(header, "STATUS", 7, TextAlignment.Center);
+        _sectorHeader = CreateSectorHeader(5);
+        header.Children.Add(_sectorHeader);
+        _tyreHeader = AddHeaderLabel(header, "TYRE", 6, TextAlignment.Center);
+        _categoryHeader = AddHeaderLabel(header, "LAP", 7, TextAlignment.Center);
+        _statusHeader = AddHeaderLabel(header, "STATUS", 8, TextAlignment.Center);
         return header;
     }
 
@@ -521,7 +525,7 @@ public sealed class ClassificationFlyout : Window
     private Grid CreateColumns()
     {
         var grid = new Grid();
-        for (var index = 0; index < 8; index++) grid.ColumnDefinitions.Add(new ColumnDefinition());
+        for (var index = 0; index < 9; index++) grid.ColumnDefinitions.Add(new ColumnDefinition());
         ApplyColumnWidths(grid);
         return grid;
     }
@@ -558,6 +562,7 @@ public sealed class ClassificationFlyout : Window
         FlyoutColumn.Gap => _display.FlyoutShowGaps,
         FlyoutColumn.Interval => _display.FlyoutShowIntervals,
         FlyoutColumn.LapTime => _display.FlyoutShowLapTime,
+        FlyoutColumn.Sectors => _display.FlyoutShowSectorTimes,
         FlyoutColumn.Tyre => _display.FlyoutShowTyre,
         FlyoutColumn.Category => _display.FlyoutShowCategoryOrLap,
         _ => _display.FlyoutShowStatus
@@ -566,20 +571,34 @@ public sealed class ClassificationFlyout : Window
     private static double ColumnWidth(FlyoutColumn column) => column switch
     {
         FlyoutColumn.Gap or FlyoutColumn.Interval or FlyoutColumn.LapTime => 78,
+        FlyoutColumn.Sectors => 210,
         FlyoutColumn.Tyre => 60,
         FlyoutColumn.Category => 58,
         _ => 64
     };
 
-    private ScrollingTextBlock HeaderFor(FlyoutColumn column) => column switch
+    private FrameworkElement HeaderFor(FlyoutColumn column) => column switch
     {
         FlyoutColumn.Gap => _gapHeader,
         FlyoutColumn.Interval => _intervalHeader,
         FlyoutColumn.LapTime => _lapTimeHeader,
+        FlyoutColumn.Sectors => _sectorHeader,
         FlyoutColumn.Tyre => _tyreHeader,
         FlyoutColumn.Category => _categoryHeader,
         _ => _statusHeader
     };
+
+    private Grid CreateSectorHeader(int column)
+    {
+        var header = new Grid();
+        Grid.SetColumn(header, column);
+        foreach (var label in new[] { "S1", "S2", "S3" })
+        {
+            header.ColumnDefinitions.Add(new ColumnDefinition());
+            AddHeaderLabel(header, label, header.ColumnDefinitions.Count - 1, TextAlignment.Center);
+        }
+        return header;
+    }
 
     private ScrollingTextBlock AddHeaderLabel(Grid grid, string text, int column, TextAlignment alignment = TextAlignment.Left)
     {

@@ -25,6 +25,20 @@ public enum Championship
     MichelinLeMansCup = 15
 }
 public enum TrackCondition { Unknown, AllClear, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, RedFlag }
+public enum SectorTimingState { None, OverallBest, PersonalBest, Slower }
+
+public sealed record SectorTiming(string Value, SectorTimingState State);
+public sealed record SectorTimingSet(SectorTiming? Sector1, SectorTiming? Sector2, SectorTiming? Sector3)
+{
+    public SectorTiming? At(int index) => index switch
+    {
+        0 => Sector1,
+        1 => Sector2,
+        2 => Sector3,
+        _ => null
+    };
+}
+
 public enum AlertKind { Information, SessionStart, FastestLap, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, Chequered, RedFlag }
 
 public sealed record CompetitorStanding(
@@ -32,10 +46,12 @@ public sealed record CompetitorStanding(
     string? GapToLeader, string? IntervalToPositionAhead, string? Tyre, int Lap,
     bool InPit, bool Retired, bool Stopped, bool IsOverallFastest,
     string? ResultTime = null, string? StatusLabel = null, string? PositionLabel = null, string? Category = null,
-    string? Manufacturer = null, string? LastLapTime = null);
+    string? Manufacturer = null, string? LastLapTime = null,
+    SectorTimingSet? CurrentSectors = null, SectorTimingSet? BestLapSectors = null);
 
 /// <summary>Which lap time a session is judged on: the best lap set, or the most recent one.</summary>
 public enum LapTimeMode { BestLap, LastLap }
+public enum SectorTimeMode { CurrentLast, BestLap }
 
 public sealed record TimingSnapshot(
     string Meeting, string Session, string Circuit, int CurrentLap, int? TotalLaps,

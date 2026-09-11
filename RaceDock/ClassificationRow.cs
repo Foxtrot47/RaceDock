@@ -60,6 +60,7 @@ internal sealed class ClassificationRow
     private readonly ScrollingTextBlock _gap;
     private readonly ScrollingTextBlock _interval;
     private readonly ScrollingTextBlock _result;
+    private readonly SectorTimingCell _sectors;
     private readonly Border _tyreBadge;
     private readonly TextBlock _tyreText;
     private readonly ScrollingTextBlock _category;
@@ -71,7 +72,7 @@ internal sealed class ClassificationRow
     public ClassificationRow(ScrollingTextClock clock)
     {
         _grid = new Grid { MinHeight = 38 };
-        for (var index = 0; index < 8; index++) _grid.ColumnDefinitions.Add(new ColumnDefinition());
+        for (var index = 0; index < 9; index++) _grid.ColumnDefinitions.Add(new ColumnDefinition());
         _container = new Border { Child = _grid, CornerRadius = new CornerRadius(6) };
         SurfaceMotion.AttachHover(_container, highlightTopEdge: false);
 
@@ -138,8 +139,11 @@ internal sealed class ClassificationRow
         _gap = Value(clock, 2);
         _interval = Value(clock, 3);
         _result = Value(clock, 4);
-        _category = Value(clock, 6, TextAlignment.Center);
+        _sectors = new SectorTimingCell();
+        Grid.SetColumn(_sectors.Element, 5);
+        _category = Value(clock, 7, TextAlignment.Center);
         foreach (var value in new[] { _gap, _interval, _result, _category }) _grid.Children.Add(value);
+        _grid.Children.Add(_sectors.Element);
 
         _tyreText = new TextBlock { Foreground = Brushes.White, FontSize = 9.5, FontWeight = FontWeights.SemiBold };
         _tyreBadge = new Border
@@ -151,7 +155,7 @@ internal sealed class ClassificationRow
             VerticalAlignment = VerticalAlignment.Center,
             Child = _tyreText
         };
-        Grid.SetColumn(_tyreBadge, 5);
+        Grid.SetColumn(_tyreBadge, 6);
         _grid.Children.Add(_tyreBadge);
 
         _statusText = new TextBlock { Foreground = Brushes.White, FontSize = 9.5, FontWeight = FontWeights.SemiBold };
@@ -163,7 +167,7 @@ internal sealed class ClassificationRow
             VerticalAlignment = VerticalAlignment.Center,
             Child = _statusText
         };
-        Grid.SetColumn(_statusBadge, 7);
+        Grid.SetColumn(_statusBadge, 8);
         _grid.Children.Add(_statusBadge);
     }
 
@@ -186,6 +190,7 @@ internal sealed class ClassificationRow
                 case FlyoutColumn.Gap: Grid.SetColumn(_gap, column); break;
                 case FlyoutColumn.Interval: Grid.SetColumn(_interval, column); break;
                 case FlyoutColumn.LapTime: Grid.SetColumn(_result, column); break;
+                case FlyoutColumn.Sectors: Grid.SetColumn(_sectors.Element, column); break;
                 case FlyoutColumn.Tyre: Grid.SetColumn(_tyreBadge, column); break;
                 case FlyoutColumn.Category: Grid.SetColumn(_category, column); break;
                 case FlyoutColumn.Status: Grid.SetColumn(_statusBadge, column); break;
@@ -201,6 +206,7 @@ internal sealed class ClassificationRow
         _gap.Visibility = display.FlyoutShowGaps ? Visibility.Visible : Visibility.Collapsed;
         _interval.Visibility = display.FlyoutShowIntervals ? Visibility.Visible : Visibility.Collapsed;
         _result.Visibility = display.FlyoutShowLapTime ? Visibility.Visible : Visibility.Collapsed;
+        _sectors.Element.Visibility = display.FlyoutShowSectorTimes ? Visibility.Visible : Visibility.Collapsed;
         _tyreBadge.Visibility = display.FlyoutShowTyre && _tyreText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         _category.Visibility = display.FlyoutShowCategoryOrLap ? Visibility.Visible : Visibility.Collapsed;
         _statusBadge.Visibility = display.FlyoutShowStatus ? Visibility.Visible : Visibility.Collapsed;
@@ -236,6 +242,10 @@ internal sealed class ClassificationRow
             SetValue(_interval, standing.Position == 1 ? "LEADER" : standing.IntervalToPositionAhead ?? "—");
 
         if (display.FlyoutShowLapTime) SetValue(_result, format.LapTime(standing) ?? "—");
+        if (display.FlyoutShowSectorTimes)
+            _sectors.Update(display.FlyoutSectorTimeMode == SectorTimeMode.BestLap
+                ? standing.BestLapSectors
+                : standing.CurrentSectors);
         if (display.FlyoutShowTyre) UpdateTyre(standing.Tyre);
 
         if (display.FlyoutShowCategoryOrLap)
