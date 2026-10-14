@@ -2352,6 +2352,14 @@ static void UpcomingScheduleAggregation()
     service.GetUpcomingAsync(enabled, CancellationToken.None).GetAwaiter().GetResult();
     Equal(1, working.Calls);
 
+    // A selected session starting invalidates the cache even before its normal six-hour lifetime expires.
+    var soon = new StubCalendar([new(Championship.Formula1, "Baku", "Practice 3", clock.UtcNow.AddMinutes(5))]);
+    var rollover = new UpcomingScheduleService([soon], clock, TimeSpan.FromHours(6), TimeSpan.FromSeconds(5));
+    rollover.GetUpcomingAsync(enabled, CancellationToken.None).GetAwaiter().GetResult();
+    clock.Advance(TimeSpan.FromMinutes(6));
+    Equal(0, rollover.GetUpcomingAsync(enabled, CancellationToken.None).GetAwaiter().GetResult().Count);
+    Equal(2, soon.Calls);
+
     // Enabling another championship invalidates the cache so the new source is queried.
     var widened = new HashSet<Championship>(enabled) { Championship.IndyCar };
     var second = service.GetUpcomingAsync(widened, CancellationToken.None).GetAwaiter().GetResult();

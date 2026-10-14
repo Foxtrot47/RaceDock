@@ -187,7 +187,7 @@ public sealed class UpcomingScheduleService : IDisposable
             var results = await Task.WhenAll(sources.Select(calendar => QueryAsync(calendar, now, cancellationToken)));
             _cached = results
                 .SelectMany(sessions => sessions)
-                .Where(session => enabled.Contains(session.Championship))
+                .Where(session => enabled.Contains(session.Championship) && session.StartUtc > now)
                 .OrderBy(session => session.StartUtc)
                 .ToList();
             _cachedFor = new HashSet<Championship>(enabled);
@@ -198,7 +198,8 @@ public sealed class UpcomingScheduleService : IDisposable
     }
 
     private bool IsFresh(IReadOnlySet<Championship> enabled) =>
-        _clock.UtcNow - _cachedAt < _cacheLifetime && _cachedFor.SetEquals(enabled);
+        _clock.UtcNow - _cachedAt < _cacheLifetime && _cachedFor.SetEquals(enabled) &&
+        _cached.All(session => session.StartUtc > _clock.UtcNow);
 
     private async Task<IReadOnlyList<UpcomingSession>> QueryAsync(IChampionshipCalendar calendar, DateTimeOffset now, CancellationToken cancellationToken)
     {

@@ -256,6 +256,7 @@ public sealed class AppController : IAsyncDisposable
         if (TestMode || _taskbar is { ShowingSnapshot: true }) return;
         if (!_settings.ShowNextSessionWhenIdle) { _taskbar?.Hide(); return; }
         var now = _clock.UtcNow;
+        if (_upcoming.Any(session => session.StartUtc <= now)) _ = RefreshNextSessionAsync();
         var upcoming = NextSessionDisplay.Schedule(_upcoming, now);
         // An exhausted calendar means the feeds, not the schedule, own what happens next.
         if (upcoming.Count == 0)
