@@ -126,12 +126,16 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         var statusText = LatestSessionStatus(sessionData?["StatusSeries"])
             ?? JsonSupport.String(_topics.GetValueOrDefault("SessionStatus")?["Status"] ?? _topics.GetValueOrDefault("SessionStatus")?["Started"])
             ?? JsonSupport.String(info?["SessionStatus"]);
-        var sessionName = SessionName(info, timing, sessionData);
+        var qualifyingPart = QualifyingPart(sessionData);
+        var sessionName = SessionName(info, qualifyingPart);
         var requiresTimedClassification = RequiresTimedClassification(info, sessionName);
         var standings = BuildStandings(timing, requiresTimedClassification);
         var classificationReady = !requiresTimedClassification || standings.Any(HasTimedResult);
+        var qualifyingSession = IsQualifyingSession(info, sessionName);
+        var betweenQualifyingParts = qualifyingSession && qualifyingPart is >= 1 and < 3;
         var lifecycle = SessionLifecycleFor(
-            standings.Count, statusText, alerts.Current?.Kind == AlertKind.Chequered, classificationReady);
+            standings.Count, statusText, !qualifyingSession && alerts.Current?.Kind == AlertKind.Chequered,
+            classificationReady, betweenQualifyingParts);
         if (lifecycle == SessionLifecycle.Live && requiresTimedClassification)
             standings = [.. standings.Where(HasTimedResult)];
         Publish(new(JsonSupport.String(meeting?["Name"]) ?? "F1", sessionName,
@@ -253,16 +257,20 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         }
     }
 
-    private static string SessionName(JsonObject? info, JsonObject? timing, JsonObject? sessionData)
+    private static string SessionName(JsonObject? info, int? qualifyingPart)
     {
         var name = JsonSupport.String(info?["Name"]) ?? "Live Session";
-        var qualifying = string.Equals(JsonSupport.String(info?["Type"]), "Qualifying", StringComparison.OrdinalIgnoreCase) ||
-            name.Contains("Qualifying", StringComparison.OrdinalIgnoreCase) ||
-            name.Contains("Shootout", StringComparison.OrdinalIgnoreCase);
-        if (!qualifying) return name;
-        var part = JsonSupport.Int(timing?["SessionPart"]) ?? LatestQualifyingPart(sessionData?["Series"]);
-        return part is >= 1 and <= 3 ? $"{name} {part}" : name;
+        if (!IsQualifyingSession(info, name)) return name;
+        return qualifyingPart is >= 1 and <= 3 ? $"{name} {qualifyingPart}" : name;
     }
+
+    private static bool IsQualifyingSession(JsonObject? info, string name) =>
+        string.Equals(JsonSupport.String(info?["Type"]), "Qualifying", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("Qualifying", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("Shootout", StringComparison.OrdinalIgnoreCase);
+
+    private static int? QualifyingPart(JsonObject? sessionData) =>
+        LatestQualifyingPart(sessionData?["Series"]);
 
     private static int? LatestQualifyingPart(JsonNode? series) => series switch
     {
@@ -279,9 +287,11 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
     };
 
     private static SessionLifecycle SessionLifecycleFor(
-        int standingsCount, string? status, bool chequered, bool classificationReady)
+        int standingsCount, string? status, bool chequered, bool classificationReady,
+        bool betweenQualifyingParts)
     {
         if (standingsCount == 0) return SessionLifecycle.OffSession;
+        if (betweenQualifyingParts && classificationReady) return SessionLifecycle.Live;
         if (chequered || IsEndedSessionStatus(status)) return SessionLifecycle.Ended;
         return IsPreSessionStatus(status) || !classificationReady
             ? SessionLifecycle.PreSession

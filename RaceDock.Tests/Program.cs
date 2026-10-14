@@ -906,27 +906,57 @@ static void F1QualifyingParts()
     var state = BaseState();
     state["SessionInfo"]!["Name"] = "Qualifying";
     state["SessionInfo"]!["Type"] = "Qualifying";
-    state["TimingData"]!["SessionPart"] = 1;
+    // TimingData.SessionPart is the total part count, not the active part. Only SessionData.Series
+    // transitions are authoritative for the displayed qualifying part.
+    state["TimingData"]!["SessionPart"] = 3;
+    state["TimingData"]!["Lines"]!["1"]!["BestLapTime"] = new JsonObject { ["Value"] = "1:42.000" };
+    state["TimingData"]!["Lines"]!["2"]!["BestLapTime"] = new JsonObject { ["Value"] = "1:42.500" };
+    state["SessionData"] = new JsonObject
+    {
+        ["Series"] = new JsonArray(new JsonObject { ["QualifyingPart"] = 1 })
+    };
+    state["SessionStatus"] = new JsonObject { ["Status"] = "Started" };
     processor.ProcessInitial(state);
     Equal("Qualifying 1", processor.Current.Session);
+    Equal(SessionLifecycle.Live, processor.Current.Lifecycle);
 
-    processor.ProcessDelta("TimingData", new JsonObject { ["SessionPart"] = 2 }, DateTimeOffset.UtcNow);
+    processor.ProcessDelta("SessionStatus", new JsonObject { ["Status"] = "Finished" }, DateTimeOffset.UtcNow);
+    Equal(SessionLifecycle.Live, processor.Current.Lifecycle);
+    processor.ProcessDelta("RaceControlMessages", new JsonObject
+    {
+        ["Messages"] = new JsonObject { ["1"] = new JsonObject { ["Flag"] = "CHEQUERED", ["Message"] = "SQ1 ENDED" } }
+    }, DateTimeOffset.UtcNow);
+    Equal(SessionLifecycle.Live, processor.Current.Lifecycle);
+
+    processor.ProcessDelta("SessionData", new JsonObject
+    {
+        ["Series"] = new JsonObject { ["1"] = new JsonObject { ["QualifyingPart"] = 2 } }
+    }, DateTimeOffset.UtcNow);
+    processor.ProcessDelta("SessionStatus", new JsonObject { ["Status"] = "Inactive" }, DateTimeOffset.UtcNow);
     Equal("Qualifying 2", processor.Current.Session);
-    processor.ProcessDelta("TimingData", new JsonObject { ["SessionPart"] = 3 }, DateTimeOffset.UtcNow);
+    Equal(SessionLifecycle.Live, processor.Current.Lifecycle);
+    processor.ProcessDelta("SessionData", new JsonObject
+    {
+        ["Series"] = new JsonObject { ["2"] = new JsonObject { ["QualifyingPart"] = 3 } }
+    }, DateTimeOffset.UtcNow);
+    processor.ProcessDelta("SessionStatus", new JsonObject { ["Status"] = "Started" }, DateTimeOffset.UtcNow);
     Equal("Qualifying 3", processor.Current.Session);
+    Equal(SessionLifecycle.Live, processor.Current.Lifecycle);
+    processor.ProcessDelta("SessionStatus", new JsonObject { ["Status"] = "Finished" }, DateTimeOffset.UtcNow);
+    Equal(SessionLifecycle.Ended, processor.Current.Lifecycle);
 
-    var (_, _, fallback) = Fixture();
+    var (_, _, noSeries) = Fixture();
     state = BaseState();
     state["SessionInfo"]!["Name"] = "Sprint Qualifying";
     state["SessionInfo"]!["Type"] = "Qualifying";
-    state["SessionData"] = new JsonObject
+    state["TimingData"]!["SessionPart"] = 3;
+    noSeries.ProcessInitial(state);
+    Equal("Sprint Qualifying", noSeries.Current.Session);
+    noSeries.ProcessDelta("SessionData", new JsonObject
     {
-        ["Series"] = new JsonArray(
-            new JsonObject { ["QualifyingPart"] = 1 },
-            new JsonObject { ["QualifyingPart"] = 2 })
-    };
-    fallback.ProcessInitial(state);
-    Equal("Sprint Qualifying 2", fallback.Current.Session);
+        ["Series"] = new JsonArray(new JsonObject { ["QualifyingPart"] = 1 })
+    }, DateTimeOffset.UtcNow);
+    Equal("Sprint Qualifying 1", noSeries.Current.Session);
 }
 
 static void WrcStageTiming()
