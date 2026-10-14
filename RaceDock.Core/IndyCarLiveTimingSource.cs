@@ -12,7 +12,7 @@ internal sealed record IndyCarPollingOptions(
     TimeSpan StaleAfter)
 {
     public static IndyCarPollingOptions Default { get; } = new(
-        TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(2));
+        TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2));
 }
 
 internal sealed record IndyCarTimingPayload(JsonObject Data, DateTimeOffset? LastModified);

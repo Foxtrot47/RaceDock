@@ -16,6 +16,7 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
     private readonly IAlertArbiter _alerts;
     private readonly TimeSpan _pollInterval;
     private readonly bool _ownsHttpClient;
+    private readonly MotoGpScheduleClient? _schedule;
     private readonly Championship? _targetChampionship;
     private CancellationTokenSource? _runCts;
     private Task? _run;
@@ -24,13 +25,16 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
     private string? _lastSessionKey;
 
     public MotoGpLiveTimingSource(IClock clock, IAlertArbiter alerts)
-        : this(new HttpClient { Timeout = TimeSpan.FromSeconds(20) }, clock, new SystemAsyncDelay(), alerts, TimeSpan.FromSeconds(5), true, null) { }
+        : this(new HttpClient { Timeout = TimeSpan.FromSeconds(20) }, clock, new SystemAsyncDelay(), alerts,
+            TimeSpan.FromSeconds(5), true, null, new MotoGpScheduleClient()) { }
 
     public MotoGpLiveTimingSource(IClock clock, IAlertArbiter alerts, Championship championship)
-        : this(new HttpClient { Timeout = TimeSpan.FromSeconds(20) }, clock, new SystemAsyncDelay(), alerts, TimeSpan.FromSeconds(5), true, championship) { }
+        : this(new HttpClient { Timeout = TimeSpan.FromSeconds(20) }, clock, new SystemAsyncDelay(), alerts,
+            TimeSpan.FromSeconds(5), true, championship, new MotoGpScheduleClient()) { }
 
     internal MotoGpLiveTimingSource(HttpClient http, IClock clock, IAsyncDelay delay, IAlertArbiter alerts,
-        TimeSpan pollInterval, bool ownsHttpClient = false, Championship? targetChampionship = null)
+        TimeSpan pollInterval, bool ownsHttpClient = false, Championship? targetChampionship = null,
+        MotoGpScheduleClient? schedule = null)
     {
         _http = http;
         _clock = clock;
@@ -39,6 +43,7 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
         _pollInterval = pollInterval;
         _ownsHttpClient = ownsHttpClient;
         _targetChampionship = targetChampionship;
+        _schedule = schedule;
     }
 
     public event Action<TimingSnapshot>? SnapshotReceived;
@@ -67,8 +72,8 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
                 var payload = JsonNode.Parse(text) as JsonObject
                     ?? throw new InvalidOperationException("MotoGP live timing returned no payload.");
                 ChangeConnection(ConnectionState.Connected);
-                ProcessPayload(payload);
-                await _delay.DelayAsync(_pollInterval, ct);
+                var live = ProcessPayload(payload);
+                await _delay.DelayAsync(await NextPollDelayAsync(live, ct), ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
             catch (Exception ex)
@@ -81,7 +86,34 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
         }
     }
 
-    internal void ProcessPayload(JsonObject payload)
+    private async Task<TimeSpan> NextPollDelayAsync(bool live, CancellationToken cancellationToken)
+    {
+        if (live || _schedule is null) return _pollInterval;
+        try
+        {
+            var sessions = ChampionshipCalendars.NextMotorcycleGrandPrix(
+                await _schedule.GetEventsAsync(_clock.UtcNow, cancellationToken), _clock.UtcNow);
+            return IdleDelay(sessions, _targetChampionship, _clock.UtcNow, _pollInterval);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception failure)
+        {
+            Failed?.Invoke(new($"MotoGP schedule failed: {failure.Message}", failure, _clock.UtcNow));
+            return TimeSpan.FromMinutes(5);
+        }
+    }
+
+    internal static TimeSpan IdleDelay(IReadOnlyList<UpcomingSession> sessions, Championship? target,
+        DateTimeOffset now, TimeSpan pollInterval)
+    {
+        var next = sessions.FirstOrDefault(session => session.StartUtc > now &&
+            (target is null || session.Championship == target));
+        if (next is null) return TimeSpan.FromHours(6);
+        var untilLead = next.StartUtc - now - TimeSpan.FromMinutes(30);
+        return untilLead > TimeSpan.Zero ? Min(untilLead, TimeSpan.FromHours(6)) : pollInterval;
+    }
+
+    internal bool ProcessPayload(JsonObject payload)
     {
         var snapshot = MotoGpTiming.BuildSnapshot(payload, _clock.UtcNow, _connection);
         if (snapshot is null || snapshot.Championship == Championship.Unknown ||
@@ -90,7 +122,7 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
             _lastLifecycle = null;
             _lastSessionKey = null;
             SnapshotReceived?.Invoke(TimingSnapshot.Hidden(_clock.UtcNow));
-            return;
+            return false;
         }
         var key = $"{snapshot.Meeting}:{snapshot.Session}";
         if (snapshot.Lifecycle == SessionLifecycle.Live && (_lastLifecycle != SessionLifecycle.Live || _lastSessionKey != key))
@@ -103,7 +135,10 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
         _lastSessionKey = key;
         DeltaReceived?.Invoke(new("MotoGpLite", payload, _clock.UtcNow));
         SnapshotReceived?.Invoke(snapshot);
+        return snapshot.Lifecycle == SessionLifecycle.Live;
     }
+
+    private static TimeSpan Min(TimeSpan left, TimeSpan right) => left <= right ? left : right;
 
     private void ChangeConnection(ConnectionState value)
     {
@@ -127,6 +162,7 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
     {
         await StopAsync();
         if (_ownsHttpClient) _http.Dispose();
+        _schedule?.Dispose();
     }
 }
 

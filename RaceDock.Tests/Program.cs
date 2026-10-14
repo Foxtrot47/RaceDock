@@ -1095,6 +1095,14 @@ static void MotoGpLitePayload()
     Equal(1, tied.Competitors.Count(standing => standing.IsOverallFastest));
     True(tied.Competitors[0].IsOverallFastest);
     Equal("https://api.pulselive.motogp.com/motogp/v1/timing-gateway/livetiming-lite", MotoGpLiveTimingSource.Endpoint);
+
+    UpcomingSession[] scheduled = [new(Championship.Moto3, "Test GP", "Practice", now.AddHours(4))];
+    Equal(TimeSpan.FromHours(3.5), MotoGpLiveTimingSource.IdleDelay(
+        scheduled, Championship.Moto3, now, TimeSpan.FromSeconds(5)));
+    Equal(TimeSpan.FromSeconds(5), MotoGpLiveTimingSource.IdleDelay(
+        scheduled, Championship.Moto3, now.AddHours(3.75), TimeSpan.FromSeconds(5)));
+    Equal(TimeSpan.FromHours(6), MotoGpLiveTimingSource.IdleDelay(
+        scheduled, Championship.MotoGp, now, TimeSpan.FromSeconds(5)));
 }
 
 static void MotoGpSourceLifecycle()
@@ -3039,6 +3047,18 @@ static void GriiipSessionSelection()
     Equal(3, JsonSupport.Int(GriiipLiveTimingSource.ActiveSession(sessions, GriiipSeries.Wec)?["id"]));
     Equal(4, JsonSupport.Int(GriiipLiveTimingSource.ActiveSession(sessions, GriiipSeries.Elms)?["id"]));
     Equal(5, JsonSupport.Int(GriiipLiveTimingSource.ActiveSession(sessions, GriiipSeries.MichelinLeMansCup)?["id"]));
+
+    var now = new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero);
+    var options = new GriiipPollingOptions(
+        TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(15), TimeSpan.FromHours(6),
+        TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(1));
+    var scheduled = JsonNode.Parse("""
+        [{"id":6,"name":"WEC Later","isRunning":false,"startTime":"2026-09-04T16:00:00Z","series":{"name":"FIA World Endurance Championship"}}]
+        """)!.AsArray();
+    Equal(TimeSpan.FromHours(3.5), GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Wec, now, options));
+    Equal(TimeSpan.FromSeconds(15), GriiipLiveTimingSource.NextIdleDelay(
+        scheduled, GriiipSeries.Wec, now.AddHours(3.75), options));
+    Equal(TimeSpan.FromHours(6), GriiipLiveTimingSource.NextIdleDelay([], GriiipSeries.Wec, now, options));
 }
 
 static void IndyCarPracticeTiming()

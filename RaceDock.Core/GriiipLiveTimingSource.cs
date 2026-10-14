@@ -26,10 +26,19 @@ internal sealed record GriiipSeries(
         Championship.MichelinLeMansCup, 410, "Michelin Le Mans Cup", "Le Mans Cup", "mlmc", "Le Mans Cup");
 }
 
-internal sealed record GriiipPollingOptions(TimeSpan PollInterval, TimeSpan IdleInterval, TimeSpan FailureInterval)
+internal sealed record GriiipPollingOptions(
+    TimeSpan PollInterval,
+    TimeSpan NearSessionInterval,
+    TimeSpan ScheduleRefreshInterval,
+    TimeSpan PreSessionLead,
+    TimeSpan FailureInterval)
 {
     public static GriiipPollingOptions Default { get; } = new(
-        TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5));
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(15),
+        TimeSpan.FromHours(6),
+        TimeSpan.FromMinutes(30),
+        TimeSpan.FromMinutes(1));
 }
 
 internal interface IGriiipApiClient : IDisposable
@@ -162,7 +171,7 @@ public abstract class GriiipLiveTimingSource : ILiveTimingSource
             ResetSession();
             SetConnection(ConnectionState.Disconnected);
             PublishHidden(ConnectionState.Disconnected);
-            await _delay.DelayAsync(_options.IdleInterval, cancellationToken);
+            await _delay.DelayAsync(NextIdleDelay(sessions, _series, _clock.UtcNow, _options), cancellationToken);
             return;
         }
 
@@ -179,7 +188,7 @@ public abstract class GriiipLiveTimingSource : ILiveTimingSource
         SnapshotReceived?.Invoke(snapshot);
         await _delay.DelayAsync(snapshot.Lifecycle == SessionLifecycle.Live
             ? _options.PollInterval
-            : _options.IdleInterval, cancellationToken);
+            : _options.NearSessionInterval, cancellationToken);
     }
 
     private void PublishDelta(JsonObject bootstrap)
@@ -188,6 +197,22 @@ public abstract class GriiipLiveTimingSource : ILiveTimingSource
         if (fingerprint == _lastFingerprint) return;
         _lastFingerprint = fingerprint;
         DeltaReceived?.Invoke(new($"{_series.Label}Timing", bootstrap.DeepClone(), _clock.UtcNow));
+    }
+
+    internal static TimeSpan NextIdleDelay(JsonArray sessions, GriiipSeries series, DateTimeOffset now,
+        GriiipPollingOptions options)
+    {
+        var next = sessions.OfType<JsonObject>()
+            .Where(session => !JsonSupport.Bool(session["hideFromUsers"]) &&
+                string.Equals(JsonSupport.String(session["series"]?["name"]), series.ProviderName, StringComparison.OrdinalIgnoreCase))
+            .Select(session => ParseDate(session["startTime"]))
+            .Where(start => start > now)
+            .OrderBy(start => start)
+            .FirstOrDefault();
+        if (next == default) return options.ScheduleRefreshInterval;
+        var untilLead = next - now - options.PreSessionLead;
+        if (untilLead <= TimeSpan.Zero) return options.NearSessionInterval;
+        return untilLead <= options.ScheduleRefreshInterval ? untilLead : options.ScheduleRefreshInterval;
     }
 
     internal static JsonObject? ActiveSession(JsonArray sessions, GriiipSeries series) => sessions

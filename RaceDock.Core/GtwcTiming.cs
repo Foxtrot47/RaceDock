@@ -20,8 +20,8 @@ internal sealed record GtwcPollingOptions(
 {
     public static GtwcPollingOptions Default { get; } = new(
         TimeSpan.FromSeconds(2),
-        TimeSpan.FromSeconds(15),
         TimeSpan.FromMinutes(1),
+        TimeSpan.FromMinutes(15),
         [TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(10)],
         [TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(16), TimeSpan.FromSeconds(30)]);
 }
