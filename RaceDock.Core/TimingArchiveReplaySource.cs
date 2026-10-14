@@ -666,7 +666,8 @@ internal static class TimingArchiveLoader
                 null,
                 CellText(row, columns, "Class", "Category"),
                 Manufacturer(CellText(row, columns, "Car", "Vehicle", "Bike")),
-                FormatTime(CellDouble(row, columns, "Last", "Last lap time") ?? 0)), best));
+                FormatTime(CellDouble(row, columns, "Last", "Last lap time") ?? 0),
+                CurrentSectors: ArchiveSectors(row, columns)), best));
         }
         var fastest = parsed.Where(value => value.Best > 0).OrderBy(value => value.Best).FirstOrDefault().Standing?.DriverId;
         var competitors = parsed.Select(value => value.Standing with { IsOverallFastest = value.Standing.DriverId == fastest }).ToList();
@@ -723,12 +724,45 @@ internal static class TimingArchiveLoader
         }
     }
 
-    private static JsonNode? Cell(JsonArray row, IReadOnlyDictionary<string, int> columns, params string[] names)
+    private static JsonNode? RawCell(JsonArray row, IReadOnlyDictionary<string, int> columns, params string[] names)
     {
         var index = names.Select(name => columns.TryGetValue(name, out var value) ? value : -1).FirstOrDefault(value => value >= 0, -1);
-        if (index < 0 || index >= row.Count) return null;
-        var node = row[index];
+        return index >= 0 && index < row.Count ? row[index] : null;
+    }
+
+    private static JsonNode? Cell(JsonArray row, IReadOnlyDictionary<string, int> columns, params string[] names)
+    {
+        var node = RawCell(row, columns, names);
         return node is JsonArray values && values.Count > 0 ? values[0] : node;
+    }
+
+    private static SectorTimingSet? ArchiveSectors(JsonArray row, IReadOnlyDictionary<string, int> columns)
+    {
+        var sectors = new SectorTimingSet(
+            ArchiveSector(row, columns, "S1", "Sector 1 time"),
+            ArchiveSector(row, columns, "S2", "Sector 2 time"),
+            ArchiveSector(row, columns, "S3", "Sector 3 time"));
+        return sectors.Sector1 is null && sectors.Sector2 is null && sectors.Sector3 is null ? null : sectors;
+    }
+
+    private static SectorTiming? ArchiveSector(
+        JsonArray row, IReadOnlyDictionary<string, int> columns, params string[] names)
+    {
+        var cell = RawCell(row, columns, names);
+        var value = cell is JsonArray values && values.Count > 0 ? values[0] : cell;
+        var seconds = Double(value);
+        if (seconds is null || seconds <= 0) return null;
+        var style = cell is JsonArray styled && styled.Count > 1 ? Text(styled[1]) : null;
+        var state = style?.Trim().ToLowerInvariant() switch
+        {
+            "sb" => SectorTimingState.OverallBest,
+            "pb" => SectorTimingState.PersonalBest,
+            _ => SectorTimingState.Slower
+        };
+        var formatted = seconds < 60
+            ? seconds.Value.ToString("0.000", CultureInfo.InvariantCulture)
+            : FormatTime(seconds.Value)!;
+        return new(formatted, state);
     }
 
     private static string? CellText(JsonArray row, IReadOnlyDictionary<string, int> columns, params string[] names) => Text(Cell(row, columns, names));
