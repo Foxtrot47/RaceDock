@@ -9,6 +9,7 @@ var tests = new (string Name, Action Run)[]
     ("leader gaps, intervals, ordering and missing values", TimingParsing),
     ("F1 timed sessions use best-lap deltas", F1TimedSessionDeltas),
     ("F1 sectors preserve current and best-lap timing", F1SectorTiming),
+    ("F1 mini-sectors follow the lap in progress", F1MiniSectors),
     ("tied F1 times produce one leader", TiedF1Times),
     ("hidden F1 substitutions are excluded", HiddenF1Substitution),
     ("retired and fastest lap detection", FastestAndRetired),
@@ -180,6 +181,38 @@ static void F1SectorTiming()
         {"Lines":{"44":{"BestLapTime":{"Value":"1:35.900"}}}}
         """)!, DateTimeOffset.UtcNow);
     Equal<SectorTimingSet?>(null, processor.Current.Competitors.Single().BestLapSectors);
+}
+
+static void F1MiniSectors()
+{
+    var (_, _, processor) = Fixture();
+    processor.ProcessInitial(JsonNode.Parse("""
+        {"SessionInfo":{"Name":"Race","Type":"Race"},
+         "DriverList":{"63":{"Tla":"RUS"},"44":{"Tla":"HAM"}},
+         "TimingData":{"Lines":{
+           "63":{"Position":1,"NumberOfLaps":3,"Sectors":[
+             {"Value":"27.171","Segments":[{"Status":2049},{"Status":2048},{"Status":2051}]},
+             {"Value":"","Segments":[{"Status":2048},{"Status":0},{"Status":0}]},
+             {"Value":"","Segments":[{"Status":0},{"Status":0}]}]},
+           "44":{"Position":2,"NumberOfLaps":3,"Sectors":[{"Value":"28.000"},{"Value":""},{"Value":""}]}}}}
+        """)!.AsObject());
+
+    var leader = processor.Current.Competitors[0];
+    Equal(3, leader.CurrentMiniSectors!.Count);
+    Equal("PersonalBest,Slower,OverallBest", string.Join(',', leader.CurrentMiniSectors[0]));
+    Equal("Slower,NotReached,NotReached", string.Join(',', leader.CurrentMiniSectors[1]));
+    Equal(2, leader.CurrentMiniSectors[2].Count);
+    Equal<IReadOnlyList<IReadOnlyList<MiniSectorState>>?>(null, processor.Current.Competitors[1].CurrentMiniSectors);
+
+    // The feed patches one loop at a time by index, then resets the lap's loops when the next lap starts.
+    processor.ProcessDelta("TimingData", JsonNode.Parse("""
+        {"Lines":{"63":{"Sectors":{"1":{"Segments":{"1":{"Status":2064}}}}}}}
+        """)!, DateTimeOffset.UtcNow);
+    Equal("Slower,PitLane,NotReached", string.Join(',', processor.Current.Competitors[0].CurrentMiniSectors![1]));
+    processor.ProcessDelta("TimingData", JsonNode.Parse("""
+        {"Lines":{"63":{"Sectors":{"0":{"Segments":{"0":{"Status":0},"1":{"Status":0},"2":{"Status":7}}}}}}}
+        """)!, DateTimeOffset.UtcNow);
+    Equal("NotReached,NotReached,Other", string.Join(',', processor.Current.Competitors[0].CurrentMiniSectors![0]));
 }
 
 static void TiedF1Times()

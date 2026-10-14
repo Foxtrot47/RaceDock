@@ -28,6 +28,12 @@ public enum TrackCondition { Unknown, AllClear, Yellow, DoubleYellow, SafetyCar,
 public enum SectorTimingState { None, OverallBest, PersonalBest, Slower }
 
 public sealed record SectorTiming(string Value, SectorTimingState State);
+
+/// <summary>
+/// State of one F1 timing-loop segment ("mini-sector") on the lap in progress, as published in
+/// TimingData Lines[n].Sectors[i].Segments[j].Status.
+/// </summary>
+public enum MiniSectorState { NotReached, Slower, PersonalBest, OverallBest, PitLane, Other }
 public sealed record SectorTimingSet(SectorTiming? Sector1, SectorTiming? Sector2, SectorTiming? Sector3)
 {
     public SectorTiming? At(int index) => index switch
@@ -47,7 +53,8 @@ public sealed record CompetitorStanding(
     bool InPit, bool Retired, bool Stopped, bool IsOverallFastest,
     string? ResultTime = null, string? StatusLabel = null, string? PositionLabel = null, string? Category = null,
     string? Manufacturer = null, string? LastLapTime = null,
-    SectorTimingSet? CurrentSectors = null, SectorTimingSet? BestLapSectors = null);
+    SectorTimingSet? CurrentSectors = null, SectorTimingSet? BestLapSectors = null,
+    IReadOnlyList<IReadOnlyList<MiniSectorState>>? CurrentMiniSectors = null);
 
 /// <summary>Which lap time a session is judged on: the best lap set, or the most recent one.</summary>
 public enum LapTimeMode { BestLap, LastLap }

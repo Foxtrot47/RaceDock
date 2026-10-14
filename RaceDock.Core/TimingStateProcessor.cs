@@ -171,7 +171,8 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
                 ResultTime: bestLap,
                 LastLapTime: JsonSupport.TimingValue(line["LastLapTime"]),
                 CurrentSectors: currentSectors,
-                BestLapSectors: _bestLapSectors.GetValueOrDefault(pair.Key)));
+                BestLapSectors: _bestLapSectors.GetValueOrDefault(pair.Key),
+                CurrentMiniSectors: ParseMiniSectors(line["Sectors"])));
         }
         standings = [.. standings.Where(x => x.Position > 0 && x.Position < int.MaxValue).OrderBy(x => x.Position)];
         NormalizeStandings(standings, bestLaps, useBestLapDeltas);
@@ -229,6 +230,42 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
 
     private static bool HasAllSectors(SectorTimingSet sectors) =>
         sectors.Sector1 is not null && sectors.Sector2 is not null && sectors.Sector3 is not null;
+
+    /// <summary>Segments per sector, in lap order; null when the feed publishes none for this driver.</summary>
+    private static IReadOnlyList<IReadOnlyList<MiniSectorState>>? ParseMiniSectors(JsonNode? sectors)
+    {
+        var result = Enumerable.Range(0, 3)
+            .Select(index => (IReadOnlyList<MiniSectorState>)[.. SegmentNodes((SectorAt(sectors, index) as JsonObject)?["Segments"]).Select(MiniSector)])
+            .ToList();
+        return result.All(segments => segments.Count == 0) ? null : result;
+    }
+
+    private static IEnumerable<JsonNode?> SegmentNodes(JsonNode? segments) => segments switch
+    {
+        JsonArray array => array,
+        JsonObject obj => obj
+            .Select(pair => (Index: int.TryParse(pair.Key, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var index) ? index : -1, pair.Value))
+            .Where(pair => pair.Index >= 0)
+            .OrderBy(pair => pair.Index)
+            .Select(pair => pair.Value),
+        _ => []
+    };
+
+    private static MiniSectorState MiniSector(JsonNode? segment)
+    {
+        var status = JsonSupport.Int(segment?["Status"]) ?? 0;
+        var state = status switch
+        {
+            0 => MiniSectorState.NotReached,
+            2048 => MiniSectorState.Slower,
+            2049 => MiniSectorState.PersonalBest,
+            2051 => MiniSectorState.OverallBest,
+            2064 => MiniSectorState.PitLane,
+            _ => MiniSectorState.Other
+        };
+        if (state == MiniSectorState.Other) FeedDrift.Record("formula1", $"Segments.Status={status}", segment);
+        return state;
+    }
 
     private static void NormalizeStandings(
         List<CompetitorStanding> standings, IReadOnlyDictionary<string, double> bestLaps, bool useBestLapDeltas)

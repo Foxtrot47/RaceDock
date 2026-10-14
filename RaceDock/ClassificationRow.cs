@@ -243,9 +243,11 @@ internal sealed class ClassificationRow
 
         if (display.FlyoutShowLapTime) SetValue(_result, format.LapTime(standing) ?? "—");
         if (display.FlyoutShowSectorTimes)
-            _sectors.Update(display.FlyoutSectorTimeMode == SectorTimeMode.BestLap
-                ? standing.BestLapSectors
-                : standing.CurrentSectors);
+        {
+            var bestLap = display.FlyoutSectorTimeMode == SectorTimeMode.BestLap;
+            _sectors.Update(bestLap ? standing.BestLapSectors : standing.CurrentSectors,
+                bestLap ? null : standing.CurrentMiniSectors);
+        }
         if (display.FlyoutShowTyre) UpdateTyre(standing.Tyre);
 
         if (display.FlyoutShowCategoryOrLap)
