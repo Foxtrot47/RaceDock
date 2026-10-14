@@ -263,7 +263,9 @@ public sealed class WrcLiveTimingSource : ILiveTimingSource
                 PublishHidden(ConnectionState.Connected, ct);
                 return await PollShakedownAsync(context, ct);
             }
-            PublishStage(context, selected, times, fingerprint, ct);
+            var splitTimes = await _api.TryGetStageSplitTimesAsync(
+                context.Event.EventId, selected.StageId, context.Rally.RallyId, ct);
+            PublishStage(context, selected, times, splitTimes, fingerprint, ct);
             return true;
         }
 
@@ -292,9 +294,9 @@ public sealed class WrcLiveTimingSource : ILiveTimingSource
     }
 
     private void PublishStage(WrcEventContext context, WrcStage stage, IReadOnlyList<WrcStageTime> times,
-        string fingerprint, CancellationToken ct)
+        IReadOnlyList<WrcSplitTime> splitTimes, string fingerprint, CancellationToken ct)
     {
-        var standings = WrcTiming.BuildStageStandings(context.Entries, times);
+        var standings = WrcTiming.BuildStageStandings(context.Entries, times, splitTimes);
         if (_activeStageId != stage.StageId)
         {
             ResetStageState();
@@ -308,9 +310,12 @@ public sealed class WrcLiveTimingSource : ILiveTimingSource
         if (_alertedStages.Add(stage.StageId))
             _alerts.Accept(new(AlertKind.SessionStart, 10, false, $"{stage.Code} STARTED", stage.Name, null,
                 _clock.UtcNow, $"wrc:event:{context.Event.EventId}:stage:{stage.StageId}:start", TimeSpan.FromSeconds(4)));
-        Publish(new(context.Event.Name, $"{stage.Code}  {stage.Name}", "", 0, null, TrackCondition.AllClear,
-            standings, _clock.UtcNow, SessionLifecycle.Live, ConnectionState.Connected, null,
-            Championship.WorldRallyChampionship), ct);
+        Publish(new TimingSnapshot(context.Event.Name, $"{stage.Code}  {stage.Name}", "", 0, null,
+            TrackCondition.AllClear, standings, _clock.UtcNow, SessionLifecycle.Live,
+            ConnectionState.Connected, null, Championship.WorldRallyChampionship)
+        {
+            StageSplitPoints = stage.SplitPoints ?? []
+        }, ct);
     }
 
     private async Task<bool> PollShakedownAsync(WrcEventContext context, CancellationToken ct)

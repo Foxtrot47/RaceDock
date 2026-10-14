@@ -26,6 +26,7 @@ internal sealed record ChampionshipSettingsPresentation
     /// <summary>Whether this championship's feed carries a tyre compound worth a column.</summary>
     public bool ShowResultSetting { get; init; } = true;
     public bool ShowSectorTimingSetting { get; init; }
+    public bool ShowSplitTimingSetting { get; init; }
     public string LapTimeTitle { get; init; } = "Lap time";
     public string LapTimeDescription { get; init; } =
         "Show the best lap in practice and qualifying, and the last lap in sprints and races.";
@@ -41,7 +42,7 @@ internal sealed record ChampionshipSettingsPresentation
         Championship.MotoGp => Moto("MotoGP"),
         Championship.Moto2 => Moto("Moto2"),
         Championship.Moto3 => Moto("Moto3"),
-        Championship.WorldRallyChampionship => Rally(),
+        Championship.WorldRallyChampionship => Rally() with { ShowSplitTimingSetting = true },
         Championship.GtWorldChallengeEurope => Endurance("GT World Challenge Europe"),
         Championship.WorldEnduranceChampionship => Endurance("World Endurance Championship"),
         Championship.EuropeanLeMansSeries => Endurance("European Le Mans Series"),

@@ -34,6 +34,8 @@ var tests = new (string Name, Action Run)[]
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
     ("WRC season discovery excludes ERC and finds the next rally", WrcSeasonDiscovery),
     ("WRC provider keeps event rally and itinerary ids distinct", WrcProviderIdentifiers),
+    ("WRC live split points and times retain provider identity", WrcSplitParsing),
+    ("WRC standings align cumulative times to stage splits", WrcSplitStandings),
     ("WRC stage selection requires provider activity", WrcStageSelection),
     ("WRC stage scheduling uses bounded provider reconciliation", WrcStageScheduling),
     ("WRC stage fingerprints ignore provider row ordering", WrcStageFingerprintOrdering),
@@ -808,6 +810,62 @@ static void WrcProviderIdentifiers()
     True(handler.Paths.Contains("events/644/rallies/712/entries.json"));
 }
 
+static void WrcSplitParsing()
+{
+    using var handler = new RouteHttpHandler(new Dictionary<string, Queue<HttpResponseMessage>>
+    {
+        ["events/646/stages.json"] = Responses(new JsonArray
+        {
+            new JsonObject
+            {
+                ["stageId"] = 11608, ["number"] = 4, ["code"] = "SS4", ["name"] = "Turquia 2",
+                ["status"] = "Running",
+                ["splitPoints"] = new JsonArray
+                {
+                    new JsonObject { ["splitPointId"] = 21611, ["stageId"] = 11608, ["number"] = 2, ["distance"] = 5.0 },
+                    new JsonObject { ["splitPointId"] = 21610, ["stageId"] = 11608, ["number"] = 1, ["distance"] = 2.5 }
+                }
+            }
+        }.ToJsonString()),
+        ["events/646/stages/11608/splittimes.json?rallyId=714"] = Responses(new JsonArray
+        {
+            new JsonObject { ["entryId"] = 1, ["splitPointId"] = 21610, ["elapsedDurationMs"] = 88000 },
+            new JsonObject { ["entryId"] = 1, ["splitPointId"] = 21611, ["elapsedDurationMs"] = 171400 }
+        }.ToJsonString())
+    });
+    using var api = new WrcApiClient(new HttpClient(handler));
+    var stage = api.GetStagesAsync(646, CancellationToken.None).GetAwaiter().GetResult().Single();
+    Equal(21610, stage.SplitPoints![0].SplitPointId);
+    Equal(1, stage.SplitPoints[0].Number);
+    Equal(2.5, stage.SplitPoints[0].DistanceKm);
+    var splits = api.TryGetStageSplitTimesAsync(646, 11608, 714, CancellationToken.None).GetAwaiter().GetResult();
+    Equal(2, splits.Count);
+    Equal(171400, splits[1].ElapsedDurationMs);
+    Equal("events/646/stages/11608/splittimes.json?rallyId=714", handler.Paths[^1]);
+}
+
+static void WrcSplitStandings()
+{
+    var entries = new Dictionary<int, WrcEntry>
+    {
+        [1] = new(1, 1, "AAA", "Driver A", "Toyota", "Rally1", "", "RC1", "Entry"),
+        [2] = new(2, 2, "BBB", "Driver B", "Hyundai", "Rally1", "", "RC1", "Entry")
+    };
+    WrcStageTime[] times =
+    [
+        new(1, 1, 512500, 0, 0, "Completed"),
+        new(2, null, null, null, null, "Running")
+    ];
+    WrcSplitTime[] splits =
+    [
+        new(1, 21610, 88000), new(1, 21611, 171400), new(2, 21610, 88400)
+    ];
+    var standings = WrcTiming.BuildStageStandings(entries, times, splits);
+    Equal("1:28.0", standings[0].StageSplits![0].Value);
+    Equal("2:51.4", standings[0].StageSplits![1].Value);
+    Equal("1:28.4", standings[1].StageSplits![0].Value);
+}
+
 static void WrcStageSelection()
 {
     static WrcStage Stage(int id, int number, WrcStageStatus status, DateTimeOffset? start = null) =>
@@ -1276,17 +1334,23 @@ static void FlyoutColumnOrderNormalization()
     Equal(3, (int)FlyoutColumn.Tyre);
     Equal(5, (int)FlyoutColumn.Status);
     Equal(6, (int)FlyoutColumn.Sectors);
+    Equal(7, (int)FlyoutColumn.Splits);
     var defaults = new ChampionshipDisplaySettings();
     False(defaults.FlyoutShowSectorTimes);
+    False(defaults.FlyoutShowSplitTimes);
     Equal(SectorTimeMode.CurrentLast, defaults.FlyoutSectorTimeMode);
     var configured = new UserSettings
     {
         ChampionshipDisplay = new ChampionshipDisplayProfiles()
-            .With(Championship.Formula1, defaults with { FlyoutShowSectorTimes = true })
-            .With(Championship.Formula2, defaults with { FlyoutShowSectorTimes = true })
+            .With(Championship.Formula1, defaults with { FlyoutShowSectorTimes = true, FlyoutShowSplitTimes = true })
+            .With(Championship.Formula2, defaults with { FlyoutShowSectorTimes = true, FlyoutShowSplitTimes = true })
+            .With(Championship.WorldRallyChampionship, defaults with { FlyoutShowSplitTimes = true })
     };
     True(configured.DisplayFor(Championship.Formula1).FlyoutShowSectorTimes);
+    False(configured.DisplayFor(Championship.Formula1).FlyoutShowSplitTimes);
     False(configured.DisplayFor(Championship.Formula2).FlyoutShowSectorTimes);
+    False(configured.DisplayFor(Championship.Formula2).FlyoutShowSplitTimes);
+    True(configured.DisplayFor(Championship.WorldRallyChampionship).FlyoutShowSplitTimes);
 
     // A hand-edited order that repeats a column, names one that no longer exists, and omits four others.
     var repaired = new ChampionshipDisplaySettings
@@ -1294,7 +1358,7 @@ static void FlyoutColumnOrderNormalization()
         FlyoutColumnOrder = [FlyoutColumn.Status, FlyoutColumn.Status, (FlyoutColumn)99, FlyoutColumn.Tyre]
     }.Normalize().FlyoutColumnOrder;
     // The columns that were named keep their position, then the missing ones follow in the canonical order.
-    Equal("Status,Tyre,Gap,Interval,LapTime,Sectors,Category", string.Join(",", repaired));
+    Equal("Status,Tyre,Gap,Interval,LapTime,Sectors,Splits,Category", string.Join(",", repaired));
 
     var canonical = string.Join(",", ChampionshipDisplaySettings.DefaultColumnOrder);
     Equal(canonical, string.Join(",", new ChampionshipDisplaySettings { FlyoutColumnOrder = [] }.Normalize().FlyoutColumnOrder));
@@ -1307,7 +1371,7 @@ static void FlyoutColumnOrderNormalization()
     try
     {
         var store = new UserSettingsStore(path);
-        var order = new[] { FlyoutColumn.Status, FlyoutColumn.LapTime, FlyoutColumn.Sectors, FlyoutColumn.Tyre, FlyoutColumn.Category, FlyoutColumn.Interval, FlyoutColumn.Gap };
+        var order = new[] { FlyoutColumn.Status, FlyoutColumn.LapTime, FlyoutColumn.Sectors, FlyoutColumn.Splits, FlyoutColumn.Tyre, FlyoutColumn.Category, FlyoutColumn.Interval, FlyoutColumn.Gap };
         store.Save(new UserSettings
         {
             ChampionshipDisplay = new ChampionshipDisplayProfiles()

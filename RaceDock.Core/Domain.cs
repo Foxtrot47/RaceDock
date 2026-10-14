@@ -34,6 +34,8 @@ public sealed record SectorTiming(string Value, SectorTimingState State);
 /// TimingData Lines[n].Sectors[i].Segments[j].Status.
 /// </summary>
 public enum MiniSectorState { NotReached, Slower, PersonalBest, OverallBest, PitLane, Other }
+public sealed record RallySplitPoint(int SplitPointId, int Number, double DistanceKm);
+public sealed record RallySplitTiming(int SplitPointId, string Value);
 public sealed record SectorTimingSet(SectorTiming? Sector1, SectorTiming? Sector2, SectorTiming? Sector3)
 {
     public SectorTiming? At(int index) => index switch
@@ -54,6 +56,7 @@ public sealed record CompetitorStanding(
     string? ResultTime = null, string? StatusLabel = null, string? PositionLabel = null, string? Category = null,
     string? Manufacturer = null, string? LastLapTime = null,
     SectorTimingSet? CurrentSectors = null, SectorTimingSet? BestLapSectors = null,
+    IReadOnlyList<RallySplitTiming>? StageSplits = null,
     IReadOnlyList<IReadOnlyList<MiniSectorState>>? CurrentMiniSectors = null);
 
 /// <summary>Which lap time a session is judged on: the best lap set, or the most recent one.</summary>
@@ -68,6 +71,7 @@ public sealed record TimingSnapshot(
     Championship Championship = Championship.Unknown)
 {
     public string? SessionShortName { get; init; }
+    public IReadOnlyList<RallySplitPoint> StageSplitPoints { get; init; } = [];
 
     public static TimingSnapshot Hidden(DateTimeOffset now) =>
         new("", "", "", 0, null, TrackCondition.Unknown, [], now, SessionLifecycle.OffSession, ConnectionState.Disconnected);

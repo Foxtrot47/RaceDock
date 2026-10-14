@@ -36,6 +36,7 @@ public sealed class ClassificationFlyout : Window
     private ScrollingTextBlock _intervalHeader = null!;
     private ScrollingTextBlock _lapTimeHeader = null!;
     private Grid _sectorHeader = null!;
+    private Grid _splitHeader = null!;
     private ScrollingTextBlock _tyreHeader = null!;
     private ScrollingTextBlock _categoryHeader = null!;
     private ScrollingTextBlock _statusHeader = null!;
@@ -247,6 +248,7 @@ public sealed class ClassificationFlyout : Window
         _display = _settings.DisplayFor(snapshot.Championship);
         _visibleRowCount = Math.Min(snapshot.Competitors.Count, _display.FlyoutCompetitorCount);
         UpdateDriverColumnWidth(snapshot);
+        UpdateSplitHeader(snapshot.StageSplitPoints);
         ApplyDisplay();
         _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : ChampionshipDisplay.FullEvent(snapshot);
         var rally = IsRallySnapshot(snapshot);
@@ -291,7 +293,7 @@ public sealed class ClassificationFlyout : Window
         for (var index = 0; index < standings.Count; index++)
         {
             var row = _standingRows[index];
-            row.ApplyDisplay(_display, widths);
+            row.ApplyDisplay(_display, widths, snapshot.StageSplitPoints);
             row.Update(standings[index], snapshot.Championship, _display, format);
         }
     }
@@ -353,6 +355,7 @@ public sealed class ClassificationFlyout : Window
         _intervalHeader.Visibility = _display.FlyoutShowIntervals ? Visibility.Visible : Visibility.Collapsed;
         _lapTimeHeader.Visibility = _display.FlyoutShowLapTime ? Visibility.Visible : Visibility.Collapsed;
         _sectorHeader.Visibility = _display.FlyoutShowSectorTimes ? Visibility.Visible : Visibility.Collapsed;
+        _splitHeader.Visibility = _display.FlyoutShowSplitTimes ? Visibility.Visible : Visibility.Collapsed;
         _tyreHeader.Visibility = _display.FlyoutShowTyre ? Visibility.Visible : Visibility.Collapsed;
         _categoryHeader.Visibility = _display.FlyoutShowCategoryOrLap ? Visibility.Visible : Visibility.Collapsed;
         _statusHeader.Visibility = _display.FlyoutShowStatus ? Visibility.Visible : Visibility.Collapsed;
@@ -464,9 +467,12 @@ public sealed class ClassificationFlyout : Window
         _lapTimeHeader = AddHeaderLabel(header, "BEST", 4);
         _sectorHeader = CreateSectorHeader(5);
         header.Children.Add(_sectorHeader);
-        _tyreHeader = AddHeaderLabel(header, "TYRE", 6, TextAlignment.Center);
-        _categoryHeader = AddHeaderLabel(header, "LAP", 7, TextAlignment.Center);
-        _statusHeader = AddHeaderLabel(header, "STATUS", 8, TextAlignment.Center);
+        _splitHeader = new Grid();
+        Grid.SetColumn(_splitHeader, 6);
+        header.Children.Add(_splitHeader);
+        _tyreHeader = AddHeaderLabel(header, "TYRE", 7, TextAlignment.Center);
+        _categoryHeader = AddHeaderLabel(header, "LAP", 8, TextAlignment.Center);
+        _statusHeader = AddHeaderLabel(header, "STATUS", 9, TextAlignment.Center);
         return header;
     }
 
@@ -525,7 +531,7 @@ public sealed class ClassificationFlyout : Window
     private Grid CreateColumns()
     {
         var grid = new Grid();
-        for (var index = 0; index < 9; index++) grid.ColumnDefinitions.Add(new ColumnDefinition());
+        for (var index = 0; index < 10; index++) grid.ColumnDefinitions.Add(new ColumnDefinition());
         ApplyColumnWidths(grid);
         return grid;
     }
@@ -563,15 +569,17 @@ public sealed class ClassificationFlyout : Window
         FlyoutColumn.Interval => _display.FlyoutShowIntervals,
         FlyoutColumn.LapTime => _display.FlyoutShowLapTime,
         FlyoutColumn.Sectors => _display.FlyoutShowSectorTimes,
+        FlyoutColumn.Splits => _display.FlyoutShowSplitTimes,
         FlyoutColumn.Tyre => _display.FlyoutShowTyre,
         FlyoutColumn.Category => _display.FlyoutShowCategoryOrLap,
         _ => _display.FlyoutShowStatus
     };
 
-    private static double ColumnWidth(FlyoutColumn column) => column switch
+    private double ColumnWidth(FlyoutColumn column) => column switch
     {
         FlyoutColumn.Gap or FlyoutColumn.Interval or FlyoutColumn.LapTime => 78,
         FlyoutColumn.Sectors => 210,
+        FlyoutColumn.Splits => Math.Max(70, (_snapshot?.StageSplitPoints.Count ?? 0) * 70),
         FlyoutColumn.Tyre => 60,
         FlyoutColumn.Category => 58,
         _ => 64
@@ -583,10 +591,29 @@ public sealed class ClassificationFlyout : Window
         FlyoutColumn.Interval => _intervalHeader,
         FlyoutColumn.LapTime => _lapTimeHeader,
         FlyoutColumn.Sectors => _sectorHeader,
+        FlyoutColumn.Splits => _splitHeader,
         FlyoutColumn.Tyre => _tyreHeader,
         FlyoutColumn.Category => _categoryHeader,
         _ => _statusHeader
     };
+
+    private void UpdateSplitHeader(IReadOnlyList<RallySplitPoint> points)
+    {
+        if (_splitHeader.Children.Count == points.Count &&
+            _splitHeader.Children.OfType<FrameworkElement>().Select(item => item.Tag).SequenceEqual(points.Select(point => (object)point.SplitPointId)))
+            return;
+
+        _splitHeader.Children.Clear();
+        _splitHeader.ColumnDefinitions.Clear();
+        for (var index = 0; index < points.Count; index++)
+        {
+            var point = points[index];
+            _splitHeader.ColumnDefinitions.Add(new ColumnDefinition());
+            var label = AddHeaderLabel(_splitHeader, $"S{point.Number}", index, TextAlignment.Center);
+            label.Tag = point.SplitPointId;
+            label.ToolTip = $"Split {point.Number} · {point.DistanceKm:0.##} km";
+        }
+    }
 
     private Grid CreateSectorHeader(int column)
     {

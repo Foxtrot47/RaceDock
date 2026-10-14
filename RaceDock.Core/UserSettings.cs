@@ -23,7 +23,8 @@ public enum FlyoutColumn
     Tyre = 3,
     Category = 4,
     Status = 5,
-    Sectors = 6
+    Sectors = 6,
+    Splits = 7
 }
 
 public sealed record ChampionshipDisplaySettings
@@ -41,6 +42,7 @@ public sealed record ChampionshipDisplaySettings
     public bool FlyoutShowIntervals { get; init; } = true;
     public bool FlyoutShowLapTime { get; init; } = true;
     public bool FlyoutShowSectorTimes { get; init; }
+    public bool FlyoutShowSplitTimes { get; init; }
     public SectorTimeMode FlyoutSectorTimeMode { get; init; } = SectorTimeMode.CurrentLast;
     public bool FlyoutShowTyre { get; init; } = true;
     public bool FlyoutShowCategoryOrLap { get; init; } = true;
@@ -54,6 +56,7 @@ public sealed record ChampionshipDisplaySettings
         FlyoutColumn.Interval,
         FlyoutColumn.LapTime,
         FlyoutColumn.Sectors,
+        FlyoutColumn.Splits,
         FlyoutColumn.Tyre,
         FlyoutColumn.Category,
         FlyoutColumn.Status
@@ -90,7 +93,8 @@ public sealed record ChampionshipDisplaySettings
             TaskbarUseManufacturerLogos = false,
             FlyoutUseManufacturerLogos = false,
             FlyoutShowTyre = false,
-            FlyoutShowSectorTimes = false
+            FlyoutShowSectorTimes = false,
+            FlyoutShowSplitTimes = false
         },
         // Bike and sportscar feeds carry no tyre compound, so the column would only hold placeholders.
         Championship.MotoGp or Championship.Moto2 or Championship.Moto3
@@ -99,7 +103,8 @@ public sealed record ChampionshipDisplaySettings
             or Championship.FormulaE or Championship.Dtm => this with
         {
             FlyoutShowTyre = false,
-            FlyoutShowSectorTimes = false
+            FlyoutShowSectorTimes = false,
+            FlyoutShowSplitTimes = false
         },
         Championship.WorldRallyChampionship => this with
         {
@@ -107,9 +112,9 @@ public sealed record ChampionshipDisplaySettings
             FlyoutShowTyre = false,
             FlyoutShowSectorTimes = false
         },
-        Championship.IndyCar => this with { FlyoutShowSectorTimes = false },
-        Championship.Formula1 => this,
-        _ => this with { FlyoutShowSectorTimes = false }
+        Championship.IndyCar => this with { FlyoutShowSectorTimes = false, FlyoutShowSplitTimes = false },
+        Championship.Formula1 => this with { FlyoutShowSplitTimes = false },
+        _ => this with { FlyoutShowSectorTimes = false, FlyoutShowSplitTimes = false }
     };
 
     internal static ChampionshipDisplaySettings FromLegacy(UserSettings settings) => new()

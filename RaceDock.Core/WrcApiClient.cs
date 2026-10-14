@@ -1,5 +1,6 @@
 // Copyright (c) 2026 RaceDock contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
+using System.Globalization;
 using System.Net;
 using System.Text.Json.Nodes;
 
@@ -103,6 +104,12 @@ internal sealed class WrcApiClient : IDisposable
             if (!id.HasValue) continue;
             var start = (node["controls"] as JsonArray)?.OfType<JsonObject>()
                 .FirstOrDefault(control => string.Equals(JsonSupport.String(control["type"]), "StageStart", StringComparison.OrdinalIgnoreCase));
+            var splitPoints = (node["splitPoints"] as JsonArray)?.OfType<JsonObject>()
+                .Select(ParseSplitPoint)
+                .Where(point => point is not null)
+                .Select(point => point!)
+                .OrderBy(point => point.Number)
+                .ToList() ?? [];
             result.Add(new(
                 id.Value,
                 JsonSupport.Int(node["number"]) ?? 0,
@@ -110,7 +117,8 @@ internal sealed class WrcApiClient : IDisposable
                 JsonSupport.String(node["name"]) ?? JsonSupport.String(node["location"]) ?? "",
                 WrcTiming.ParseStageStatus(JsonSupport.String(node["status"])),
                 WrcTiming.ParseUtcTimestamp(JsonSupport.String(start?["firstCarDueDateTime"])),
-                (JsonObject)node.DeepClone()));
+                (JsonObject)node.DeepClone(),
+                splitPoints));
         }
         return result;
     }
@@ -127,6 +135,20 @@ internal sealed class WrcApiClient : IDisposable
                 JsonSupport.Int(node["diffFirstMs"]),
                 JsonSupport.Int(node["diffPrevMs"]),
                 JsonSupport.String(node["status"]) ?? ""))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<WrcSplitTime>> TryGetStageSplitTimesAsync(int eventId, int stageId, int rallyId, CancellationToken ct)
+    {
+        var root = await GetOptionalArrayAsync($"events/{eventId}/stages/{stageId}/splittimes.json?rallyId={rallyId}", ct);
+        if (root is null) return [];
+        return root.OfType<JsonObject>()
+            .Where(node => JsonSupport.Int(node["entryId"]).HasValue &&
+                JsonSupport.Int(node["splitPointId"]).HasValue && JsonSupport.Int(node["elapsedDurationMs"]).HasValue)
+            .Select(node => new WrcSplitTime(
+                JsonSupport.Int(node["entryId"])!.Value,
+                JsonSupport.Int(node["splitPointId"])!.Value,
+                JsonSupport.Int(node["elapsedDurationMs"])!.Value))
             .ToList();
     }
 
@@ -182,6 +204,16 @@ internal sealed class WrcApiClient : IDisposable
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(new Uri(ApiBase), path));
         request.Headers.UserAgent.ParseAdd("RaceDock/1.0");
         return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+    }
+
+    private static RallySplitPoint? ParseSplitPoint(JsonObject node)
+    {
+        var id = JsonSupport.Int(node["splitPointId"]);
+        var number = JsonSupport.Int(node["number"]);
+        if (!id.HasValue || !number.HasValue ||
+            !double.TryParse(JsonSupport.String(node["distance"]), NumberStyles.Float, CultureInfo.InvariantCulture, out var distance))
+            return null;
+        return new(id.Value, number.Value, distance);
     }
 
     private static WrcCalendarEvent? ParseCalendarEvent(JsonObject node)

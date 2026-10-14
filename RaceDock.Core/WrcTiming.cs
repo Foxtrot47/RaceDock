@@ -40,7 +40,8 @@ internal sealed record WrcStage(
     string Name,
     WrcStageStatus Status,
     DateTimeOffset? StartUtc,
-    JsonObject Raw);
+    JsonObject Raw,
+    IReadOnlyList<RallySplitPoint>? SplitPoints = null);
 
 internal sealed record WrcStageTime(
     int EntryId,
@@ -51,6 +52,7 @@ internal sealed record WrcStageTime(
     string Status);
 
 internal sealed record WrcStageResult(int EntryId, int? Position, int? TotalTimeMs);
+internal sealed record WrcSplitTime(int EntryId, int SplitPointId, int ElapsedDurationMs);
 internal sealed record WrcShakedownTime(int EntryId, int RunNumber, int? DurationMs);
 internal sealed record WrcEventSelection(WrcCalendarEvent? Current, WrcCalendarEvent? Next);
 internal sealed record WrcEventContext(WrcEventDetail Event, WrcRally Rally, IReadOnlyDictionary<int, WrcEntry> Entries);
@@ -173,11 +175,20 @@ internal static class WrcTiming
 
     public static IReadOnlyList<CompetitorStanding> BuildStageStandings(
         IReadOnlyDictionary<int, WrcEntry> entries,
-        IReadOnlyList<WrcStageTime> times)
+        IReadOnlyList<WrcStageTime> times,
+        IReadOnlyList<WrcSplitTime>? splitTimes = null)
     {
         var timesByEntry = times
             .GroupBy(time => time.EntryId)
             .ToDictionary(group => group.Key, group => group.Last());
+        var splitsByEntry = (splitTimes ?? [])
+            .GroupBy(split => split.EntryId)
+            .ToDictionary(group => group.Key, group => (IReadOnlyList<RallySplitTiming>)group
+                .GroupBy(split => split.SplitPointId)
+                .Select(split => split.Last())
+                .OrderBy(split => split.SplitPointId)
+                .Select(split => new RallySplitTiming(split.SplitPointId, FormatElapsed(split.ElapsedDurationMs)!))
+                .ToList());
         var classified = timesByEntry.Values.Where(time => time.Position.HasValue).ToList();
         var maxPosition = classified.Count == 0 ? 0 : classified.Max(time => time.Position!.Value);
         var unclassified = 0;
@@ -208,7 +219,8 @@ internal static class WrcTiming
                 FormatElapsed(item.Time?.ElapsedDurationMs),
                 StageStatusLabel(item.Time?.Status),
                 item.Time?.Position?.ToString(CultureInfo.InvariantCulture) ?? "—",
-                RallyCategory(item.Entry)))
+                RallyCategory(item.Entry),
+                StageSplits: splitsByEntry.GetValueOrDefault(item.Entry.EntryId)))
             .ToList();
     }
 

@@ -236,6 +236,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private bool _flyoutShowIntervals;
     private bool _flyoutShowLapTime;
     private bool _flyoutShowSectorTimes;
+    private bool _flyoutShowSplitTimes;
     private SectorTimeMode _flyoutSectorTimeMode;
     private bool _flyoutShowTyre;
     private bool _flyoutShowCategoryOrLap;
@@ -421,6 +422,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     public bool FlyoutShowIntervals { get => _flyoutShowIntervals; set => Set(ref _flyoutShowIntervals, value); }
     public bool FlyoutShowLapTime { get => _flyoutShowLapTime; set => Set(ref _flyoutShowLapTime, value); }
     public bool FlyoutShowSectorTimes { get => _flyoutShowSectorTimes; set => Set(ref _flyoutShowSectorTimes, value); }
+    public bool FlyoutShowSplitTimes { get => _flyoutShowSplitTimes; set => Set(ref _flyoutShowSplitTimes, value); }
     public SectorTimeMode FlyoutSectorTimeMode { get => _flyoutSectorTimeMode; set => Set(ref _flyoutSectorTimeMode, value); }
     public bool FlyoutShowTyre { get => _flyoutShowTyre; set => Set(ref _flyoutShowTyre, value); }
     public bool FlyoutShowCategoryOrLap { get => _flyoutShowCategoryOrLap; set => Set(ref _flyoutShowCategoryOrLap, value); }
@@ -435,6 +437,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         FlyoutColumn.Interval => FlyoutShowIntervals,
         FlyoutColumn.LapTime => FlyoutShowLapTime,
         FlyoutColumn.Sectors => FlyoutShowSectorTimes,
+        FlyoutColumn.Splits => FlyoutShowSplitTimes,
         FlyoutColumn.Tyre => FlyoutShowTyre,
         FlyoutColumn.Category => FlyoutShowCategoryOrLap,
         _ => FlyoutShowStatus
@@ -448,6 +451,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             case FlyoutColumn.Interval: FlyoutShowIntervals = value; break;
             case FlyoutColumn.LapTime: FlyoutShowLapTime = value; break;
             case FlyoutColumn.Sectors: FlyoutShowSectorTimes = value; break;
+            case FlyoutColumn.Splits: FlyoutShowSplitTimes = value; break;
             case FlyoutColumn.Tyre: FlyoutShowTyre = value; break;
             case FlyoutColumn.Category: FlyoutShowCategoryOrLap = value; break;
             default: FlyoutShowStatus = value; break;
@@ -485,6 +489,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         FlyoutColumn.Interval => new(this, column, "Interval", presentation.IntervalDescription, true),
         FlyoutColumn.LapTime => new(this, column, presentation.LapTimeTitle, presentation.LapTimeDescription, true),
         FlyoutColumn.Sectors => new(this, column, "Sector times", "Show S1, S2, and S3 with purple, green, and yellow timing states.", presentation.ShowSectorTimingSetting),
+        FlyoutColumn.Splits => new(this, column, "Stage splits", "Expand the classification with every published stage split.", presentation.ShowSplitTimingSetting),
         FlyoutColumn.Tyre => new(this, column, presentation.ResultTitle, presentation.ResultDescription, presentation.ShowResultSetting),
         FlyoutColumn.Category => new(this, column, presentation.CategoryTitle, presentation.CategoryDescription, true),
         _ => new(this, column, "Status", presentation.StatusDescription, true)
@@ -628,6 +633,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         FlyoutShowIntervals = display.FlyoutShowIntervals;
         FlyoutShowLapTime = display.FlyoutShowLapTime;
         FlyoutShowSectorTimes = display.FlyoutShowSectorTimes;
+        FlyoutShowSplitTimes = display.FlyoutShowSplitTimes;
         FlyoutSectorTimeMode = display.FlyoutSectorTimeMode;
         FlyoutShowTyre = display.FlyoutShowTyre;
         FlyoutShowCategoryOrLap = display.FlyoutShowCategoryOrLap;
@@ -649,6 +655,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             FlyoutShowIntervals = FlyoutShowIntervals,
             FlyoutShowLapTime = FlyoutShowLapTime,
             FlyoutShowSectorTimes = FlyoutShowSectorTimes,
+            FlyoutShowSplitTimes = FlyoutShowSplitTimes,
             FlyoutSectorTimeMode = FlyoutSectorTimeMode,
             FlyoutShowTyre = FlyoutShowTyre,
             FlyoutShowCategoryOrLap = FlyoutShowCategoryOrLap,
