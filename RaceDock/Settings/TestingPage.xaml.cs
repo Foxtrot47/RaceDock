@@ -27,7 +27,7 @@ public sealed partial class TestingPage : Page
         ScenarioCommand.RedFlag
     ];
 
-    private static readonly string[] ArchiveExtensions = [".zip", ".har"];
+    private static readonly string[] ArchiveExtensions = [".zip", ".har", ".ndjson"];
 
     private readonly AppController _controller;
     private readonly Dictionary<ScenarioCommand, ToggleButton> _commandButtons;
@@ -95,7 +95,7 @@ public sealed partial class TestingPage : Page
 
         ArchiveSummaryText.Text = _controller.Archive is { } archive
             ? $"{archive.ArchiveName} · {archive.FrameCount} frames"
-            : "Drop a Timing71 ZIP export or HAR capture here, or browse for one.";
+            : "Drop a Timing71 ZIP, HAR capture, or RaceDock F1 NDJSON dump here, or browse for one.";
         UpdateTransportState();
     }
 
@@ -159,7 +159,7 @@ public sealed partial class TestingPage : Page
         var picker = new Microsoft.Win32.OpenFileDialog
         {
             Title = "Choose timing archive",
-            Filter = "Timing archives (*.zip;*.har)|*.zip;*.har|Timing71 exports (*.zip)|*.zip|HTTP archives (*.har)|*.har",
+            Filter = "Timing archives (*.zip;*.har;*.ndjson)|*.zip;*.har;*.ndjson|Timing71 exports (*.zip)|*.zip|HTTP archives (*.har)|*.har|RaceDock F1 dumps (*.ndjson)|*.ndjson",
             CheckFileExists = true,
             Multiselect = false
         };

@@ -32,7 +32,7 @@ public partial class App : System.Windows.Application
         _secondInstanceSignal = SecondInstanceSignal.Listen(() => Dispatcher.Invoke(() => _controller?.ShowSettings()));
         // Windows starts the app silently at sign-in; every other launch has to show something.
         if (!automaticStartup) _controller.ShowSettings();
-        _ = StartFeedAsync();
+        _ = StartFeedAsync(LaunchArguments.ReplayPath(e.Args));
     }
 
     private void InstallCrashHandlers()
@@ -62,12 +62,17 @@ public partial class App : System.Windows.Application
             $"The last session ended with: {summary}", System.Windows.Forms.ToolTipIcon.Warning);
     }
 
-    private async Task StartFeedAsync()
+    private async Task StartFeedAsync(string? replayPath)
     {
         // Nothing awaits this task, so it has to report its own failure.
-        try { if (_controller is not null) await _controller.StartLiveAsync(); }
+        try
+        {
+            if (_controller is null) return;
+            if (string.IsNullOrWhiteSpace(replayPath)) await _controller.StartLiveAsync();
+            else await _controller.LoadArchiveReplayAsync(replayPath);
+        }
         catch (OperationCanceledException) when (Dispatcher.HasShutdownStarted) { }
-        catch (Exception exception) { AppLog.Error("App", "Live timing failed to start.", exception); }
+        catch (Exception exception) { AppLog.Error("App", "Timing source failed to start.", exception); }
     }
 
     private void BuildTray()

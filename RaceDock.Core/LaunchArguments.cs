@@ -9,6 +9,26 @@ namespace RaceDock.Core;
 public static class LaunchArguments
 {
     public const string StartupFlag = "--startup";
+    public const string ReplayFlag = "--replay";
+
+    public static string? ReplayPath(IEnumerable<string>? arguments)
+    {
+        if (arguments is null) return null;
+        var values = arguments.ToArray();
+        for (var index = 0; index < values.Length; index++)
+        {
+            var argument = values[index]?.Trim();
+            if (string.IsNullOrEmpty(argument)) continue;
+            if (string.Equals(argument, ReplayFlag, StringComparison.OrdinalIgnoreCase))
+                return index + 1 < values.Length && !string.IsNullOrWhiteSpace(values[index + 1])
+                    ? values[index + 1].Trim()
+                    : null;
+            var prefix = ReplayFlag + "=";
+            if (argument.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return argument[prefix.Length..].Trim().Trim('"');
+        }
+        return null;
+    }
 
     public static bool IndicatesStartup(IEnumerable<string>? arguments)
     {

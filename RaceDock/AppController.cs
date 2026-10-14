@@ -83,7 +83,9 @@ public sealed class AppController : IAsyncDisposable
         await _sourceSwitch.WaitAsync(_lifetime.Token);
         try
         {
-            var replay = await TimingArchiveReplaySource.CreateAsync(fullPath, _clock, _lifetime.Token);
+            ITimingArchiveSource replay = string.Equals(Path.GetExtension(fullPath), ".ndjson", StringComparison.OrdinalIgnoreCase)
+                ? await F1FeedDumpReplaySource.CreateAsync(fullPath, _clock, _lifetime.Token)
+                : await TimingArchiveReplaySource.CreateAsync(fullPath, _clock, _lifetime.Token);
             await SwitchSourceCoreAsync(TimingSourceMode.ArchiveReplay, replay);
         }
         finally { _sourceSwitch.Release(); }
@@ -165,6 +167,7 @@ public sealed class AppController : IAsyncDisposable
             Attach(candidate);
             await candidate.StartAsync(_lifetime.Token);
             _source = candidate;
+            _settingsWindow?.SyncTestingMode();
         }
         catch
         {

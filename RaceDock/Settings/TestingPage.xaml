@@ -8,7 +8,7 @@
                 HorizontalScrollBarVisibility="Disabled">
     <StackPanel Style="{StaticResource SettingsPagePanelStyle}">
       <TextBlock Text="Testing" Style="{StaticResource SettingsPageTitleStyle}" />
-      <TextBlock Text="Replay a timing archive or drive a deterministic scenario to verify RaceDock without waiting for a live session."
+      <TextBlock Text="Replay a timing archive or RaceDock F1 feed dump, or drive a deterministic scenario without waiting for a live session."
                  Style="{StaticResource SettingsPageDescriptionStyle}" />
 
       <!--  Transport bar: what is driving the widget, and every playback control, in one fixed place.  -->
@@ -130,7 +130,7 @@
           <StackPanel HorizontalAlignment="Left">
             <TextBlock Text="Timing archive" Style="{StaticResource SettingsCardTitleStyle}" />
             <TextBlock x:Name="ArchiveSummaryText"
-                       Text="Drop a Timing71 ZIP export or HAR capture here, or browse for one."
+                       Text="Drop a Timing71 ZIP, HAR capture, or RaceDock F1 NDJSON dump here, or browse for one."
                        Style="{StaticResource SettingsCardDescriptionStyle}" />
           </StackPanel>
         </ui:CardControl.Header>

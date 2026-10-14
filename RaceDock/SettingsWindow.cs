@@ -131,6 +131,8 @@ public sealed partial class SettingsWindow : FluentWindow
 
     public void ClearTimingStatuses() => _draft.ClearTimingStatuses();
 
+    public void SyncTestingMode() => _testingPage.SyncMode();
+
     private void AddPage(string key, UIElement page)
     {
         // Each page scrolls itself; otherwise the navigation presenter adds a second scroll viewer and the nested pair swallows the mouse wheel.
