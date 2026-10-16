@@ -211,7 +211,7 @@ public sealed class TaskbarWindow : Window
         ApplyDisplay(snapshot.Championship);
         ApplyTaskbarLayout();
         var eventName = ChampionshipDisplay.CompactEvent(snapshot);
-        var progress = FormatSessionProgress(snapshot);
+        var progress = TaskbarSessionDisplay.Progress(snapshot);
         _raceText.Text = _settings.UseSingleRowTaskbar ? $"{eventName} · {progress}" : eventName;
         _raceText.ToolTip = ChampionshipDisplay.FullEvent(snapshot);
         _lapText.Text = progress;
@@ -221,96 +221,6 @@ public sealed class TaskbarWindow : Window
     }
 
     private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Championship == Championship.WorldRallyChampionship || snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
-    private static string FormatSessionProgress(TimingSnapshot snapshot)
-    {
-        if (IsRallySnapshot(snapshot)) return snapshot.Session;
-        var session = SessionLabel(snapshot);
-        if (!string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
-        {
-            var time = CompactTime(snapshot.TimeRemaining);
-            if (snapshot.Championship == Championship.Imsa)
-                return $"{session} {time}";
-            if (snapshot.Championship == Championship.GtWorldChallengeEurope)
-                return snapshot.CurrentLap > 0 ? $"{session} {snapshot.CurrentLap} · {time}" : $"{session} {time}";
-            if (IsTimedSession(snapshot.Session)) return $"{session} {time}";
-            if (snapshot.TotalLaps is null && snapshot.CurrentLap > 0) return $"{session} {snapshot.CurrentLap} · {time}";
-        }
-        return snapshot.CurrentLap > 0
-            ? $"{session} {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}"
-            : session;
-    }
-
-    private static string SessionLabel(TimingSnapshot snapshot)
-    {
-        if ((snapshot.Championship is Championship.MotoGp or Championship.Moto2 or Championship.Moto3) &&
-            !string.IsNullOrWhiteSpace(snapshot.SessionShortName))
-            return ShortMotoSessionName(snapshot.SessionShortName!, snapshot.Session);
-        return ShortSessionName(snapshot.Session);
-    }
-
-    private static string ShortMotoSessionName(string shortName, string fullSession) => shortName.Trim().ToUpperInvariant() switch
-    {
-        "PR" or "P" or "PRACTICE" => "P",
-        "FP1" or "FP2" or "FP3" => shortName.Trim().ToUpperInvariant(),
-        "Q" or "QUALIFYING" => "Q",
-        "Q1" => "Q1",
-        "Q2" => "Q2",
-        "RAC" or "RACE" => "RAC",
-        "SPR" or "SPRINT" => "SPR",
-        "WUP" or "WARMUP" => "WUP",
-        _ => ShortSessionName(StripMotoCategory(fullSession))
-    };
-
-    private static string StripMotoCategory(string session)
-    {
-        foreach (var prefix in new[] { "MotoGP ", "Moto2 ", "Moto3 " })
-            if (session.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return session[prefix.Length..];
-        return session;
-    }
-
-    private static string ShortSessionName(string session) => session switch
-    {
-        "Free Practice" or "Free Practice 1" or "Practice" or "Practice 1" => "FP1",
-        "Free Practice 2" or "Practice 2" => "FP2",
-        "Free Practice 3" or "Practice 3" => "FP3",
-        "Sprint Qualifying" or "Sprint Qualifying 1" or "Sprint Shootout" or "Sprint Shootout 1" => "SQ1",
-        "Sprint Qualifying 2" or "Sprint Shootout 2" => "SQ2",
-        "Sprint Qualifying 3" or "Sprint Shootout 3" => "SQ3",
-        "Sprint" or "Sprint Race" => "SPR",
-        "Feature Race" => "FEA",
-        "Qualifying" or "Qualifying 1" => "Q1",
-        "Qualifying 1 Group A" => "Q1A",
-        "Qualifying 1 Group B" => "Q1B",
-        "Qualifying Group A" => "QGA",
-        "Qualifying Group B" => "QGB",
-        "Qualifying Duel Quarter-Final 1" => "QF1",
-        "Qualifying Duel Quarter-Final 2" => "QF2",
-        "Qualifying Duel Quarter-Final 3" => "QF3",
-        "Qualifying Duel Quarter-Final 4" => "QF4",
-        "Qualifying Duel Semi-Final 1" => "SF1",
-        "Qualifying Duel Semi-Final 2" => "SF2",
-        "Qualifying Duel Final" => "FIN",
-        "Combined Qualifying 1" => "CQ1",
-        "Qualifying 2" => "Q2",
-        "Qualifying 2 Group A" => "Q2A",
-        "Qualifying 2 Group B" => "Q2B",
-        "Combined Qualifying 2" => "CQ2",
-        "Qualifying 3" => "Q3",
-        "Race" => "RAC",
-        "Race 1" => "R1",
-        "Race 2" => "R2",
-        _ => session.ToUpperInvariant()
-    };
-
-    private static bool IsTimedSession(string session) =>
-        session.Contains("Practice", StringComparison.OrdinalIgnoreCase) ||
-        session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase);
-
-    private static string CompactTime(string value) =>
-        TimeSpan.TryParse(value, out var remaining)
-            ? remaining.ToString(remaining.TotalHours >= 1 ? @"h\:mm\:ss" : @"mm\:ss")
-            : value;
-
     public void SetAlert(RaceAlert? alert)
     {
         _currentAlert = alert;

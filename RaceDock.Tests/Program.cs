@@ -42,6 +42,9 @@ var tests = new (string Name, Action Run)[]
     ("WRC shakedown standings use actual best runs", WrcShakedownTiming),
     ("WRC missing shakedown data is not a feed failure", WrcOptionalShakedown),
     ("championship labels use compact taskbar and full flyout names", ChampionshipLabels),
+    ("taskbar progress follows session formats across championships", TaskbarSessionProgress),
+    ("taskbar session labels normalize provider names without guessing parts", TaskbarSessionLabels),
+    ("taskbar clocks parse minutes seconds and endurance hours", TaskbarSessionClocks),
     ("sponsored event titles have stable display names", EventNameShortening),
     ("practice and qualifying report best laps, races report last laps", SessionLapTimeMode),
     ("stored classification column orders are repaired", FlyoutColumnOrderNormalization),
@@ -1188,6 +1191,7 @@ static void MotoGpLitePayload()
     Equal(SessionLifecycle.Live, snapshot.Lifecycle);
     Equal(ConnectionState.Connected, snapshot.ConnectionState);
     Equal("27:38", snapshot.TimeRemaining);
+    Equal("FP 27:38", TaskbarSessionDisplay.Progress(snapshot));
     Equal(3, snapshot.CurrentLap);
     Equal<int?>(null, snapshot.TotalLaps);
     Equal(3, snapshot.Competitors.Count);
@@ -2574,6 +2578,136 @@ static void RunValueExecutablePaths()
     Equal(null, LaunchArguments.ExecutablePathFromRunValue("\"\""));
 }
 
+static void TaskbarSessionProgress()
+{
+    var now = DateTimeOffset.UtcNow;
+    (Championship Championship, int? Total, string Race)[] races =
+    [
+        (Championship.Formula1, 57, "RAC 12/57"),
+        (Championship.Formula2, 30, "RAC 12/30"),
+        (Championship.Formula3, 25, "RAC 12/25"),
+        (Championship.MotoGp, 27, "RAC 12/27"),
+        (Championship.Moto2, 20, "RAC 12/20"),
+        (Championship.Moto3, 18, "RAC 12/18"),
+        (Championship.FormulaE, 32, "RAC 12/32"),
+        (Championship.IndyCar, 200, "RAC 12/200"),
+        (Championship.WorldEnduranceChampionship, null, "RAC 1:23:45"),
+        (Championship.EuropeanLeMansSeries, null, "RAC 1:23:45"),
+        (Championship.MichelinLeMansCup, null, "RAC 1:23:45"),
+        (Championship.Imsa, 100, "RAC 1:23:45"),
+        (Championship.GtWorldChallengeEurope, null, "RAC 1:23:45"),
+        (Championship.Dtm, null, "RAC 1:23:45")
+    ];
+    foreach (var (championship, total, race) in races)
+    {
+        var snapshot = new TimingSnapshot("Event", "Race", "Track", 12, total,
+            TrackCondition.AllClear, [], now, SessionLifecycle.Live,
+            TimeRemaining: "01:23:45", Championship: championship);
+        Equal(race, TaskbarSessionDisplay.Progress(snapshot));
+        Equal("FP1 21:52", TaskbarSessionDisplay.Progress(snapshot with
+            { Session = "Free Practice 1", TimeRemaining = "00:21:52" }));
+        Equal("Q 08:30", TaskbarSessionDisplay.Progress(snapshot with
+            { Session = "Qualifying", TimeRemaining = "00:08:30" }));
+        Equal("Q —", TaskbarSessionDisplay.Progress(snapshot with
+            { Session = "Qualifying", TimeRemaining = null }));
+        var noClock = race.Contains('/') ? race : "RAC —";
+        Equal(noClock, TaskbarSessionDisplay.Progress(snapshot with { TimeRemaining = null }));
+    }
+
+    var f1 = new TimingSnapshot("Event", "Sprint Race", "Track", 5, 19,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live,
+        TimeRemaining: "00:30:00", Championship: Championship.Formula1);
+    Equal("SPR 5/19", TaskbarSessionDisplay.Progress(f1));
+    Equal("SPR 5", TaskbarSessionDisplay.Progress(f1 with { TotalLaps = null }));
+    Equal("SPR 0/19", TaskbarSessionDisplay.Progress(f1 with { CurrentLap = 0 }));
+    Equal("RAC 30:00", TaskbarSessionDisplay.Progress(f1 with
+        { Championship = Championship.FormulaE, Session = "Race", TotalLaps = null }));
+    Equal("SS4  Harju 1", TaskbarSessionDisplay.Progress(f1 with
+        { Championship = Championship.WorldRallyChampionship, Session = "SS4  Harju 1" }));
+}
+
+static void TaskbarSessionLabels()
+{
+    var snapshot = new TimingSnapshot("Event", "Race", "Track", 12, 57,
+        TrackCondition.AllClear, [], DateTimeOffset.UtcNow, SessionLifecycle.Live,
+        TimeRemaining: "00:21:52", Championship: Championship.Formula1);
+    (string Session, string Text)[] names =
+    [
+        ("Practice", "FP 21:52"),
+        ("Free Practice", "FP 21:52"),
+        ("Practice 1 - All Cars", "FP1 21:52"),
+        ("  FREE   PRACTICE 2  ", "FP2 21:52"),
+        ("Free Practice Nr. 3", "FP3 21:52"),
+        ("Qualifying", "Q 21:52"),
+        ("Qualifying 1", "Q1 21:52"),
+        ("Qualifying Nr. 2", "Q2 21:52"),
+        ("Qualifying 3", "Q3 21:52"),
+        ("Sprint Qualifying", "SQ 21:52"),
+        ("Sprint Qualifying 1", "SQ1 21:52"),
+        ("Sprint Qualifying 2", "SQ2 21:52"),
+        ("Sprint Shootout 3", "SQ3 21:52"),
+        ("Qualifying 1 Group A", "Q1A 21:52"),
+        ("Qualifying 2 Group B", "Q2B 21:52"),
+        ("Qualifying Group A", "QGA 21:52"),
+        ("Qualifying - LMGT3", "Q 21:52"),
+        ("Free Practice - HYPERCAR", "FP 21:52"),
+        ("Combined Qualifying", "CQ 21:52"),
+        ("Combined Qualifying 2", "CQ2 21:52"),
+        ("Qualifying Duel Quarter-Final 4", "QF4 21:52"),
+        ("Qualifying Duel Semi-Final 2", "SF2 21:52"),
+        ("Qualifying Duel Final", "FIN 21:52"),
+        ("Hyperpole", "HP 21:52"),
+        ("Warmup", "WUP 21:52"),
+        ("Race", "RAC 12/57"),
+        ("Race 1", "R1 12/57"),
+        ("Race 2", "R2 12/57"),
+        ("Sprint", "SPR 12/57"),
+        ("Sprint Race", "SPR 12/57"),
+        ("Feature Race", "FEA 12/57"),
+        ("Unknown provider session name", "LIVE 12/57")
+    ];
+    foreach (var (session, text) in names)
+        Equal(text, TaskbarSessionDisplay.Progress(snapshot with { Session = session }));
+
+    foreach (var championship in new[] { Championship.MotoGp, Championship.Moto2, Championship.Moto3 })
+    {
+        var moto = snapshot with { Championship = championship, Session = "MotoGP Practice", SessionShortName = "PR" };
+        Equal("FP 21:52", TaskbarSessionDisplay.Progress(moto));
+        Equal("FP1 21:52", TaskbarSessionDisplay.Progress(moto with { SessionShortName = "FP1" }));
+        Equal("Q2 21:52", TaskbarSessionDisplay.Progress(moto with { SessionShortName = "Q2" }));
+        Equal("RAC 12/57", TaskbarSessionDisplay.Progress(moto with { SessionShortName = "RAC" }));
+        Equal("SPR 12/57", TaskbarSessionDisplay.Progress(moto with { SessionShortName = "SPR" }));
+        Equal("FP2 21:52", TaskbarSessionDisplay.Progress(moto with
+            { Session = "Moto3 Free Practice Nr. 2", SessionShortName = null }));
+    }
+}
+
+static void TaskbarSessionClocks()
+{
+    var snapshot = new TimingSnapshot("Event", "Qualifying", "Track", 12, null,
+        TrackCondition.AllClear, [], DateTimeOffset.UtcNow, SessionLifecycle.Live,
+        Championship: Championship.Formula1);
+    (string? Value, string Text)[] clocks =
+    [
+        ("1:27", "01:27"),
+        ("21:52", "21:52"),
+        ("00:21:52", "21:52"),
+        ("01:02:03", "1:02:03"),
+        ("24:00:00", "24:00:00"),
+        ("90:00", "1:30:00"),
+        ("00:00:00", "00:00"),
+        ("00:00", "00:00"),
+        (null, "—"),
+        (" ", "—"),
+        ("-00:01", "—"),
+        ("00:60:00", "—"),
+        ("00:00:60", "—"),
+        ("not a clock", "—")
+    ];
+    foreach (var (value, text) in clocks)
+        Equal($"Q {text}", TaskbarSessionDisplay.Progress(snapshot with { TimeRemaining = value }));
+}
+
 static void GtwcMeetingNames()
 {
     var now = new DateTimeOffset(2026, 10, 16, 5, 0, 0, TimeSpan.Zero);
@@ -2658,6 +2792,7 @@ static void GtwcStandings()
     Equal(SessionLifecycle.Live, snapshot.Lifecycle);
     Equal(Championship.GtWorldChallengeEurope, snapshot.Championship);
     Equal("1:27", snapshot.TimeRemaining);
+    Equal("Q1B 01:27", TaskbarSessionDisplay.Progress(snapshot));
     Equal(4, snapshot.CurrentLap);
     Equal("GOU", snapshot.Competitors[0].Code);
     Equal("Winward Racing", snapshot.Competitors[0].Team);
@@ -3286,6 +3421,7 @@ static void IndyCarPracticeTiming()
     Equal("Streets of Markham", snapshot.Circuit);
     Equal(10, snapshot.CurrentLap);
     Equal("00:21:52", snapshot.TimeRemaining);
+    Equal("FP1 21:52", TaskbarSessionDisplay.Progress(snapshot));
     Equal(TrackCondition.AllClear, snapshot.TrackCondition);
     Equal(3, snapshot.Competitors.Count);
     Equal("KIR", snapshot.Competitors[0].Code);
