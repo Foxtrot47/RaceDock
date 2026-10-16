@@ -101,6 +101,7 @@ internal sealed class ClassificationRow
         _driver.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _logoHost = new Border
         {
+            Width = 26,
             Margin = new Thickness(0, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center,
             Visibility = Visibility.Collapsed
@@ -286,9 +287,11 @@ internal sealed class ClassificationRow
         else
         {
             _logoHost.Child = null;
-            _logoHost.Visibility = Visibility.Collapsed;
-            Grid.SetColumn(_driverCopy, 0);
-            Grid.SetColumnSpan(_driverCopy, 2);
+            // Keep the logo slot when branding is enabled so entries without artwork align with
+            // the rest of the field. Collapse it only when the whole logo column is disabled.
+            _logoHost.Visibility = key.Length > 0 ? Visibility.Hidden : Visibility.Collapsed;
+            Grid.SetColumn(_driverCopy, key.Length > 0 ? 1 : 0);
+            Grid.SetColumnSpan(_driverCopy, key.Length > 0 ? 1 : 2);
         }
     }
 
