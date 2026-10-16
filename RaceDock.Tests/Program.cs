@@ -60,6 +60,7 @@ var tests = new (string Name, Action Run)[]
     ("championship calendars select the next published event", ChampionshipCalendarSelection),
     ("the Formula 1 calendar includes practice sessions", F1CalendarIncludesPractice),
     ("the schedule service queries only enabled championships", UpcomingScheduleAggregation),
+    ("event schedules preserve next-session queries and isolate caches", EventScheduleAggregation),
     ("changelog entries drive release notes and update checks", ReleaseNotesAndUpdateCheck),
     ("the idle widget names the next session and when it starts", NextSessionPresentation),
     ("Run values resolve the executable with or without the startup flag", RunValueExecutablePaths),
@@ -2511,6 +2512,46 @@ static void UpcomingScheduleAggregation()
     Equal(0, timed.GetUpcomingAsync(enabled, CancellationToken.None).GetAwaiter().GetResult().Count);
 }
 
+static void EventScheduleAggregation()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero));
+    ScheduledSession[] sessions =
+    [
+        new("Monza", "Practice 1", clock.UtcNow.AddHours(1), clock.UtcNow.AddHours(2)),
+        new("Monza", "Qualifying", clock.UtcNow.AddHours(2), clock.UtcNow.AddHours(3)),
+        new("Monza", "Race", clock.UtcNow.AddHours(3), clock.UtcNow.AddHours(4)),
+        new("Singapore", "Race", clock.UtcNow.AddDays(7), clock.UtcNow.AddDays(7).AddHours(2))
+    ];
+    var weekend = ChampionshipCalendars.Formula1Weekend(sessions, clock.UtcNow);
+    Equal(3, weekend.Count);
+    True(weekend.All(session => session.EventName == "Monza"));
+    var calendar = new EventScheduleCalendar(ChampionshipCalendars.NextFormula1(sessions, clock.UtcNow)!, weekend);
+    var fallback = new StubCalendar([new(Championship.WorldEnduranceChampionship, "COTA", "Race", clock.UtcNow.AddHours(4))]);
+    var broken = new StubCalendar(Championship.Imsa, new InvalidOperationException("provider offline"));
+    var disabled = new StubCalendar([new(Championship.Dtm, "Sachsenring", "Race", clock.UtcNow.AddHours(5))]);
+    using var service = new UpcomingScheduleService([calendar, fallback, broken, disabled], clock,
+        TimeSpan.FromHours(6), TimeSpan.FromSeconds(5));
+    var enabled = new HashSet<Championship> { Championship.Formula1, Championship.WorldEnduranceChampionship, Championship.Imsa };
+    Equal(2, service.GetUpcomingAsync(enabled, CancellationToken.None).GetAwaiter().GetResult().Count);
+    var events = service.GetEventSchedulesAsync(enabled, CancellationToken.None).GetAwaiter().GetResult();
+    Equal(4, events.Count);
+    Equal("Practice 1", events[0].SessionName);
+    Equal("Race", events[2].SessionName);
+    Equal(Championship.WorldEnduranceChampionship, events[3].Championship);
+    Equal(0, disabled.Calls);
+
+    // Reading the complete schedule must not replace the desktop's next-session cache.
+    Equal(2, service.GetUpcomingAsync(enabled, CancellationToken.None).GetAwaiter().GetResult().Count);
+    Equal(4, service.GetEventSchedulesAsync(enabled, CancellationToken.None).GetAwaiter().GetResult().Count);
+    Equal(1, calendar.UpcomingCalls);
+    Equal(1, calendar.EventCalls);
+    clock.Advance(TimeSpan.FromMinutes(75));
+    Equal(1, service.GetUpcomingAsync(enabled, CancellationToken.None).GetAwaiter().GetResult().Count);
+    Equal(3, service.GetEventSchedulesAsync(enabled, CancellationToken.None).GetAwaiter().GetResult().Count);
+    Equal(2, calendar.UpcomingCalls);
+    Equal(2, calendar.EventCalls);
+}
+
 static void RunValueExecutablePaths()
 {
     Equal(@"C:\Apps\RaceDock\RaceDock.exe", LaunchArguments.ExecutablePathFromRunValue(@"""C:\Apps\RaceDock\RaceDock.exe"" --startup"));
@@ -3846,6 +3887,23 @@ sealed class FakeTimingSource(TimingSnapshot snapshot) : ILiveTimingSource
     public void Publish(TimingSnapshot value) => SnapshotReceived?.Invoke(value);
     public Task StopAsync() => Task.CompletedTask;
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+sealed class EventScheduleCalendar(UpcomingSession next, IReadOnlyList<UpcomingSession> sessions) : IChampionshipCalendar
+{
+    public IReadOnlyList<Championship> Championships { get; } = [next.Championship];
+    public int UpcomingCalls { get; private set; }
+    public int EventCalls { get; private set; }
+    public Task<IReadOnlyList<UpcomingSession>> GetUpcomingAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        UpcomingCalls++;
+        return Task.FromResult<IReadOnlyList<UpcomingSession>>([next]);
+    }
+    public Task<IReadOnlyList<UpcomingSession>> GetEventScheduleAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        EventCalls++;
+        return Task.FromResult(sessions);
+    }
 }
 
 sealed class StubCalendar : IChampionshipCalendar
