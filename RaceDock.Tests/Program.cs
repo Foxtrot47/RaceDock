@@ -96,6 +96,7 @@ var tests = new (string Name, Action Run)[]
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
     ("MotoGP lite payload maps Moto3 timing", MotoGpLitePayload),
     ("MotoGP source filters categories and publishes lifecycle", MotoGpSourceLifecycle),
+    ("empty MotoGP gateway responses stay connected and hidden", MotoGpEmptyResponse),
     ("F3 standings include roster teams", F3RosterTeams),
     ("F2 standings include roster teams", F2RosterTeams),
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
@@ -2576,6 +2577,33 @@ static void RunValueExecutablePaths()
     Equal(null, LaunchArguments.ExecutablePathFromRunValue("   "));
     Equal(null, LaunchArguments.ExecutablePathFromRunValue(null));
     Equal(null, LaunchArguments.ExecutablePathFromRunValue("\"\""));
+}
+
+static void MotoGpEmptyResponse()
+{
+    foreach (var body in new[] { "", " \r\n" })
+    {
+        var clock = new FakeClock();
+        var delay = new BlockingDelay();
+        using var http = new HttpClient(new StaticJsonHandler(body));
+        var source = new MotoGpLiveTimingSource(http, clock, delay, new AlertArbiter(clock), TimeSpan.FromSeconds(5));
+        List<TimingSnapshot> snapshots = [];
+        List<ConnectionState> connections = [];
+        List<FeedFailure> failures = [];
+        source.SnapshotReceived += snapshots.Add;
+        source.ConnectionChanged += connections.Add;
+        source.Failed += failures.Add;
+        try
+        {
+            source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+            Equal(ConnectionState.Connected, connections[^1]);
+            Equal(SessionLifecycle.OffSession, snapshots.Single().Lifecycle);
+            Equal(TimeSpan.FromSeconds(5), delay.Duration);
+            Equal(0, failures.Count);
+        }
+        finally { source.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+    }
 }
 
 static void TaskbarSessionProgress()

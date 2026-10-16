@@ -69,6 +69,14 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
                 var cacheBuster = _clock.UtcNow.ToUnixTimeMilliseconds();
                 var text = await _http.GetStringAsync($"{Endpoint}?{cacheBuster}", ct);
                 FeedDump.Record((_targetChampionship ?? Championship.MotoGp).ToString().ToLowerInvariant(), text);
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    // Between sessions the gateway answers with an empty body: nothing is running, which is not a fault.
+                    ChangeConnection(ConnectionState.Connected);
+                    PublishNoSession();
+                    await _delay.DelayAsync(await NextPollDelayAsync(false, ct), ct);
+                    continue;
+                }
                 var payload = JsonNode.Parse(text) as JsonObject
                     ?? throw new InvalidOperationException("MotoGP live timing returned no payload.");
                 ChangeConnection(ConnectionState.Connected);
@@ -119,9 +127,7 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
         if (snapshot is null || snapshot.Championship == Championship.Unknown ||
             (_targetChampionship is not null && snapshot.Championship != _targetChampionship))
         {
-            _lastLifecycle = null;
-            _lastSessionKey = null;
-            SnapshotReceived?.Invoke(TimingSnapshot.Hidden(_clock.UtcNow));
+            PublishNoSession();
             return false;
         }
         var key = $"{snapshot.Meeting}:{snapshot.Session}";
@@ -136,6 +142,13 @@ public sealed class MotoGpLiveTimingSource : ILiveTimingSource
         DeltaReceived?.Invoke(new("MotoGpLite", payload, _clock.UtcNow));
         SnapshotReceived?.Invoke(snapshot);
         return snapshot.Lifecycle == SessionLifecycle.Live;
+    }
+
+    private void PublishNoSession()
+    {
+        _lastLifecycle = null;
+        _lastSessionKey = null;
+        SnapshotReceived?.Invoke(TimingSnapshot.Hidden(_clock.UtcNow));
     }
 
     private static TimeSpan Min(TimeSpan left, TimeSpan right) => left <= right ? left : right;
