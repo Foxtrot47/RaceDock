@@ -159,7 +159,7 @@ public static class ChampionshipCalendars
             .OfType<JsonObject>()
             .Select(meeting => (
                 Id: JsonSupport.String(meeting["Id"]),
-                Name: JsonSupport.String(meeting["Name"]),
+                Name: GtwcTiming.MeetingName(meeting),
                 Country: JsonSupport.String(meeting["CountryCode"]) ?? "",
                 Location: JsonSupport.String(meeting["Location"]) ?? JsonSupport.String(meeting["TrackName"]),
                 Start: ParseDayPrecisionDate(JsonSupport.String(meeting["BeginDate"])),
@@ -201,7 +201,7 @@ public static class ChampionshipCalendars
             .Select(unit => (
                 Name: JsonSupport.String(unit["Name"]) ?? JsonSupport.String(unit["Code"]),
                 Start: ParseVenueLocalTime(JsonSupport.String(unit["BeginTime"]), zone)))
-            .Where(unit => unit.Name is not null && unit.Start > now)
+            .Where(unit => unit.Name is not null && !GtwcTiming.IsTestSession(unit.Name) && unit.Start > now)
             .OrderBy(unit => unit.Start)
             .Select(unit => (unit.Name!, unit.Start!.Value))
             .ToList()
@@ -216,11 +216,13 @@ public static class ChampionshipCalendars
     {
         ["BEL"] = "Europe/Brussels",
         ["DEU"] = "Europe/Berlin",
+        ["GER"] = "Europe/Berlin",
         ["ESP"] = "Europe/Madrid",
         ["FRA"] = "Europe/Paris",
         ["GBR"] = "Europe/London",
         ["ITA"] = "Europe/Rome",
         ["NED"] = "Europe/Amsterdam",
+        ["POR"] = "Europe/Lisbon",
         ["PRT"] = "Europe/Lisbon",
     };
 

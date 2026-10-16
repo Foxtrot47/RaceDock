@@ -64,6 +64,7 @@ var tests = new (string Name, Action Run)[]
     ("changelog entries drive release notes and update checks", ReleaseNotesAndUpdateCheck),
     ("the idle widget names the next session and when it starts", NextSessionPresentation),
     ("Run values resolve the executable with or without the startup flag", RunValueExecutablePaths),
+    ("GTWC schedule names match live timing", GtwcMeetingNames),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
     ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
@@ -2268,6 +2269,7 @@ static void ChampionshipCalendarSelection()
       "Series": { "s1": { "Name": "GTWorldChEU pwrd by AWS Endurance Cup" }, "s2": { "Name": "Lamborghini Super Trofeo" } },
       "Competitions": { "c1": { "SerieId": "s1" }, "c2": { "SerieId": "s2" } },
       "Units": {
+        "u0": { "Name": "Bronze Test and Paid Test GT2", "CompetitionId": "c1", "BeginTime": "28.08.2026 14:00:00" },
         "u1": { "Name": "Free Practice 1", "CompetitionId": "c1", "BeginTime": "29.08.2026 10:50:00" },
         "u2": { "Name": "Super Trofeo Race", "CompetitionId": "c2", "BeginTime": "29.08.2026 09:00:00" },
         "u3": { "Name": "Qualifying 1", "CompetitionId": "c1", "BeginTime": "30.08.2026 09:45:00" }
@@ -2275,15 +2277,23 @@ static void ChampionshipCalendarSelection()
     }
     """;
     var meeting = ChampionshipCalendars.NextGtWorldChallengeMeeting(JsonNode.Parse(gtwcSeason) as JsonObject, now);
-    Equal("Round 7", meeting!.Name);
+    Equal("Nurburgring GP", meeting!.Name);
     Equal(new DateTimeOffset(2026, 8, 28, 0, 0, 0, TimeSpan.Zero), meeting.StartUtc);
 
     // Nurburgring runs on central European summer time, so 10:50 local is 08:50 UTC.
     var gtwc = ChampionshipCalendars.NextGtWorldChallenge(meeting, JsonNode.Parse(gtwcSchedule) as JsonObject, now);
-    Equal("Round 7", gtwc.EventName);
+    Equal("Nurburgring GP", gtwc.EventName);
     Equal("Free Practice 1", gtwc.SessionName);
     Equal("Nurburgring", gtwc.Venue);
     Equal(new DateTimeOffset(2026, 8, 29, 8, 50, 0, TimeSpan.Zero), gtwc.StartUtc);
+
+    // Swiss Timing uses POR for Portugal, whose summer sessions are one hour ahead of UTC.
+    var portimao = ChampionshipCalendars.NextGtWorldChallenge(
+        new ChampionshipCalendars.GtwcMeeting("p", "Portimao", "POR", now, "Portimao"),
+        JsonNode.Parse(gtwcSchedule) as JsonObject,
+        now);
+    Equal("Free Practice 1", portimao.SessionName);
+    Equal(new DateTimeOffset(2026, 8, 29, 9, 50, 0, TimeSpan.Zero), portimao.StartUtc);
 
     // Once a session has started the countdown moves to the next one.
     var duringRaceWeekend = new DateTimeOffset(2026, 8, 29, 9, 0, 0, TimeSpan.Zero);
@@ -2291,11 +2301,12 @@ static void ChampionshipCalendarSelection()
         ChampionshipCalendars.NextGtWorldChallengeMeeting(JsonNode.Parse(gtwcSeason) as JsonObject, duringRaceWeekend)!,
         JsonNode.Parse(gtwcSchedule) as JsonObject,
         duringRaceWeekend);
-    Equal("Round 7", runningGtwc.EventName);
+    Equal("Nurburgring GP", runningGtwc.EventName);
     Equal("Qualifying 1", runningGtwc.SessionName);
 
     // Without a timetable the round still shows, carrying its meeting date and no session name.
     var withoutSchedule = ChampionshipCalendars.NextGtWorldChallenge(meeting, null, now);
+    Equal("Nurburgring GP", withoutSchedule.EventName);
     Equal(null, withoutSchedule.SessionName);
     Equal(meeting.StartUtc, withoutSchedule.StartUtc);
 
@@ -2563,6 +2574,37 @@ static void RunValueExecutablePaths()
     Equal(null, LaunchArguments.ExecutablePathFromRunValue("\"\""));
 }
 
+static void GtwcMeetingNames()
+{
+    var now = new DateTimeOffset(2026, 10, 16, 5, 0, 0, TimeSpan.Zero);
+    var season = JsonNode.Parse("""
+        {"PresentationMeetingId":"p","Meetings":{"p":{
+          "Id":"p","Name":"GT WorldChEU pwrd by AWS Endurance Cup Round 10",
+          "TrackName":"Portimao","Location":"Autodromo Internacional do Algarve Portimao",
+          "CountryCode":"POR","BeginDate":"16.10.2026","EndDate":"18.10.2026","State":1}}}
+        """)!.AsObject();
+    var node = season["Meetings"]!["p"]!.AsObject();
+    (string? Track, string? Location, string Expected)[] names =
+    [
+        ("Portimao", "Autodromo Internacional do Algarve Portimao", "Portimao"),
+        (null, "Autodromo Internacional do Algarve Portimao", "Autodromo Internacional do Algarve Portimao"),
+        (null, null, "GT WorldChEU pwrd by AWS Endurance Cup Round 10")
+    ];
+    foreach (var (track, location, expected) in names)
+    {
+        node["TrackName"] = track;
+        node["Location"] = location;
+        var live = GtwcTiming.PresentationMeeting(season)!;
+        var meeting = ChampionshipCalendars.NextGtWorldChallengeMeeting(season, now)!;
+        Equal(expected, live.Name);
+        Equal(live.Name, meeting.Name);
+        // A timetable not yet published must retain the same event identity.
+        Equal(live.Name, ChampionshipCalendars.NextGtWorldChallenge(meeting, null, now).EventName);
+        True(ChampionshipCalendars.GtWorldChallengeMeeting(meeting, null, now)
+            .All(session => session.EventName == live.Name));
+    }
+}
+
 static void GtwcDiscoveryFiltering()
 {
     var season = JsonNode.Parse("""
@@ -2580,8 +2622,11 @@ static void GtwcDiscoveryFiltering()
          "Competitions":{"gtc":{"SerieId":"gt","Name":"GTWorldChEu pwrd by AWS Sprint Cup"},
            "f4c":{"SerieId":"f4","Name":"FFSA F4"}},
          "Units":{"gtwc":{"Id":"gtwc","Name":"Qualifying 1 Group B","Code":"Q1B","CompetitionId":"gtc","State":1},
+           "test":{"Id":"test","Name":"Bronze Test and Paid Test GT2","CompetitionId":"gtc","State":1},
            "support":{"Id":"support","Name":"F4 Race","CompetitionId":"f4c","State":1}}}
         """)!.AsObject();
+    Equal<GtwcUnit?>(null, GtwcTiming.PresentedUnit(schedule));
+    schedule["PresentationRoundId"] = "test";
     Equal<GtwcUnit?>(null, GtwcTiming.PresentedUnit(schedule));
     schedule["PresentationRoundId"] = "gtwc";
     var unit = GtwcTiming.PresentedUnit(schedule);

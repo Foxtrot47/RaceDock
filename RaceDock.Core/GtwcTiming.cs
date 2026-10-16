@@ -45,12 +45,15 @@ internal static class GtwcTiming
         var meetings = season["Meetings"] as JsonObject;
         var node = ValueById(meetings, id) as JsonObject;
         if (node is null || string.IsNullOrWhiteSpace(id)) return null;
-        var circuit = JsonSupport.String(node["TrackName"])
-            ?? JsonSupport.String(node["Location"])
-            ?? JsonSupport.String(node["Name"])
-            ?? "GT World Challenge Europe";
+        var circuit = MeetingName(node) ?? "GT World Challenge Europe";
         return new(id, circuit, circuit, JsonSupport.Int(node["State"]) ?? 0);
     }
+
+    /// <summary>The venue-based event name shared by live timing and the schedule.</summary>
+    internal static string? MeetingName(JsonObject meeting) =>
+        JsonSupport.String(meeting["TrackName"])
+        ?? JsonSupport.String(meeting["Location"])
+        ?? JsonSupport.String(meeting["Name"]);
 
     /// <summary>Competitions in a meeting timetable that belong to the championship rather than a support race.</summary>
     public static HashSet<string> GtwcEuropeCompetitionIds(JsonObject schedule)
@@ -79,12 +82,13 @@ internal static class GtwcTiming
         var node = ValueById(units, id) as JsonObject;
         if (node is null || string.IsNullOrWhiteSpace(id)) return null;
         var competitionId = JsonSupport.String(node["CompetitionId"]) ?? "";
-        if (!targetCompetitions.Contains(competitionId)) return null;
-        return new(id,
-            JsonSupport.String(node["Name"]) ?? JsonSupport.String(node["Code"]) ?? "Live session",
-            competitionId,
-            JsonSupport.Int(node["State"]) ?? 0);
+        var name = JsonSupport.String(node["Name"]) ?? JsonSupport.String(node["Code"]) ?? "Live session";
+        if (!targetCompetitions.Contains(competitionId) || IsTestSession(name)) return null;
+        return new(id, name, competitionId, JsonSupport.Int(node["State"]) ?? 0);
     }
+
+    public static bool IsTestSession(string? value) =>
+        value?.Contains("test", StringComparison.OrdinalIgnoreCase) == true;
 
     public static bool IsGtwcEuropeName(string? value)
     {
