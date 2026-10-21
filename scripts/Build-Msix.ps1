@@ -72,7 +72,15 @@ $package = Join-Path $output "RaceDock-$version-x64.msix"
 & $makeAppx.FullName pack /d $stage /p $package /o
 if ($LASTEXITCODE -ne 0) { throw "makeappx failed with exit code $LASTEXITCODE." }
 
-$hash = (Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant()
+# The release workflow hashes on a GitHub runner; this local script cannot assume the same cmdlet set, so hash
+# the package with the runtime instead of relying on Get-FileHash being available.
+$sha256 = [System.Security.Cryptography.SHA256]::Create()
+try {
+    $stream = [System.IO.File]::OpenRead($package)
+    try { $hash = ([System.BitConverter]::ToString($sha256.ComputeHash($stream)) -replace '-', '').ToLowerInvariant() }
+    finally { $stream.Dispose() }
+}
+finally { $sha256.Dispose() }
 Set-Content "$package.sha256" "$hash  $(Split-Path $package -Leaf)" -Encoding ascii
 Write-Host "Created $package"
 Write-Host "Package identity: $expectedPackageFamilyName / $packageVersion"
