@@ -21,6 +21,7 @@ All notable RaceDock changes are recorded here. Release packages include the cor
 
 ### Fixed
 
+- The packaged app icon no longer draws an accent-coloured plate behind the taskbar icon, and ships the icon at every size Windows asks for.
 - Alerts that lose the priority race to a persistent alert are no longer consumed by it, and a second yellow later in the same session is announced again.
 - GTWC keeps re-reading the schedule while a unit stops answering, so the session that replaced it is picked up instead of the feed retrying a dead unit.
 - Schedule rows for meetings without a published clock time keep their calendar date in every timezone, show no invented time, and name the time as unknown.
