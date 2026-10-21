@@ -54,12 +54,54 @@ $publishArgs = @(
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
 
 Copy-Item (Join-Path $publish '*') $stage -Recurse -Force
+
+# The package ships only qualified logo variants, following how Store-published packages are laid out: an
+# unqualified Square44x44Logo.png is a neutral fallback Windows may compose over the manifest background, which
+# is what drew the accent-coloured plate behind the taskbar icon. Windows resolves the manifest's base names
+# against the scale- and targetsize-qualified files below.
+Add-Type -AssemblyName System.Drawing
+$masterPath = Join-Path $root 'RaceDock/Assets/AppIcon/racedock-256.png'
+$master = [System.Drawing.Image]::FromFile($masterPath)
+# Every size Windows can ask for at 100-400% scale, with the theme and contrast variations it may request.
+$targetSizes = 16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 90, 96, 108, 120, 128, 144, 160, 192, 216, 256, 288,
+    320, 384, 512, 768, 1024
+$variations = '', '_altform-unplated', '_altform-lightunplated', '_contrast-black', '_contrast-white',
+    '_altform-unplated_contrast-black', '_altform-unplated_contrast-white', '_altform-lightunplated_contrast-black',
+    '_altform-lightunplated_contrast-white'
+$scales = 100, 125, 150, 200, 400
+$contrast = '', '_contrast-black', '_contrast-white'
+function Save-IconPng([System.Drawing.Image] $source, [int] $size, [string] $path) {
+    $bitmap = New-Object System.Drawing.Bitmap($size, $size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $graphics.Clear([System.Drawing.Color]::Transparent)
+        $graphics.DrawImage($source, 0, 0, $size, $size)
+    }
+    finally { $graphics.Dispose() }
+    try { $bitmap.Save($path, [System.Drawing.Imaging.ImageFormat]::Png) } finally { $bitmap.Dispose() }
+}
+# makeappx validates the manifest's base file names, so the unqualified files must exist as transparent art even
+# though every UI surface resolves a qualified variant instead.
 Copy-Item (Join-Path $root 'RaceDock/Assets/AppIcon/racedock-44.png') (Join-Path $stage 'Assets/Square44x44Logo.png') -Force
 Copy-Item (Join-Path $root 'RaceDock/Assets/AppIcon/racedock-150.png') (Join-Path $stage 'Assets/Square150x150Logo.png') -Force
-foreach ($targetSize in 16, 24, 32, 48, 256) {
-    Copy-Item (Join-Path $root "RaceDock/Assets/AppIcon/racedock-$targetSize.png") `
-        (Join-Path $stage "Assets/Square44x44Logo.targetsize-$targetSize`_altform-unplated.png") -Force
+Copy-Item (Join-Path $root 'RaceDock/Assets/AppIcon/racedock-64.png') (Join-Path $stage 'Assets/StoreLogo.png') -Force
+try {
+    foreach ($size in $targetSizes) {
+        foreach ($variation in $variations) {
+            Save-IconPng $master $size (Join-Path $stage "Assets/Square44x44Logo.targetsize-$size$variation.png")
+        }
+    }
+    foreach ($scale in $scales) {
+        foreach ($suffix in $contrast) {
+            Save-IconPng $master ([int](44 * $scale / 100)) (Join-Path $stage "Assets/Square44x44Logo.scale-$scale$suffix.png")
+            Save-IconPng $master ([int](150 * $scale / 100)) (Join-Path $stage "Assets/Square150x150Logo.scale-$scale$suffix.png")
+            Save-IconPng $master ([int](50 * $scale / 100)) (Join-Path $stage "Assets/StoreLogo.scale-$scale$suffix.png")
+        }
+    }
 }
+finally { $master.Dispose() }
 $manifest = (Get-Content (Join-Path $root 'RaceDock.Package/Package.appxmanifest.template') -Raw).Replace('__VERSION__', $packageVersion)
 $manifestDocument = [xml]$manifest
 Assert-StoreIdentity $manifestDocument.Package.Identity 'Package manifest'
