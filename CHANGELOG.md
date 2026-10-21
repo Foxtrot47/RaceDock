@@ -2,6 +2,31 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
+## [1.4.0] — 2026-10-22
+
+### Added
+
+- Full-course yellow is its own track state, shown by the taskbar flag and a FULL COURSE YELLOW badge in the classification header.
+- Formula 1 classifications show live mini-sectors for the lap in progress.
+- World Endurance Championship classifications show each car's reported virtual energy allocation and four-wheel tyre ages with compound colours.
+- Formula 1 tyre ages are shown next to the compound.
+- World Rally Championship classifications show stage split times.
+- The idle taskbar and schedule list carry every remaining session of the next event.
+- The testing page replays recorded Formula 1 feed dumps, RaceDock GTWC and WEC feed dumps, and Timing71 archives with their sector times.
+
+### Changed
+
+- Feeds with no live session poll their providers less often.
+- A whole-track yellow from the Griiip feeds (WEC, ELMS, Le Mans Cup, DTM), an INDYCAR caution, and a recorded archive caution are reported as a full-course yellow, while sector-scoped yellows stay local.
+
+### Fixed
+
+- Alerts that lose the priority race to a persistent alert are no longer consumed by it, and a second yellow later in the same session is announced again.
+- GTWC keeps re-reading the schedule while a unit stops answering, so the session that replaced it is picked up instead of the feed retrying a dead unit.
+- Schedule rows for meetings without a published clock time keep their calendar date in every timezone, show no invented time, and name the time as unknown.
+- Formula 1 tyre ages report every lap run on a set instead of subtracting the age a used set was fitted with.
+- Formula 1 qualifying follows the active qualifying part, empty MotoGP responses keep the session connected, and manufacturer logos keep their spacing when a championship publishes none.
+
 ## [1.3.2] — 2026-09-06
 
 ### Added
