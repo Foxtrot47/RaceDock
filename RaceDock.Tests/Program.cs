@@ -1013,13 +1013,16 @@ static void F1PracticeTiming()
     Equal("SOFT", processor.Current.Competitors[1].Tyre);
     Equal(1, processor.Current.Competitors[1].TyreAge);
     Equal(12, processor.Current.Competitors[0].TyreAge);
+    // TotalLaps already counts every lap run on the set, so a tyre fitted with laps on it keeps its full age.
+    processor.ProcessDelta("TimingAppData", JsonNode.Parse("""{"Lines":{"1":{"Stints":{"1":{"TotalLaps":13,"StartLaps":3}}}}}""")!.AsObject(), DateTimeOffset.UtcNow);
+    Equal(13, processor.Current.Competitors[0].TyreAge);
     processor.ProcessDelta("TimingAppData", JsonNode.Parse("""{"Lines":{"2":{"Stints":{"1":{"TotalLaps":5}}}}}""")!.AsObject(), DateTimeOffset.UtcNow);
     Equal(5, processor.Current.Competitors[1].TyreAge);
     Equal("SOFT", processor.Current.Competitors[1].Tyre);
     processor.ProcessDelta("TimingAppData", JsonNode.Parse("""{"Lines":{"2":{"Stints":{"1":{"TotalLaps":2}}}}}""")!.AsObject(), DateTimeOffset.UtcNow);
     Equal(2, processor.Current.Competitors[1].TyreAge);
     processor.ProcessDelta("TimingAppData", JsonNode.Parse("""{"Lines":{"2":{"Stints":{"1":{"StartLaps":1}}}}}""")!.AsObject(), DateTimeOffset.UtcNow);
-    Equal(1, processor.Current.Competitors[1].TyreAge);
+    Equal(2, processor.Current.Competitors[1].TyreAge);
 }
 
 static void F1QualifyingParts()

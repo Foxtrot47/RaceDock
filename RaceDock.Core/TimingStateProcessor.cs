@@ -368,11 +368,15 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         _ => null
     };
 
-    /// <summary>Age on the current stint; StartLaps offsets reused tyres that were not changed.</summary>
+    /// <summary>
+    /// Age in laps of the fitted set. <c>TotalLaps</c> already counts every lap run on the set, including laps from
+    /// earlier sessions; <c>StartLaps</c> only records the age the set was fitted at, so subtracting it would
+    /// understate a scrubbed tyre.
+    /// </summary>
     private static int? TyreAge(JsonObject? stint)
     {
         var total = JsonSupport.Int(stint?["TotalLaps"]);
-        return total is null ? null : Math.Max(0, total.Value - (JsonSupport.Int(stint?["StartLaps"]) ?? 0));
+        return total is null ? null : Math.Max(0, total.Value);
     }
     private static bool IsLeaderLabel(string? value) => value?.Trim().ToUpperInvariant() is "LEAD" or "LEADER";
     private static string FormatLapDelta(double seconds) => $"+{Math.Max(0, seconds).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}";
