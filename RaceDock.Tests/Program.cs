@@ -18,6 +18,8 @@ var tests = new (string Name, Action Run)[]
     ("full-course yellow maps consistently across series", FullCourseYellowAcrossSeries),
     ("taskbar flags follow the displayed track state", TaskbarFlagsFollowSnapshot),
     ("duplicate alerts and injectable expiry clock", DeduplicationAndExpiry),
+    ("suppressed alerts are not consumed by higher priorities", SuppressedAlertsStayVisibleLater),
+    ("repeated track conditions are separate occurrences", RepeatedTrackConditionsAreNewOccurrences),
     ("render throttling keeps newest immediate state", Throttling),
     ("DPI geometry and Explorer recovery", GeometryAndRecovery),
     ("stale and off-session transitions", FreshnessAndVisibility),
@@ -321,6 +323,42 @@ static void DeduplicationAndExpiry()
     var clock = new FakeClock(); var arbiter = new AlertArbiter(clock); var changes = 0; arbiter.VisibleAlertChanged += _ => changes++;
     var alert = new RaceAlert(AlertKind.FastestLap, 50, false, "FAST", null, 1, clock.UtcNow, "same", TimeSpan.FromSeconds(6)); arbiter.Accept(alert); arbiter.Accept(alert); Equal(1, changes);
     clock.Advance(TimeSpan.FromSeconds(5)); arbiter.Tick(); True(arbiter.Current is not null); clock.Advance(TimeSpan.FromSeconds(1)); arbiter.Tick(); Equal(null, arbiter.Current);
+}
+
+static void SuppressedAlertsStayVisibleLater()
+{
+    var clock = new FakeClock();
+    var arbiter = new AlertArbiter(clock);
+    // A chequered flag that arrives during a red flag loses the priority race and must not be consumed by it.
+    arbiter.ApplyTrackCondition(TrackCondition.RedFlag, null, 1, clock.UtcNow);
+    Equal(AlertKind.RedFlag, arbiter.Current?.Kind);
+    RaceAlert chequered = new(AlertKind.Chequered, 90, false, "CHEQUERED FLAG", null, 1, clock.UtcNow, "rc:7", TimeSpan.FromSeconds(6));
+    arbiter.Accept(chequered);
+    Equal(AlertKind.RedFlag, arbiter.Current?.Kind);
+    arbiter.ApplyTrackCondition(TrackCondition.AllClear, null, 1, clock.UtcNow);
+    Equal<RaceAlert?>(null, arbiter.Current);
+    arbiter.Accept(chequered);
+    Equal(AlertKind.Chequered, arbiter.Current?.Kind);
+}
+
+static void RepeatedTrackConditionsAreNewOccurrences()
+{
+    var clock = new FakeClock();
+    var arbiter = new AlertArbiter(clock);
+    // F1-style code 2 is a yellow; the same condition resubmitted by every message is one occurrence.
+    arbiter.ApplyTrackCondition(TrackCondition.Yellow, "YELLOW", null, clock.UtcNow);
+    Equal(AlertKind.Yellow, arbiter.Current?.Kind);
+    arbiter.ApplyTrackCondition(TrackCondition.Yellow, "YELLOW", null, clock.UtcNow);
+    Equal(AlertKind.Yellow, arbiter.Current?.Kind);
+    // Green clears it, and the next yellow later in the session must be shown again.
+    arbiter.ApplyTrackCondition(TrackCondition.AllClear, null, null, clock.UtcNow);
+    Equal<RaceAlert?>(null, arbiter.Current);
+    arbiter.ApplyTrackCondition(TrackCondition.Yellow, "YELLOW", null, clock.UtcNow);
+    Equal(AlertKind.Yellow, arbiter.Current?.Kind);
+    var alerts = 0;
+    arbiter.VisibleAlertChanged += alert => { if (alert is not null) alerts++; };
+    arbiter.ApplyTrackCondition(TrackCondition.Yellow, "YELLOW", null, clock.UtcNow);
+    Equal(0, alerts);
 }
 
 static void Throttling()
