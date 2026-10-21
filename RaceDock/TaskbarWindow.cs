@@ -249,6 +249,7 @@ public sealed class TaskbarWindow : Window
             AlertKind.RedFlag => "RED FLAG",
             AlertKind.DoubleYellow => "DOUBLE YELLOW",
             AlertKind.Yellow => "YELLOW FLAG",
+            AlertKind.FullCourseYellow => "FULL COURSE YELLOW",
             _ => "CHEQUERED FLAG"
         };
         var detail = kind == AlertKind.Chequered ? _currentAlert?.Detail : null;

@@ -21,7 +21,7 @@ public sealed class AlertArbiter(IClock clock) : IAlertArbiter
     {
         if (condition == TrackCondition.AllClear)
         {
-            if (Current is { Kind: AlertKind.RedFlag or AlertKind.SafetyCar or AlertKind.VirtualSafetyCar or AlertKind.VirtualSafetyCarEnding or AlertKind.Yellow or AlertKind.DoubleYellow })
+            if (Current is { Kind: AlertKind.RedFlag or AlertKind.SafetyCar or AlertKind.VirtualSafetyCar or AlertKind.VirtualSafetyCarEnding or AlertKind.Yellow or AlertKind.DoubleYellow or AlertKind.FullCourseYellow })
                 Set(null, null);
             return;
         }
@@ -34,6 +34,7 @@ public sealed class AlertArbiter(IClock clock) : IAlertArbiter
             TrackCondition.VirtualSafetyCarEnding => (AlertKind.VirtualSafetyCarEnding, 70, "VSC ENDING"),
             TrackCondition.DoubleYellow => (AlertKind.DoubleYellow, 60, "DOUBLE YELLOW"),
             TrackCondition.Yellow => (AlertKind.Yellow, 60, "YELLOW FLAG"),
+            TrackCondition.FullCourseYellow => (AlertKind.FullCourseYellow, 60, "FULL COURSE YELLOW"),
             _ => (AlertKind.Information, 0, "")
         };
         if (priority == 0) return;

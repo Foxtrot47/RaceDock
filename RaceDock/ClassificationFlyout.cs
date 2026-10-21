@@ -508,6 +508,7 @@ public sealed class ClassificationFlyout : Window
         _connectionGlyph.FontSize = 15;
         _connectionGlyph.VerticalAlignment = VerticalAlignment.Center;
         _trackBadge.Margin = new Thickness(0, 0, 6, 0);
+        _overlayControls.Element.Margin = new Thickness(0);
         _badges.Children.Add(_trackBadge);
         _badges.Children.Add(_connectionGlyph);
         _badges.Children.Add(_overlayControls.Element);
@@ -568,6 +569,7 @@ public sealed class ClassificationFlyout : Window
         (_trackText.Text, _trackBadge.Background) = condition switch
         {
             TrackCondition.Yellow => ("YELLOW", BrushFrom(218, 164, 22, 0.36)),
+            TrackCondition.FullCourseYellow => ("FULL COURSE YELLOW", BrushFrom(218, 164, 22, 0.36)),
             TrackCondition.DoubleYellow => ("DOUBLE YELLOW", BrushFrom(218, 164, 22, 0.36)),
             TrackCondition.SafetyCar => ("SAFETY CAR", BrushFrom(210, 119, 25, 0.38)),
             TrackCondition.VirtualSafetyCar => ("VSC", BrushFrom(210, 119, 25, 0.38)),
@@ -580,7 +582,11 @@ public sealed class ClassificationFlyout : Window
     private static void ConfigureBadge(Border badge, TextBlock text)
     {
         badge.CornerRadius = new CornerRadius(7);
-        badge.Padding = new Thickness(8, 4, 8, 4);
+        badge.Height = 24;
+        badge.Padding = new Thickness(8, 0, 8, 0);
+        badge.VerticalAlignment = VerticalAlignment.Center;
+        text.VerticalAlignment = VerticalAlignment.Center;
+        text.TextAlignment = TextAlignment.Center;
         text.Foreground = Brushes.White;
         text.FontSize = 9.5;
         text.FontWeight = FontWeights.SemiBold;

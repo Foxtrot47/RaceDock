@@ -276,6 +276,7 @@ static void TaskbarFlagsFollowSnapshot()
 {
     Equal(null, TaskbarFlagDisplay.Resolve(TrackCondition.AllClear, AlertKind.Yellow));
     Equal(AlertKind.Yellow, TaskbarFlagDisplay.Resolve(TrackCondition.Yellow));
+    Equal(AlertKind.FullCourseYellow, TaskbarFlagDisplay.Resolve(TrackCondition.FullCourseYellow));
     Equal(AlertKind.DoubleYellow, TaskbarFlagDisplay.Resolve(TrackCondition.DoubleYellow));
     Equal(AlertKind.RedFlag, TaskbarFlagDisplay.Resolve(TrackCondition.RedFlag));
     Equal(AlertKind.Chequered, TaskbarFlagDisplay.Resolve(TrackCondition.AllClear, AlertKind.Chequered));

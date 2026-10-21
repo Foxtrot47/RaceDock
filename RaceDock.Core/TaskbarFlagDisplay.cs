@@ -10,6 +10,7 @@ public static class TaskbarFlagDisplay
             TrackCondition.RedFlag => AlertKind.RedFlag,
             TrackCondition.DoubleYellow => AlertKind.DoubleYellow,
             TrackCondition.Yellow => AlertKind.Yellow,
+            TrackCondition.FullCourseYellow => AlertKind.FullCourseYellow,
             _ => null
         };
     }

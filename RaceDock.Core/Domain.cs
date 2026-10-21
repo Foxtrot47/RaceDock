@@ -24,7 +24,7 @@ public enum Championship
     EuropeanLeMansSeries = 14,
     MichelinLeMansCup = 15
 }
-public enum TrackCondition { Unknown, AllClear, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, RedFlag }
+public enum TrackCondition { Unknown, AllClear, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, RedFlag, FullCourseYellow }
 public enum SectorTimingState { None, OverallBest, PersonalBest, Slower }
 
 public sealed record SectorTiming(string Value, SectorTimingState State);
@@ -47,7 +47,7 @@ public sealed record SectorTimingSet(SectorTiming? Sector1, SectorTiming? Sector
     };
 }
 
-public enum AlertKind { Information, SessionStart, FastestLap, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, Chequered, RedFlag }
+public enum AlertKind { Information, SessionStart, FastestLap, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, Chequered, RedFlag, FullCourseYellow }
 
 public sealed record CompetitorStanding(
     string DriverId, int Position, string Code, string Name, string Team,
