@@ -101,15 +101,19 @@ internal sealed class ChampionshipStatusItem : INotifyPropertyChanged
         }
         else
         {
-            var local = session.StartUtc.ToLocalTime();
-            var lead = ChampionshipCalendars.DescribeTimeUntil(session.StartUtc, now);
+            var zone = TimeZoneInfo.Local;
+            var local = TimeZoneInfo.ConvertTime(session.StartUtc, zone);
+            var lead = NextSessionDisplay.RowLead(session, now, zone);
+            // A date-only entry has no instant to count down to, so it names the published date instead.
+            var dateOnly = session.StartDate.HasValue;
             // Within a day the lead time says more than a calendar date, so it replaces it.
-            var imminent = session.StartUtc - now < TimeSpan.FromDays(1);
-            // Meetings without a published session time carry a date only, so a clock time would be invented.
-            var when = imminent ? lead
+            var imminent = !dateOnly && session.StartUtc - now < TimeSpan.FromDays(1);
+            var when = session.StartDate is { } date
+                ? $"{date:ddd d MMM}, time TBA"
+                : imminent ? lead
                 : session.StartUtc.TimeOfDay == TimeSpan.Zero ? local.ToString("ddd d MMM")
                 : local.ToString("ddd d MMM, HH:mm");
-            var detail = new[] { session.SessionName, when, imminent ? null : lead }
+            var detail = new[] { session.SessionName, when, imminent || dateOnly ? null : lead }
                 .Where(part => !string.IsNullOrWhiteSpace(part));
             var eventName = ChampionshipDisplay.ShortEventName(session.Championship, session.EventName);
             SetStatus(ref _upcomingEvent, eventName, nameof(UpcomingEvent));

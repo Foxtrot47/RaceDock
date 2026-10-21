@@ -98,7 +98,8 @@ internal sealed class WrcCalendar(WrcApiClient client) : IChampionshipCalendar
         var rally = await NextRallyAsync(now, cancellationToken);
         return rally is null
             ? []
-            : [ChampionshipCalendars.NextWorldRally(rally.Value.Name, rally.Value.Start, rally.Value.Stages, now, rally.Value.Location)];
+            : [ChampionshipCalendars.NextWorldRally(rally.Value.Name, rally.Value.Start, rally.Value.Stages, now,
+                rally.Value.Location, rally.Value.Date)];
     }
 
     public async Task<IReadOnlyList<UpcomingSession>> GetEventScheduleAsync(DateTimeOffset now, CancellationToken cancellationToken)
@@ -106,10 +107,11 @@ internal sealed class WrcCalendar(WrcApiClient client) : IChampionshipCalendar
         var rally = await NextRallyAsync(now, cancellationToken);
         return rally is null
             ? []
-            : ChampionshipCalendars.WorldRally(rally.Value.Name, rally.Value.Start, rally.Value.Stages, now, rally.Value.Location);
+            : ChampionshipCalendars.WorldRally(rally.Value.Name, rally.Value.Start, rally.Value.Stages, now,
+                rally.Value.Location, rally.Value.Date);
     }
 
-    private async Task<(string Name, DateTimeOffset Start, IReadOnlyList<(string Code, string Name, DateTimeOffset? StartUtc)> Stages, string? Location)?>
+    private async Task<(string Name, DateTimeOffset Start, DateOnly? Date, IReadOnlyList<(string Code, string Name, DateTimeOffset? StartUtc)> Stages, string? Location)?>
         NextRallyAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
         var seasons = WrcTiming.OrderSeasons(await client.GetSeasonsAsync(cancellationToken), now.Year);
@@ -120,7 +122,7 @@ internal sealed class WrcCalendar(WrcApiClient client) : IChampionshipCalendar
             if ((selection.Current ?? selection.Next) is not { } next) continue;
             var detail = await client.GetEventAsync(next.EventId, cancellationToken);
             var stages = (await TryGetStagesAsync(next.EventId, cancellationToken)).ToList();
-            return (detail.Name, next.StartUtc, stages, detail.Location);
+            return (detail.Name, next.StartUtc, next.StartDate, stages, detail.Location);
         }
         return null;
     }
@@ -238,7 +240,7 @@ public sealed class UpcomingScheduleService : IDisposable
             var results = await Task.WhenAll(sources.Select(calendar => QueryAsync(calendar, now, read, cancellationToken)));
             cache.Sessions = results
                 .SelectMany(sessions => sessions)
-                .Where(session => enabled.Contains(session.Championship) && session.StartUtc > now)
+                .Where(session => enabled.Contains(session.Championship) && session.IsAhead(now, TimeZoneInfo.Local))
                 .OrderBy(session => session.StartUtc)
                 .ToList();
             cache.For = new HashSet<Championship>(enabled);
@@ -250,7 +252,7 @@ public sealed class UpcomingScheduleService : IDisposable
 
     private bool IsFresh(CalendarCache cache, IReadOnlySet<Championship> enabled) =>
         _clock.UtcNow - cache.At < _cacheLifetime && cache.For.SetEquals(enabled) &&
-        cache.Sessions.All(session => session.StartUtc > _clock.UtcNow);
+        cache.Sessions.All(session => session.IsAhead(_clock.UtcNow, TimeZoneInfo.Local));
 
     private async Task<IReadOnlyList<UpcomingSession>> QueryAsync(
         IChampionshipCalendar calendar,

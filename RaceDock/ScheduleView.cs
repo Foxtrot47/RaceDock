@@ -120,7 +120,7 @@ internal sealed class ScheduleView
         var date = Secondary(LocalDate(session, timeZone), 10.5, new Thickness(0, 1, 0, 0));
         date.TextAlignment = TextAlignment.Right;
         when.Children.Add(date);
-        var countdown = Secondary(ChampionshipCalendars.DescribeTimeUntil(session.StartUtc, now).ToUpperInvariant(),
+        var countdown = Secondary(NextSessionDisplay.RowLead(session, now, timeZone).ToUpperInvariant(),
             9, new Thickness(0, 5, 0, 0), tertiary: true);
         countdown.FontWeight = FontWeights.SemiBold;
         countdown.TextAlignment = TextAlignment.Right;
@@ -166,7 +166,7 @@ internal sealed class ScheduleView
     }
 
     private static string LocalDate(UpcomingSession session, TimeZoneInfo timeZone) =>
-        TimeZoneInfo.ConvertTime(session.StartUtc, timeZone).ToString("ddd d MMM");
+        NextSessionDisplay.RowDate(session, timeZone);
 
     private static TextBlock Label(string text)
     {

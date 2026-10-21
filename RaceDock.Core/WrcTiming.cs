@@ -7,7 +7,7 @@ namespace RaceDock.Core;
 
 internal sealed record WrcSeason(int SeasonId, string Name, int Year);
 
-internal sealed record WrcCalendarEvent(int EventId, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
+internal sealed record WrcCalendarEvent(int EventId, DateTimeOffset StartUtc, DateTimeOffset EndUtc, DateOnly StartDate);
 
 internal sealed record WrcEventDetail(
     int EventId,

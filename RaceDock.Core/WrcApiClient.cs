@@ -225,7 +225,7 @@ internal sealed class WrcApiClient : IDisposable
         {
             var window = WrcTiming.EventWindow(start, finish,
                 JsonSupport.String(node["timeZoneId"]), JsonSupport.Int(node["timeZoneOffset"]));
-            return new(id.Value, window.Start, window.End);
+            return new(id.Value, window.Start, window.End, start);
         }
         catch (InvalidOperationException) { return null; }
     }

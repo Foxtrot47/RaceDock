@@ -2560,8 +2560,42 @@ static void NextSessionPresentation()
     True(NextSessionDisplay.GroupDay(next with { StartUtc = new DateTimeOffset(2026, 9, 4, 13, 30, 0, TimeSpan.Zero) }, now, zone).StartsWith("FRIDAY 4 "));
     True(NextSessionDisplay.GroupDay(next with { StartUtc = new DateTimeOffset(2026, 9, 12, 13, 30, 0, TimeSpan.Zero) }, now, zone).StartsWith("SAT 12 "));
     Equal("13:30", NextSessionDisplay.RowTime(next with { StartUtc = new DateTimeOffset(2026, 9, 4, 13, 30, 0, TimeSpan.Zero) }, zone));
-    // Day-precision meetings publish no start time, so the row is left to say that itself.
-    Equal("", NextSessionDisplay.RowTime(next with { StartUtc = new DateTimeOffset(2026, 9, 4, 0, 0, 0, TimeSpan.Zero) }, zone));
+
+    // A meeting window publishes a date and no clock time: the row keeps that date in every timezone and says the
+    // time is unknown instead of inventing midnight in the reader's zone.
+    var losAngeles = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+    var tokyo = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tokyo");
+    var misano = new UpcomingSession(Championship.GtWorldChallengeEurope, "Misano", null,
+        new DateTimeOffset(2026, 5, 15, 0, 0, 0, TimeSpan.Zero)) { StartDate = new DateOnly(2026, 5, 15) };
+    Equal("", NextSessionDisplay.RowTime(misano, zone));
+    Equal("", NextSessionDisplay.RowTime(misano, losAngeles));
+    Equal("Fri 15 May", NextSessionDisplay.RowDate(misano, zone));
+    Equal("Fri 15 May", NextSessionDisplay.RowDate(misano, losAngeles));
+    False(NextSessionDisplay.Tooltip(misano, losAngeles).Contains("17:00"));
+    True(NextSessionDisplay.Tooltip(misano, losAngeles).EndsWith("Fri 15 May, time TBA"));
+    Equal("Fri 15 May", NextSessionDisplay.Detail(misano, now, tokyo));
+    True(NextSessionDisplay.GroupDay(misano, now, losAngeles).StartsWith("FRIDAY 15 "));
+
+    // The WRC fallback carries the rally's published date too, which the venue-local midnight conversion moves.
+    var rally = ChampionshipCalendars.WorldRally("Rally Portugal", new DateTimeOffset(2026, 5, 13, 23, 0, 0, TimeSpan.Zero),
+        [], now, "Matosinhos", new DateOnly(2026, 5, 14))[0];
+    Equal(new DateOnly(2026, 5, 14), rally.StartDate);
+    Equal("", NextSessionDisplay.RowTime(rally, zone));
+    Equal("Thu 14 May", NextSessionDisplay.RowDate(rally, zone));
+    Equal("Thu 14 May", NextSessionDisplay.RowDate(rally, losAngeles));
+
+    // A date-only entry stays ahead through its published date in the reader's zone, not only until the UTC
+    // midnight that orders it.
+    var meetingDayInLosAngeles = new DateTimeOffset(2026, 5, 15, 1, 0, 0, TimeSpan.Zero); // 14 May 18:00 in LA
+    True(misano.IsAhead(meetingDayInLosAngeles, losAngeles));
+    Equal(Championship.GtWorldChallengeEurope, NextSessionDisplay.Next([misano], meetingDayInLosAngeles, losAngeles)?.Championship);
+    Equal(1, NextSessionDisplay.Schedule([misano], meetingDayInLosAngeles, losAngeles).Count);
+    Equal("TOMORROW", NextSessionDisplay.RowLead(misano, meetingDayInLosAngeles, losAngeles).ToUpperInvariant());
+    Equal("TODAY", NextSessionDisplay.RowLead(misano, new DateTimeOffset(2026, 5, 15, 20, 0, 0, TimeSpan.Zero), losAngeles).ToUpperInvariant());
+    Equal("IN 3 DAYS", NextSessionDisplay.RowLead(misano, new DateTimeOffset(2026, 5, 12, 20, 0, 0, TimeSpan.Zero), losAngeles).ToUpperInvariant());
+    False(misano.IsAhead(new DateTimeOffset(2026, 5, 16, 20, 0, 0, TimeSpan.Zero), losAngeles)); // 16 May in LA
+    // A published clock time still counts down to the instant.
+    Equal("in 5 hours", NextSessionDisplay.RowLead(next with { StartUtc = now.AddHours(5) }, now, zone));
 
     var tooltip = NextSessionDisplay.Tooltip(next with { StartUtc = new DateTimeOffset(2026, 9, 4, 13, 30, 0, TimeSpan.Zero) }, zone);
     True(tooltip.StartsWith("Next session: Formula 1 · Italian Grand Prix — Practice 1, Fri 4 "));
@@ -2597,6 +2631,17 @@ static void UpcomingScheduleAggregation()
     clock.Advance(TimeSpan.FromMinutes(6));
     Equal(0, rollover.GetUpcomingAsync(enabled, CancellationToken.None).GetAwaiter().GetResult().Count);
     Equal(2, soon.Calls);
+
+    // A date-only meeting stays in the cache through its published date even after its ordering instant passed.
+    var datedClock = new FakeClock(new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero));
+    var dated = new StubCalendar([new(Championship.GtWorldChallengeEurope, "Misano", null,
+        new DateTimeOffset(2026, 8, 27, 0, 0, 0, TimeSpan.Zero)) { StartDate = new DateOnly(2026, 8, 27) }]);
+    var datedService = new UpcomingScheduleService([dated], datedClock, TimeSpan.FromHours(6), TimeSpan.FromSeconds(5));
+    var gtOnly = new HashSet<Championship> { Championship.GtWorldChallengeEurope };
+    Equal(1, datedService.GetUpcomingAsync(gtOnly, CancellationToken.None).GetAwaiter().GetResult().Count);
+    datedClock.Advance(TimeSpan.FromDays(1));
+    Equal(0, datedService.GetUpcomingAsync(gtOnly, CancellationToken.None).GetAwaiter().GetResult().Count);
+    Equal(2, dated.Calls);
 
     // Enabling another championship invalidates the cache so the new source is queried.
     var widened = new HashSet<Championship>(enabled) { Championship.IndyCar };

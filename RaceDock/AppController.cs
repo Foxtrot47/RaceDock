@@ -288,7 +288,7 @@ public sealed class AppController : IAsyncDisposable
         var upcoming = NextSessionDisplay.Schedule(_upcoming, now);
         _taskbar?.UpdateOverlaySchedule(upcoming, now);
         if (!_settings.ShowNextSessionWhenIdle) { _taskbar?.Hide(); return; }
-        if (_upcoming.Any(session => session.StartUtc <= now)) _ = RefreshNextSessionAsync();
+        if (_upcoming.Any(session => !session.IsAhead(now, TimeZoneInfo.Local))) _ = RefreshNextSessionAsync();
         // An exhausted calendar means the feeds, not the schedule, own what happens next.
         if (upcoming.Count == 0)
         {

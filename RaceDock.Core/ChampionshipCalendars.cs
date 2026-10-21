@@ -6,7 +6,27 @@ namespace RaceDock.Core;
 
 /// <summary>A published session or event that has not started yet.</summary>
 /// <param name="Venue">Circuit, track, or rally base as the source publishes it, absent when it publishes none.</param>
-public sealed record UpcomingSession(Championship Championship, string EventName, string? SessionName, DateTimeOffset StartUtc, string? Venue = null);
+public sealed record UpcomingSession(Championship Championship, string EventName, string? SessionName, DateTimeOffset StartUtc, string? Venue = null)
+{
+    /// <summary>
+    /// The published calendar date when the source released a date without a clock time, such as a GTWC round whose
+    /// timetable is not out yet. While it is set, <see cref="StartUtc"/> is only an ordering approximation and no
+    /// local clock time may be derived from it.
+    /// </summary>
+    public DateOnly? StartDate { get; init; }
+
+    /// <summary>False when the source published a date without a time.</summary>
+    public bool HasStartTime => StartDate is null;
+
+    /// <summary>
+    /// True while the entry is still ahead for a reader in <paramref name="timeZone"/>. A date-only entry names a
+    /// calendar date, so it stays ahead until that date has passed in the reader's zone rather than at midnight UTC.
+    /// </summary>
+    public bool IsAhead(DateTimeOffset now, TimeZoneInfo timeZone) =>
+        StartDate is { } date
+            ? date >= DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, timeZone).Date)
+            : StartUtc > now;
+}
 
 /// <summary>Reads one championship's published calendar. Implementations never throw for an empty calendar.</summary>
 public interface IChampionshipCalendar
@@ -187,7 +207,8 @@ public static class ChampionshipCalendars
             .ToList();
         return sessions.Count > 0
             ? sessions
-            : [new UpcomingSession(Championship.GtWorldChallengeEurope, meeting.Name, null, meeting.StartUtc, meeting.Location)];
+            : [new UpcomingSession(Championship.GtWorldChallengeEurope, meeting.Name, null, meeting.StartUtc, meeting.Location)
+                { StartDate = DateOnly.FromDateTime(meeting.StartUtc.UtcDateTime) }];
     }
 
     private static IEnumerable<(string Name, DateTimeOffset Start)> GtWorldChallengeSessions(
@@ -243,8 +264,9 @@ public static class ChampionshipCalendars
         DateTimeOffset eventStartUtc,
         IEnumerable<(string Code, string Name, DateTimeOffset? StartUtc)> stages,
         DateTimeOffset now,
-        string? location = null) =>
-        WorldRally(eventName, eventStartUtc, stages, now, location)[0];
+        string? location = null,
+        DateOnly? eventDate = null) =>
+        WorldRally(eventName, eventStartUtc, stages, now, location, eventDate)[0];
 
     /// <summary>The rally's remaining stages, or the rally start when no itinerary is published.</summary>
     public static IReadOnlyList<UpcomingSession> WorldRally(
@@ -252,7 +274,8 @@ public static class ChampionshipCalendars
         DateTimeOffset eventStartUtc,
         IEnumerable<(string Code, string Name, DateTimeOffset? StartUtc)> stages,
         DateTimeOffset now,
-        string? location = null)
+        string? location = null,
+        DateOnly? eventDate = null)
     {
         var remaining = stages
             .Where(item => item.StartUtc > now)
@@ -262,7 +285,8 @@ public static class ChampionshipCalendars
             .ToList();
         return remaining.Count > 0
             ? remaining
-            : [new UpcomingSession(Championship.WorldRallyChampionship, eventName, null, eventStartUtc, location)];
+            : [new UpcomingSession(Championship.WorldRallyChampionship, eventName, null, eventStartUtc, location)
+                { StartDate = eventDate }];
     }
 
     /// <summary>Plain-language lead time such as "in 3 days", used next to the exact start time.</summary>
