@@ -79,6 +79,7 @@ var tests = new (string Name, Action Run)[]
     ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
     ("GTWC client uppercases ids and busts caches", GtwcClientPaths),
     ("GTWC source publishes an active classification", GtwcSourceLifecycle),
+    ("GTWC rediscovers the schedule after its unit stops answering", GtwcScheduleRefreshAfterUnitFailure),
     ("GTWC production handler has bounded connection lifetime", GtwcHandlerBounds),
     ("IMSA SockJS frames preserve DDP messages", ImsaSockJsProtocol),
     ("IMSA standings map endurance timing", ImsaStandings),
@@ -3003,6 +3004,108 @@ static void GtwcClientPaths()
     False(handler.Paths[0] == handler.Paths[1]);
 }
 
+static void GtwcScheduleRefreshAfterUnitFailure()
+{
+    static JsonObject Schedule(string unitId, string name, string code) => new()
+    {
+        ["MeetingId"] = "meeting-1",
+        ["PresentationRoundId"] = unitId,
+        ["Series"] = new JsonObject { ["gt"] = new JsonObject { ["Name"] = "GTWorldChEU pwrd by AWS Sprint Cup" } },
+        ["Competitions"] = new JsonObject { ["gtc"] = new JsonObject { ["SerieId"] = "gt" } },
+        ["Units"] = new JsonObject
+        {
+            [unitId] = new JsonObject { ["Name"] = name, ["Code"] = code, ["CompetitionId"] = "gtc", ["State"] = 1 }
+        }
+    };
+    static JsonObject Timing(string unitId) => new()
+    {
+        ["UnitId"] = unitId,
+        ["UntInfo"] = new JsonObject { ["RemainingTime"] = "8:15", ["TrackFlag"] = 1, ["SectorFlags"] = new JsonArray(1, 1, 1) },
+        ["Results"] = new JsonObject
+        {
+            ["car-1"] = new JsonObject
+            {
+                ["CompetitorId"] = "car-1",
+                ["ListIndex"] = 0,
+                ["MainResult"] = new JsonObject
+                {
+                    ["Rank"] = 1, ["BestTime"] = new JsonObject { ["Time"] = "1:36.500" },
+                    ["TotalLapCount"] = 2, ["Status"] = 2
+                }
+            }
+        }
+    };
+    static JsonObject Detail(string unitId) => new()
+    {
+        ["UnitId"] = unitId,
+        ["Classes"] = new JsonObject { ["pro"] = new JsonObject { ["ShortName"] = "Pro" } },
+        ["Competitors"] = new JsonObject
+        {
+            ["car-1"] = new JsonObject
+            {
+                ["Bib"] = "3", ["ClassId"] = "pro", ["TeamName"] = "Winward Racing",
+                ["ManufacturerName"] = "Mercedes-AMG", ["CurrentDriverId"] = "driver-1",
+                ["Drivers"] = new JsonObject
+                {
+                    ["driver-1"] = new JsonObject
+                    {
+                        ["ListIndex"] = 1, ["FirstName"] = "Jules", ["LastName"] = "Gounon", ["ShortName"] = "GOU"
+                    }
+                }
+            }
+        }
+    };
+    var routes = new Dictionary<string, string[]>
+    {
+        ["SRO_SEASONS_JSON.json"] = [GtwcEnvelope("""{"CurrentSeason":"2026"}""")],
+        ["SRO_2026_SEASON_JSON.json"] =
+            [GtwcEnvelope("""{"PresentationMeetingId":"meeting-1","Meetings":{"meeting-1":{"TrackName":"Magny-Cours","State":1}}}""")],
+        ["SRO_2026_SCHEDULE_MEETING-1_JSON.json"] =
+        [
+            GtwcEnvelope(Schedule("unit-1", "Qualifying 1 Group B", "Q1B").ToJsonString()),
+            GtwcEnvelope(Schedule("unit-2", "Race", "R").ToJsonString())
+        ],
+        ["SRO_2026_TIMING_UNIT-1_JSON.json"] = [GtwcEnvelope(Timing("unit-1").ToJsonString()), "__404__"],
+        ["SRO_2026_COMP_DETAIL_UNIT-1_JSON.json"] = [GtwcEnvelope(Detail("unit-1").ToJsonString()), "__404__"],
+        ["SRO_2026_TIMING_UNIT-2_JSON.json"] = [GtwcEnvelope(Timing("unit-2").ToJsonString())],
+        ["SRO_2026_COMP_DETAIL_UNIT-2_JSON.json"] = [GtwcEnvelope(Detail("unit-2").ToJsonString())]
+    };
+    using var handler = new GtwcSequenceHandler(routes);
+    using var http = new HttpClient(handler);
+    using var api = new GtwcApiClient(http);
+    var clock = new FakeClock(new DateTimeOffset(2026, 8, 1, 13, 18, 0, TimeSpan.Zero));
+    // Every wait advances the fake clock, so the schedule refresh cadence runs without real waiting.
+    var delay = new AdvancingDelay(clock, TimeSpan.FromMilliseconds(400), 40);
+    var options = new GtwcPollingOptions(TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(500), TimeSpan.FromHours(1),
+        [TimeSpan.FromHours(1)], [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)]);
+    var source = new GtwcLiveTimingSource(api, clock, delay, new AlertArbiter(clock), options);
+    var sessions = new List<string>();
+    source.SnapshotReceived += snapshot =>
+    {
+        if (snapshot.Lifecycle != SessionLifecycle.Live) return;
+        lock (sessions) sessions.Add(snapshot.Session);
+    };
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+    while (DateTime.UtcNow < deadline)
+    {
+        lock (sessions) if (sessions.Contains("Race")) break;
+        Thread.Sleep(10);
+    }
+    source.StopAsync().GetAwaiter().GetResult();
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    lock (sessions)
+    {
+        Equal("Qualifying 1 Group B", sessions.FirstOrDefault());
+        Equal("Race", sessions.LastOrDefault());
+    }
+    // The session that replaced the failing unit is polled even though the old unit never answers again.
+    True(handler.Paths.Contains("SRO_2026_TIMING_UNIT-2_JSON.json"));
+    True(handler.Paths.Count(path => path == "SRO_2026_SCHEDULE_MEETING-1_JSON.json") >= 2);
+    True(handler.Paths.Count(path => path == "SRO_2026_TIMING_UNIT-1_JSON.json") <= 4);
+}
+
 static void GtwcSourceLifecycle()
 {
     var routes = new Dictionary<string, string>
@@ -4437,6 +4540,38 @@ sealed class SequenceHttpHandler(Dictionary<string, string[]> routes) : HttpMess
         _index[path] = Math.Min(at + 1, bodies.Length - 1);
         var body = bodies[Math.Min(at, bodies.Length - 1)];
         if (body == "__FAIL__") throw new HttpRequestException("Simulated WRC transport failure.");
+        return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) });
+    }
+}
+
+sealed class AdvancingDelay(FakeClock clock, TimeSpan step, int autoRelease) : IAsyncDelay
+{
+    private readonly Lock _gate = new();
+    private int _calls;
+    public async Task DelayAsync(TimeSpan duration, CancellationToken cancellationToken)
+    {
+        bool release;
+        lock (_gate) { clock.Advance(step); release = ++_calls <= autoRelease; }
+        if (release) return;
+        await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+    }
+}
+
+// Serves each GTWC endpoint in order, repeating the last body; a body of "__404__" answers Not Found.
+sealed class GtwcSequenceHandler(Dictionary<string, string[]> routes) : HttpMessageHandler
+{
+    private readonly Dictionary<string, int> _index = [];
+    public List<string> Paths { get; } = [];
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var file = request.RequestUri!.AbsolutePath.Split('/').Last();
+        Paths.Add(file);
+        if (!routes.TryGetValue(file, out var bodies) || bodies.Length == 0)
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
+        var at = _index.TryGetValue(file, out var i) ? i : 0;
+        _index[file] = Math.Min(at + 1, bodies.Length - 1);
+        var body = bodies[Math.Min(at, bodies.Length - 1)];
+        if (body == "__404__") return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
         return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) });
     }
 }

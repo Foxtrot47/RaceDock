@@ -139,9 +139,24 @@ public sealed class GtwcLiveTimingSource : ILiveTimingSource
         }
         var nextScheduleRefresh = _clock.UtcNow + _options.ScheduleRefreshInterval;
         var pollAttempt = 0;
+        var consecutiveFailures = 0;
 
         while (!ct.IsCancellationRequested)
         {
+            // The published session can move on while this unit keeps failing, so the schedule is re-read on its own
+            // cadence rather than only after a poll that may never succeed again.
+            if (_clock.UtcNow >= nextScheduleRefresh)
+            {
+                nextScheduleRefresh = _clock.UtcNow + _options.ScheduleRefreshInterval;
+                var refreshed = await DiscoverAsync(ct);
+                if (refreshed.Meeting is null || refreshed.Unit is null || refreshed.Unit.State != 1 ||
+                    !string.Equals(refreshed.Meeting.Id, meeting.Id, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(refreshed.Unit.Id, unit.Id, StringComparison.OrdinalIgnoreCase)) return;
+                meeting = refreshed.Meeting;
+                unit = refreshed.Unit;
+                consecutiveFailures = 0;
+            }
+
             try
             {
                 var timingTask = _api.GetTimingAsync(discovery.Year, unit.Id, ct);
@@ -158,6 +173,7 @@ public sealed class GtwcLiveTimingSource : ILiveTimingSource
                     DeltaReceived?.Invoke(new("GtwcTiming", timing.Full.DeepClone(), _clock.UtcNow));
                 }
                 pollAttempt = 0;
+                consecutiveFailures = 0;
                 SetConnection(ConnectionState.Connected);
                 SnapshotReceived?.Invoke(snapshot);
                 if (snapshot.Lifecycle == SessionLifecycle.Ended)
@@ -167,24 +183,22 @@ public sealed class GtwcLiveTimingSource : ILiveTimingSource
                 }
 
                 await _delay.DelayAsync(_options.PollInterval, ct);
-                if (_clock.UtcNow < nextScheduleRefresh) continue;
-                var refreshed = await DiscoverAsync(ct);
-                if (refreshed.Meeting is null || refreshed.Unit is null || refreshed.Unit.State != 1 ||
-                    !string.Equals(refreshed.Meeting.Id, meeting.Id, StringComparison.OrdinalIgnoreCase) ||
-                    !string.Equals(refreshed.Unit.Id, unit.Id, StringComparison.OrdinalIgnoreCase)) return;
-                meeting = refreshed.Meeting;
-                unit = refreshed.Unit;
-                nextScheduleRefresh = _clock.UtcNow + _options.ScheduleRefreshInterval;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 PublishFailure($"GTWC unit {unit.Id} polling failed", ex);
                 SetConnection(ConnectionState.Connecting);
+                // A unit that keeps failing has most likely been replaced at the end of its session, so the next pass
+                // rediscovers instead of retrying a unit that is gone.
+                if (++consecutiveFailures >= FailureLimit(_options))
+                    nextScheduleRefresh = _clock.UtcNow;
                 await _delay.DelayAsync(Backoff(_options.PollBackoff, pollAttempt++), ct);
             }
         }
     }
+
+    private static int FailureLimit(GtwcPollingOptions options) => Math.Max(1, options.PollBackoff.Count);
 
     private void ProcessAlerts(GtwcMeeting meeting, GtwcUnit unit, JsonObject timing, TimingSnapshot snapshot)
     {
