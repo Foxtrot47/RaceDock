@@ -328,18 +328,29 @@ internal static partial class GriiipTiming
         return $"{(int)remaining.TotalHours:00}:{remaining.Minutes:00}:{remaining.Seconds:00}";
     }
 
-    private static TrackCondition TrackState(JsonArray? flags)
+    /// <summary>
+    /// The Griiip feeds carry one race-level flag with an optional sector scope. WEC, ELMS, Le Mans Cup and DTM
+    /// run full-course yellow rather than F1-style sector yellows, so an unscoped yellow is a full-course yellow.
+    /// </summary>
+    internal static TrackCondition TrackState(JsonArray? flags)
     {
         var value = flags?.OfType<JsonObject>().LastOrDefault();
         return (JsonSupport.String(value?["flag"]) ?? "").ToUpperInvariant() switch
         {
             "GREEN" => TrackCondition.AllClear,
-            "YELLOW" or "FULLCOURSEYELLOW" or "FULL COURSE YELLOW" or "CODE60" => TrackCondition.Yellow,
+            "YELLOW" or "FULLCOURSEYELLOW" or "FULL COURSE YELLOW" or "FCY" =>
+                IsWholeTrack(value) ? TrackCondition.FullCourseYellow : TrackCondition.Yellow,
+            "VIRTUALSAFETYCAR" or "VIRTUAL SAFETY CAR" or "VSC" => TrackCondition.VirtualSafetyCar,
+            // Code 60 limits speed instead of neutralising the field; keep it under the yellow badge until the
+            // Le Mans Cup feed is captured with a Code 60 period to confirm how it is published.
+            "CODE60" or "CODE 60" => TrackCondition.Yellow,
             "SAFETYCAR" or "SAFETY CAR" => TrackCondition.SafetyCar,
             "RED" or "REDFLAG" or "RED FLAG" => TrackCondition.RedFlag,
             _ => TrackCondition.Unknown
         };
     }
+
+    private static bool IsWholeTrack(JsonObject? flag) => flag?["sectorNumbers"] is not JsonArray sectors || sectors.Count == 0;
 
     private static string? StatusLabel(string status) => status.ToUpperInvariant() switch
     {

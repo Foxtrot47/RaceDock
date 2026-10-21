@@ -234,7 +234,7 @@ internal static class GtwcTiming
         if (sectorFlags.Contains(8)) return new(TrackCondition.RedFlag, "RED FLAG");
         if (sectorFlags.Contains(32)) return new(TrackCondition.SafetyCar, "SAFETY CAR");
         if (sectorFlags.Contains(64)) return new(TrackCondition.VirtualSafetyCar, "CODE 60");
-        if (trackFlag == 4) return new(TrackCondition.VirtualSafetyCar, "FULL COURSE YELLOW");
+        if (trackFlag == 4) return new(TrackCondition.FullCourseYellow, "FULL COURSE YELLOW");
         if (sectorFlags.Contains(4)) return new(TrackCondition.Yellow, "YELLOW FLAG");
         return trackFlag switch
         {

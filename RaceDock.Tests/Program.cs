@@ -15,6 +15,7 @@ var tests = new (string Name, Action Run)[]
     ("retired and fastest lap detection", FastestAndRetired),
     ("numeric F1 status does not override flags", NumericF1Status),
     ("track status mappings and alert priority", AlertPriority),
+    ("full-course yellow maps consistently across series", FullCourseYellowAcrossSeries),
     ("taskbar flags follow the displayed track state", TaskbarFlagsFollowSnapshot),
     ("duplicate alerts and injectable expiry clock", DeduplicationAndExpiry),
     ("render throttling keeps newest immediate state", Throttling),
@@ -2972,8 +2973,21 @@ static void GtwcFlagsAndStatuses()
     Equal(TrackCondition.AllClear, GtwcTiming.TrackState(JsonNode.Parse("{\"TrackFlag\":1}")!.AsObject()).Condition);
     Equal(TrackCondition.Yellow, GtwcTiming.TrackState(JsonNode.Parse("{\"TrackFlag\":1,\"SectorFlags\":[1,4,1]}")!.AsObject()).Condition);
     var fcy = GtwcTiming.TrackState(JsonNode.Parse("{\"TrackFlag\":4,\"SectorFlags\":[1,1,1]}")!.AsObject());
-    Equal(TrackCondition.VirtualSafetyCar, fcy.Condition);
+    Equal(TrackCondition.FullCourseYellow, fcy.Condition);
     Equal("FULL COURSE YELLOW", fcy.Detail);
+    var code60 = GtwcTiming.TrackState(JsonNode.Parse("{\"TrackFlag\":64}")!.AsObject());
+    Equal(TrackCondition.VirtualSafetyCar, code60.Condition);
+    Equal("CODE 60", code60.Detail);
+    Equal(8, (int)TrackCondition.FullCourseYellow);
+    Equal(7, (int)TrackCondition.RedFlag);
+
+    var clock = new FakeClock();
+    var alerts = new AlertArbiter(clock);
+    alerts.ApplyTrackCondition(fcy.Condition, fcy.Detail, 12, clock.UtcNow);
+    Equal(AlertKind.FullCourseYellow, alerts.Current?.Kind);
+    Equal("FULL COURSE YELLOW", alerts.Current?.Title);
+    alerts.ApplyTrackCondition(TrackCondition.AllClear, null, 12, clock.UtcNow);
+    Equal<RaceAlert?>(null, alerts.Current);
     Equal(TrackCondition.RedFlag, GtwcTiming.TrackState(JsonNode.Parse("{\"TrackFlag\":1,\"SectorFlags\":[4,8,32]}")!.AsObject()).Condition);
 }
 
@@ -3129,11 +3143,57 @@ static void ImsaStandings()
     Equal("1 LAP", lapped.Competitors[2].GapToLeader);
 }
 
+static void FullCourseYellowAcrossSeries()
+{
+    // Al Kamel feeds (IMSA, Formula E) publish FCY as a whole-track flag.
+    Equal(TrackCondition.FullCourseYellow,
+        AlkamelTiming.TrackState(JsonNode.Parse("{\"currentFlag\":\"FCY\"}")!.AsObject()).Condition);
+    Equal(TrackCondition.Yellow,
+        AlkamelTiming.TrackState(JsonNode.Parse("{\"currentFlag\":\"YF\"}")!.AsObject()).Condition);
+
+    // INDYCAR publishes one whole-track flag, so its caution neutralises the full course.
+    Equal(TrackCondition.FullCourseYellow, IndyCarTiming.TrackState("CAUTION"));
+    Equal(TrackCondition.FullCourseYellow, IndyCarTiming.TrackState("YELLOW"));
+    Equal(TrackCondition.FullCourseYellow, IndyCarTiming.TrackState("FCY"));
+    Equal(TrackCondition.AllClear, IndyCarTiming.TrackState("GREEN"));
+    Equal(TrackCondition.RedFlag, IndyCarTiming.TrackState("RED"));
+
+    // Griiip feeds (WEC, ELMS, Le Mans Cup, DTM) scope a race-level yellow by sectorNumbers.
+    Equal(TrackCondition.FullCourseYellow,
+        GriiipTiming.TrackState(JsonNode.Parse("[{\"flag\":\"Yellow\",\"sectorNumbers\":[]}]")!.AsArray()));
+    Equal(TrackCondition.FullCourseYellow,
+        GriiipTiming.TrackState(JsonNode.Parse("[{\"flag\":\"Yellow\"}]")!.AsArray()));
+    Equal(TrackCondition.Yellow,
+        GriiipTiming.TrackState(JsonNode.Parse("[{\"flag\":\"Yellow\",\"sectorNumbers\":[2]}]")!.AsArray()));
+    Equal(TrackCondition.FullCourseYellow,
+        GriiipTiming.TrackState(JsonNode.Parse("[{\"flag\":\"FullCourseYellow\"}]")!.AsArray()));
+    Equal(TrackCondition.VirtualSafetyCar,
+        GriiipTiming.TrackState(JsonNode.Parse("[{\"flag\":\"VirtualSafetyCar\"}]")!.AsArray()));
+    Equal(TrackCondition.AllClear,
+        GriiipTiming.TrackState(JsonNode.Parse("[{\"flag\":\"Green\"}]")!.AsArray()));
+
+    // Timing71 archives record the same states as lower-case race-control strings.
+    Equal(TrackCondition.FullCourseYellow, TimingArchiveLoader.TrackConditionFor("fcy"));
+    Equal(TrackCondition.FullCourseYellow, TimingArchiveLoader.TrackConditionFor("caution"));
+    Equal(TrackCondition.Yellow, TimingArchiveLoader.TrackConditionFor("yellow"));
+    Equal(TrackCondition.AllClear, TimingArchiveLoader.TrackConditionFor("green"));
+
+    // Display surfaces agree on the series-independent full-course yellow state.
+    var clock = new FakeClock();
+    var alerts = new AlertArbiter(clock);
+    alerts.ApplyTrackCondition(TrackCondition.FullCourseYellow, "FULL COURSE YELLOW", 12, clock.UtcNow);
+    Equal(AlertKind.FullCourseYellow, alerts.Current?.Kind);
+    Equal("FULL COURSE YELLOW", alerts.Current?.Title);
+    Equal(AlertKind.FullCourseYellow, TaskbarFlagDisplay.Resolve(TrackCondition.FullCourseYellow));
+    alerts.ApplyTrackCondition(TrackCondition.AllClear, null, 12, clock.UtcNow);
+    Equal<RaceAlert?>(null, alerts.Current);
+}
+
 static void ImsaFlagsAndClock()
 {
     Equal(TrackCondition.AllClear, ImsaTiming.TrackState(JsonNode.Parse("{\"currentFlag\":\"GF\"}")!.AsObject()).Condition);
     var fcy = ImsaTiming.TrackState(JsonNode.Parse("{\"currentFlag\":\"FCY\"}")!.AsObject());
-    Equal(TrackCondition.Yellow, fcy.Condition);
+    Equal(TrackCondition.FullCourseYellow, fcy.Condition);
     Equal("FULL COURSE YELLOW", fcy.Detail);
     Equal(TrackCondition.SafetyCar, ImsaTiming.TrackState(JsonNode.Parse("{\"currentFlag\":\"SC\"}")!.AsObject()).Condition);
     Equal(TrackCondition.RedFlag, ImsaTiming.TrackState(JsonNode.Parse("{\"currentFlag\":\"RF\"}")!.AsObject()).Condition);
@@ -3508,7 +3568,7 @@ static void GriiipEnduranceBootstrapTiming()
     Equal("Free Practice 1", snapshot.Session);
     Equal(24, snapshot.CurrentLap);
     Equal("00:30:00", snapshot.TimeRemaining);
-    Equal(TrackCondition.Yellow, snapshot.TrackCondition);
+    Equal(TrackCondition.FullCourseYellow, snapshot.TrackCondition);
     Equal("FUO", snapshot.Competitors[0].Code);
     Equal("Antonio FUOCO", snapshot.Competitors[0].Name);
     Equal("51", snapshot.Competitors[0].CarNumber);

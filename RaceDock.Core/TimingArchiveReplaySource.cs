@@ -295,8 +295,7 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
 }
 
 internal static class TimingArchiveLoader
-{
-    private const long MaxInputBytes = 256L * 1024 * 1024;
+{    private const long MaxInputBytes = 256L * 1024 * 1024;
     private const long MaxExpandedBytes = 512L * 1024 * 1024;
     private const long MaxEntryBytes = 32L * 1024 * 1024;
     private const int MaxEntries = 100_000;
@@ -636,6 +635,22 @@ internal static class TimingArchiveLoader
         _ => null
     };
 
+    /// <summary>
+    /// Archive flag states come from whole-track race-control status, so a caution, an FCY and a plain yellow
+    /// that the capturing feed does not scope to a sector all describe a full-course yellow.
+    /// </summary>
+    internal static TrackCondition TrackConditionFor(string? flagState) => flagState switch
+    {
+        "green" or "clear" => TrackCondition.AllClear,
+        "fcy" or "full-course-yellow" or "full course yellow" or "caution" => TrackCondition.FullCourseYellow,
+        "yellow" => TrackCondition.Yellow,
+        "double-yellow" or "double yellow" => TrackCondition.DoubleYellow,
+        "sc" or "safety-car" or "safety car" => TrackCondition.SafetyCar,
+        "vsc" => TrackCondition.VirtualSafetyCar,
+        "red" or "red-flag" => TrackCondition.RedFlag,
+        _ => TrackCondition.Unknown
+    };
+
     internal static TimingSnapshot BuildSnapshot(JsonObject manifest, JsonObject state, DateTimeOffset timestamp)
     {
         ValidateState(manifest, state);
@@ -691,16 +706,7 @@ internal static class TimingArchiveLoader
         var competitors = parsed.Select(value => value.Standing with { IsOverallFastest = value.Standing.DriverId == fastest }).ToList();
         var sessionState = state["session"] as JsonObject ?? [];
         var flag = (Text(sessionState["flagState"]) ?? "").ToLowerInvariant();
-        var condition = flag switch
-        {
-            "green" or "clear" => TrackCondition.AllClear,
-            "yellow" or "fcy" => TrackCondition.Yellow,
-            "double-yellow" or "double yellow" => TrackCondition.DoubleYellow,
-            "sc" or "safety-car" or "safety car" => TrackCondition.SafetyCar,
-            "vsc" => TrackCondition.VirtualSafetyCar,
-            "red" or "red-flag" => TrackCondition.RedFlag,
-            _ => TrackCondition.Unknown
-        };
+        var condition = TrackConditionFor(flag);
         var currentLap = competitors.Select(value => value.Lap).DefaultIfEmpty(0).Max();
         var lapsRemain = Double(sessionState["lapsRemain"]);
         int? totalLaps = lapsRemain is >= 0 ? currentLap + (int)Math.Ceiling(lapsRemain.Value) : null;

@@ -98,10 +98,14 @@ internal static class IndyCarTiming
         status is "CHECKERED" or "CHEQUERED" or "COMPLETE" or "COMPLETED" or "FINISHED" or "OFFICIAL" or "UNOFFICIAL" ||
         flag is "CHECKERED" or "CHEQUERED";
 
-    private static TrackCondition TrackState(string value) => value switch
+    /// <summary>
+    /// IndyCar publishes a single whole-track flag, so its caution is a full-course yellow rather than a
+    /// sector yellow like the F1-style feeds carry.
+    /// </summary>
+    internal static TrackCondition TrackState(string value) => value switch
     {
         "GREEN" or "WHITE" => TrackCondition.AllClear,
-        "YELLOW" or "CAUTION" or "FCY" => TrackCondition.Yellow,
+        "YELLOW" or "CAUTION" or "FCY" => TrackCondition.FullCourseYellow,
         "RED" => TrackCondition.RedFlag,
         _ => TrackCondition.Unknown
     };

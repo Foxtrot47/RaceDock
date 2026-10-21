@@ -162,12 +162,14 @@ internal static class FeedDumpReplayTests
         var seenEnergy = false;
         var seenTyres = false;
         var seenSectors = false;
+        var seenFullCourseYellow = false;
         source.SnapshotReceived += snapshot =>
         {
             latest = snapshot;
             seenEnergy |= snapshot.Competitors.Any(value => value.VirtualEnergyPercent is >= 0);
             seenTyres |= snapshot.Competitors.Any(value => value.CurrentTyres is not null);
             seenSectors |= snapshot.Competitors.Any(value => value.CurrentSectors is not null);
+            seenFullCourseYellow |= snapshot.TrackCondition == TrackCondition.FullCourseYellow;
         };
         try
         {
@@ -177,6 +179,7 @@ internal static class FeedDumpReplayTests
             Check(latest?.Championship == Championship.WorldEnduranceChampionship, "Capture must remain WEC");
             Check(latest?.Lifecycle == SessionLifecycle.Ended, "Capture must contain its recorded finish");
             Check(seenEnergy && seenTyres && seenSectors, "Capture must retain energy, tyre and sector data");
+            Check(seenFullCourseYellow, "Capture must replay its recorded whole-track yellow as FCY");
             Check(latest!.Competitors.Count > 0, "Capture must retain competitors");
             Console.WriteLine($"PASS actual WEC capture: {source.FrameCount} frames, {latest.Competitors.Count} final competitors, ended");
         }
@@ -187,7 +190,12 @@ internal static class FeedDumpReplayTests
     {
         var source = FeedDumpReplayLoader.CreateAsync(path, new TestClock()).GetAwaiter().GetResult();
         TimingSnapshot? latest = null;
-        source.SnapshotReceived += snapshot => latest = snapshot;
+        var sawFullCourseYellow = false;
+        source.SnapshotReceived += snapshot =>
+        {
+            latest = snapshot;
+            sawFullCourseYellow |= snapshot.TrackCondition == TrackCondition.FullCourseYellow;
+        };
         try
         {
             source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -195,6 +203,7 @@ internal static class FeedDumpReplayTests
             while (!source.IsCompleted) source.Step();
             Check(latest?.Championship == Championship.GtWorldChallengeEurope, "Capture must remain GTWC");
             Check(latest?.Lifecycle == SessionLifecycle.Ended, "Capture must contain recorded session end");
+            Check(sawFullCourseYellow, "Capture must replay recorded GTWC full-course yellow as FCY");
             Check(latest!.Competitors.Any(value => value.CurrentSectors is not null), "Capture must retain sector data");
             Console.WriteLine($"PASS actual GTWC capture: {source.FrameCount} frames, {latest.Competitors.Count} final competitors, ended");
         }

@@ -146,7 +146,7 @@ internal static class AlkamelTiming
         {
             "GF" => new(TrackCondition.AllClear, null),
             "YF" => new(TrackCondition.Yellow, "YELLOW FLAG"),
-            "FCY" => new(TrackCondition.Yellow, "FULL COURSE YELLOW"),
+            "FCY" => new(TrackCondition.FullCourseYellow, "FULL COURSE YELLOW"),
             "SC" => new(TrackCondition.SafetyCar, "SAFETY CAR"),
             "RF" => new(TrackCondition.RedFlag, "RED FLAG"),
             _ => new(TrackCondition.Unknown, null)
