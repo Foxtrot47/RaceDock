@@ -16,6 +16,8 @@ internal sealed class ScheduleView
     public const double Width = 460;
 
     private readonly StackPanel _list = new();
+    private readonly Grid _heading = Heading("NEXT ON TRACK", "LOCAL TIME");
+    public FrameworkElement Header => _heading;
     private readonly TextBlock _empty = new()
     {
         Text = "No published sessions for the championships you follow.",
@@ -29,6 +31,7 @@ internal sealed class ScheduleView
     {
         _empty.SetResourceReference(Control.ForegroundProperty, "TextFillColorSecondaryBrush");
         var layout = new StackPanel();
+        layout.Children.Add(_heading);
         layout.Children.Add(_empty);
         layout.Children.Add(_list);
         Element = layout;
@@ -36,13 +39,19 @@ internal sealed class ScheduleView
 
     public FrameworkElement Element { get; }
 
+    public void AddHeaderControl(FrameworkElement control)
+    {
+        _heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(control, _heading.ColumnDefinitions.Count - 1);
+        _heading.Children.Add(control);
+    }
+
     public void Update(IReadOnlyList<UpcomingSession> sessions, DateTimeOffset now, TimeZoneInfo timeZone)
     {
         _list.Children.Clear();
         _empty.Visibility = sessions.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (sessions.Count == 0) return;
 
-        _list.Children.Add(Heading("NEXT ON TRACK", "LOCAL TIME"));
         _list.Children.Add(Featured(sessions[0], now, timeZone));
         if (sessions.Count == 1) return;
 

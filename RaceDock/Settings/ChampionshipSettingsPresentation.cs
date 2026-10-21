@@ -27,6 +27,7 @@ internal sealed record ChampionshipSettingsPresentation
     public bool ShowResultSetting { get; init; } = true;
     public bool ShowSectorTimingSetting { get; init; }
     public bool ShowSplitTimingSetting { get; init; }
+    public bool ShowEnergySetting { get; init; }
     public string LapTimeTitle { get; init; } = "Lap time";
     public string LapTimeDescription { get; init; } =
         "Show the best lap in practice and qualifying, and the last lap in sprints and races.";
@@ -43,8 +44,14 @@ internal sealed record ChampionshipSettingsPresentation
         Championship.Moto2 => Moto("Moto2"),
         Championship.Moto3 => Moto("Moto3"),
         Championship.WorldRallyChampionship => Rally() with { ShowSplitTimingSetting = true },
-        Championship.GtWorldChallengeEurope => Endurance("GT World Challenge Europe"),
-        Championship.WorldEnduranceChampionship => Endurance("World Endurance Championship"),
+        Championship.GtWorldChallengeEurope => Endurance("GT World Challenge Europe") with { ShowSectorTimingSetting = true },
+        Championship.WorldEnduranceChampionship => Endurance("World Endurance Championship") with
+        {
+            ShowSectorTimingSetting = true,
+            ShowEnergySetting = true,
+            ResultTitle = "Tyre age",
+            ResultDescription = "Show current tyre ages in laps for each wheel, front axle above rear. Hover for compounds."
+        },
         Championship.EuropeanLeMansSeries => Endurance("European Le Mans Series"),
         Championship.MichelinLeMansCup => Endurance("Michelin Le Mans Cup"),
         Championship.Imsa => Endurance("IMSA WeatherTech Championship"),

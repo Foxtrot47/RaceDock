@@ -101,14 +101,20 @@ public sealed class TaskbarWindow : Window
             SystemThemeWatcher.Watch(this, WindowBackdropType.None);
             _host.Reattach();
         };
-        _host.PositionChanged += visible => { if (!visible) _flyout.Hide(); else if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
+        _host.PositionChanged += visible =>
+        {
+            if (_flyout.IsPinned) return;
+            if (!visible) _flyout.Hide();
+            else PositionFlyout();
+        };
+        _flyout.PinChanged += PositionFlyout;
         MouseLeftButtonUp += (_, _) => ShowFlyout(); MouseLeave += (_, _) => { if (_flyout.IsVisible) _flyout.ScheduleClose(); };
         _flyout.PointerEntered += (_, _) => _flyout.CancelClose();
         // The flyout resizes when columns are toggled or the field changes, so it has to be re-centred.
-        _flyout.SizeChanged += (_, _) => { if (_flyout.IsVisible) _host.PositionFlyout(_flyout); };
+        _flyout.SizeChanged += (_, _) => PositionFlyout();
         // Positioning shows the window at the Win32 level, so a hidden flyout must never be positioned:
         // a closing animation that outlives the hide would otherwise put an empty panel back on screen.
-        _flyout.SlideTo = offset => { if (_flyout.IsVisible) _host.PositionFlyout(_flyout, offset); };
+        _flyout.SlideTo = offset => PositionFlyout(offset);
         _reattach = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => _host.Reattach(), Dispatcher); _reattach.Start();
         ApplySettings(_settings);
     }
@@ -295,12 +301,24 @@ public sealed class TaskbarWindow : Window
         }
     }
 
+    private void PositionFlyout() => PositionFlyout(0);
+
+    private void PositionFlyout(double offset)
+    {
+        if (_flyout.IsVisible && !_flyout.IsPinned) _host.PositionFlyout(_flyout, offset);
+    }
+
+    public void UpdateOverlaySchedule(IReadOnlyList<UpcomingSession> upcoming, DateTimeOffset now)
+    {
+        if (_flyout.IsPinned) _flyout.ShowSchedule(upcoming, now);
+    }
+
     private void ShowFlyout()
     {
         // Between sessions the flyout carries the schedule, which is the only thing there is to show.
         if (_snapshot is null && !PrepareSchedule()) return;
         // Sized and placed before the reveal, so the slide starts from the correct resting point.
-        _flyout.Show(); _flyout.UpdateLayout(); _host.PositionFlyout(_flyout); _flyout.Reveal();
+        _flyout.Show(); _flyout.UpdateLayout(); PositionFlyout(); _flyout.Reveal();
     }
 
     private bool PrepareSchedule()
@@ -315,5 +333,5 @@ public sealed class TaskbarWindow : Window
         base.OnClosing(e);
     }
 
-    protected override void OnClosed(EventArgs e) { _reattach.Stop(); _flyout.Close(); base.OnClosed(e); }
+    protected override void OnClosed(EventArgs e) { _reattach.Stop(); _flyout.ClosePermanently(); base.OnClosed(e); }
 }

@@ -116,74 +116,115 @@ internal static class GtwcTiming
             ?? throw new InvalidOperationException($"GTWC unit {unit.Id} timing results were missing.");
         var competitors = detail["Competitors"] as JsonObject ?? [];
         var classes = detail["Classes"] as JsonObject ?? [];
-        var rows = new List<(CompetitorStanding Standing, int Order, double? BestSeconds)>();
+        var standings = ReadStandings(results, competitors, classes);
+        var unitInfo = timing["UntInfo"] as JsonObject ?? [];
+        return new(meeting.Name, unit.Name, meeting.Circuit,
+            standings.Count == 0 ? 0 : standings.Max(standing => standing.Lap), null,
+            TrackState(unitInfo).Condition, standings, now, Lifecycle(unit, unitInfo, standings.Count), connection,
+            JsonSupport.String(unitInfo["RemainingTime"]), Championship.GtWorldChallengeEurope);
+    }
 
+    private static List<CompetitorStanding> ReadStandings(JsonObject results, JsonObject competitors, JsonObject classes)
+    {
+        var rows = new List<(CompetitorStanding Standing, int Order, double? BestSeconds)>();
         foreach (var pair in results)
         {
             if (pair.Value is not JsonObject result) continue;
             var competitorId = JsonSupport.String(result["CompetitorId"]) ?? pair.Key;
             if (ValueById(competitors, competitorId) is not JsonObject competitor) continue;
             var main = result["MainResult"] as JsonObject ?? [];
-            var order = JsonSupport.Int(result["ListIndex"]);
-            var rank = JsonSupport.Int(main["Rank"]);
-            var hasRank = rank is > 0;
-            if (!hasRank && !order.HasValue) continue;
-            var position = hasRank ? rank.GetValueOrDefault() : order.GetValueOrDefault() + 1;
-            var driver = CurrentDriver(competitor);
-            var bib = JsonSupport.String(competitor["Bib"]) ?? position.ToString(CultureInfo.InvariantCulture);
-            var code = JsonSupport.String(driver?["ShortName"]) ?? bib;
-            var firstName = JsonSupport.String(driver?["FirstName"]);
-            var lastName = JsonSupport.String(driver?["LastName"]);
-            var name = string.Join(" ", new[] { firstName, lastName }.Where(value => !string.IsNullOrWhiteSpace(value)));
-            if (string.IsNullOrWhiteSpace(name)) name = code;
-            var bestTime = JsonSupport.String(main["BestTime"]?["Time"]);
-            var status = JsonSupport.Int(main["Status"]) ?? 0;
-            var statusLabel = StatusLabel(status);
-            var classId = JsonSupport.String(competitor["ClassId"]);
-            var category = ValueById(classes, classId) is JsonObject classNode
-                ? JsonSupport.String(classNode["ShortName"]) ?? JsonSupport.String(classNode["Name"])
-                : null;
-            var standing = new CompetitorStanding(
-                competitorId,
-                position,
-                code,
-                name,
-                JsonSupport.String(competitor["TeamName"]) ?? "",
-                position == 1 ? "LEAD" : FormatGap(JsonSupport.String(main["Behind"])),
-                position == 1 ? null : FormatGap(JsonSupport.String(main["Diff"])),
-                null,
-                JsonSupport.Int(main["TotalLapCount"]) ?? 0,
-                JsonSupport.Bool(competitor["InPitLane"]),
-                (status & (4 | 16)) != 0,
-                false,
-                false,
-                bestTime,
-                statusLabel,
-                hasRank ? null : "—",
-                category,
-                JsonSupport.String(competitor["ManufacturerName"]));
-            rows.Add((standing, order ?? int.MaxValue, ParseLapSeconds(bestTime)));
+            var standing = CreateStanding(competitorId, result, main, competitor, classes);
+            if (standing is null) continue;
+            rows.Add((standing, JsonSupport.Int(result["ListIndex"]) ?? int.MaxValue, ParseLapSeconds(standing.ResultTime)));
         }
+        return OrderedStandings(rows);
+    }
 
-        rows = rows.OrderBy(row => row.Standing.Position).ThenBy(row => row.Order).ThenBy(row => row.Standing.DriverId, StringComparer.Ordinal).ToList();
-        var fastestId = rows.Where(row => row.BestSeconds.HasValue)
-            .OrderBy(row => row.BestSeconds)
-            .ThenBy(row => row.Standing.Position)
-            .Select(row => row.Standing.DriverId)
-            .FirstOrDefault();
-        var standings = rows.Select(row => row.Standing with
-            { IsOverallFastest = row.Standing.DriverId == fastestId }).ToList();
-        var unitInfo = timing["UntInfo"] as JsonObject ?? [];
-        var chequered = JsonSupport.Bool(unitInfo["ChequeredFlag"]);
-        SessionLifecycle lifecycle;
-        if (chequered || unit.State == 2) lifecycle = SessionLifecycle.Ended;
-        else if (unit.State == 1 && standings.Count > 0) lifecycle = SessionLifecycle.Live;
-        else if (unit.State == 0) lifecycle = SessionLifecycle.PreSession;
-        else lifecycle = SessionLifecycle.OffSession;
-        return new(meeting.Name, unit.Name, meeting.Circuit,
-            standings.Count == 0 ? 0 : standings.Max(standing => standing.Lap), null,
-            TrackState(unitInfo).Condition, standings, now, lifecycle, connection,
-            JsonSupport.String(unitInfo["RemainingTime"]), Championship.GtWorldChallengeEurope);
+    private static List<CompetitorStanding> OrderedStandings(List<(CompetitorStanding Standing, int Order, double? BestSeconds)> rows)
+    {
+        var ordered = rows.OrderBy(row => row.Standing.Position).ThenBy(row => row.Order)
+            .ThenBy(row => row.Standing.DriverId, StringComparer.Ordinal).ToList();
+        var fastestId = ordered.Where(row => row.BestSeconds.HasValue).OrderBy(row => row.BestSeconds)
+            .ThenBy(row => row.Standing.Position).Select(row => row.Standing.DriverId).FirstOrDefault();
+        return ordered.Select(row => row.Standing with { IsOverallFastest = row.Standing.DriverId == fastestId }).ToList();
+    }
+
+    private static CompetitorStanding? CreateStanding(
+        string competitorId, JsonObject result, JsonObject main, JsonObject competitor, JsonObject classes)
+    {
+        var order = JsonSupport.Int(result["ListIndex"]);
+        var rank = JsonSupport.Int(main["Rank"]);
+        var hasRank = rank is > 0;
+        if (!hasRank && !order.HasValue) return null;
+        var position = hasRank ? rank.GetValueOrDefault() : order.GetValueOrDefault() + 1;
+        var identity = DriverIdentity(competitor, position);
+        var timing = StandingTiming(main, position);
+        var status = JsonSupport.Int(main["Status"]) ?? 0;
+        return new(
+            competitorId, position, identity.Code, identity.Name,
+            JsonSupport.String(competitor["TeamName"]) ?? "",
+            timing.Gap, timing.Interval, null, timing.Laps,
+            JsonSupport.Bool(competitor["InPitLane"]), (status & (4 | 16)) != 0, false, false,
+            timing.Best, StatusLabel(status), hasRank ? null : "—", Category(competitor, classes),
+            JsonSupport.String(competitor["ManufacturerName"]),
+            CurrentSectors: ParseSectors(main["LastLap"]),
+            BestLapSectors: ParseSectors(main["BestTime"]))
+        {
+            CarNumber = JsonSupport.String(competitor["Bib"])
+        };
+    }
+
+    private static (string Code, string Name) DriverIdentity(JsonObject competitor, int position)
+    {
+        var driver = CurrentDriver(competitor);
+        var bib = JsonSupport.String(competitor["Bib"]) ?? position.ToString(CultureInfo.InvariantCulture);
+        var code = JsonSupport.String(driver?["ShortName"]) ?? bib;
+        var name = string.Join(" ", new[] { JsonSupport.String(driver?["FirstName"]), JsonSupport.String(driver?["LastName"]) }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        return (code, string.IsNullOrWhiteSpace(name) ? code : name);
+    }
+
+    private static (string? Best, string? Gap, string? Interval, int Laps) StandingTiming(JsonObject main, int position) => (
+        JsonSupport.String(main["BestTime"]?["Time"]),
+        position == 1 ? "LEAD" : FormatGap(JsonSupport.String(main["Behind"])),
+        position == 1 ? null : FormatGap(JsonSupport.String(main["Diff"])),
+        JsonSupport.Int(main["TotalLapCount"]) ?? 0);
+
+    private static string? Category(JsonObject competitor, JsonObject classes) =>
+        ValueById(classes, JsonSupport.String(competitor["ClassId"])) is JsonObject category
+            ? JsonSupport.String(category["ShortName"]) ?? JsonSupport.String(category["Name"])
+            : null;
+
+    private static SessionLifecycle Lifecycle(GtwcUnit unit, JsonObject info, int count)
+    {
+        if (JsonSupport.Bool(info["ChequeredFlag"]) || unit.State == 2) return SessionLifecycle.Ended;
+        if (unit.State == 1 && count > 0) return SessionLifecycle.Live;
+        return unit.State == 0 ? SessionLifecycle.PreSession : SessionLifecycle.OffSession;
+    }
+
+    private static SectorTimingSet? ParseSectors(JsonNode? node)
+    {
+        if (node is not JsonObject lap || lap["Intermediates"] is not JsonArray values) return null;
+        var sectors = new SectorTimingSet(ParseSector(values.ElementAtOrDefault(0)),
+            ParseSector(values.ElementAtOrDefault(1)), ParseSector(values.ElementAtOrDefault(2)));
+        return sectors.Sector1 is null && sectors.Sector2 is null && sectors.Sector3 is null ? null : sectors;
+    }
+
+    private static SectorTiming? ParseSector(JsonNode? node)
+    {
+        if (node is not JsonObject sector) return null;
+        var value = JsonSupport.String(sector["Time"]);
+        var seconds = ParseLapSeconds(value);
+        if (seconds is not > 0 || !double.IsFinite(seconds.Value)) return null;
+        // Swiss Timing states are normal, personal best, and session best (also used by Timing71's importer).
+        var state = JsonSupport.Int(sector["TimeState"]) switch
+        {
+            0 => SectorTimingState.Slower,
+            1 => SectorTimingState.PersonalBest,
+            2 => SectorTimingState.OverallBest,
+            _ => SectorTimingState.None
+        };
+        return new(value!, state);
     }
 
     public static GtwcTrackState TrackState(JsonObject unitInfo)

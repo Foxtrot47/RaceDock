@@ -42,6 +42,7 @@ var tests = new (string Name, Action Run)[]
     ("WRC shakedown standings use actual best runs", WrcShakedownTiming),
     ("WRC missing shakedown data is not a feed failure", WrcOptionalShakedown),
     ("championship labels use compact taskbar and full flyout names", ChampionshipLabels),
+    ("shared-entry flyouts identify cars without changing driver identity", SharedEntryNumbers),
     ("taskbar progress follows session formats across championships", TaskbarSessionProgress),
     ("taskbar session labels normalize provider names without guessing parts", TaskbarSessionLabels),
     ("taskbar clocks parse minutes seconds and endurance hours", TaskbarSessionClocks),
@@ -52,6 +53,9 @@ var tests = new (string Name, Action Run)[]
     ("hidden championships stay disabled and out of sight", ChampionshipVisibility),
     ("the experimental flyout blur stays off until asked for", FlyoutBlurSettings),
     ("a feed dump records payloads verbatim per source", FeedDumpCapture),
+    ("GTWC feed dumps replay sectors with paused transport controls", FeedDumpReplayTests.GtwcTransport),
+    ("WEC feed dumps replay energy tyres and sectors paused", FeedDumpReplayTests.WecTransport),
+    ("feed-dump routing preserves F1 and rejects invalid captures", FeedDumpReplayTests.FormatValidation),
     ("an indexed array patch keeps the fields it leaves out", IndexedArrayPatchMerge),
     ("the application log records structured rotating entries", AppLogStructuredRecords),
     ("a failing application log never throws into its caller", AppLogNeverThrows),
@@ -70,6 +74,7 @@ var tests = new (string Name, Action Run)[]
     ("GTWC schedule names match live timing", GtwcMeetingNames),
     ("GTWC discovery filters support sessions", GtwcDiscoveryFiltering),
     ("GTWC standings map teams manufacturers and classes", GtwcStandings),
+    ("GTWC recorded sectors keep current and best laps distinct", GtwcSectorTiming),
     ("GTWC flags and statuses follow Swiss Timing values", GtwcFlagsAndStatuses),
     ("GTWC client uppercases ids and busts caches", GtwcClientPaths),
     ("GTWC source publishes an active classification", GtwcSourceLifecycle),
@@ -88,6 +93,10 @@ var tests = new (string Name, Action Run)[]
     ("DTM qualifying derives standings from valid laps", DtmQualifyingTiming),
     ("DTM discovery selects only the running session", DtmSessionSelection),
     ("Griiip endurance bootstrap maps driver and class timing", GriiipEnduranceBootstrapTiming),
+    ("WEC recorded sectors progress and retain observed best laps", WecSectorTiming),
+    ("WEC tyre ages remain per-wheel and independent of total laps", WecTyreAges),
+    ("WEC virtual energy uses reported percentages and defaults on", WecEnergy),
+    ("WEC sector history rejects mismatches and resets between sessions", WecSectorValidation),
     ("Griiip endurance discovery selects each running series", GriiipSessionSelection),
     ("INDYCAR practice maps official timing", IndyCarPracticeTiming),
     ("INDYCAR source publishes captured practice timing", IndyCarSourceLifecycle),
@@ -122,6 +131,8 @@ foreach (var test in tests)
     catch (Exception ex) { failures++; Console.Error.WriteLine($"FAIL {test.Name}: {ex.Message}"); }
 }
 Console.WriteLine($"{tests.Length - failures}/{tests.Length} passed");
+if (failures == 0 && args is ["--gtwc-dump", var capturePath]) FeedDumpReplayTests.ActualCapture(capturePath);
+if (failures == 0 && args is ["--wec-dump", var wecCapturePath]) FeedDumpReplayTests.ActualWecCapture(wecCapturePath);
 return failures == 0 ? 0 : 1;
 
 static void DeepMerge()
@@ -987,7 +998,9 @@ static void F1PracticeTiming()
            "1":{"Position":1,"NumberOfLaps":10,"BestLapTime":{"Value":"1:47.000"}},
            "2":{"Position":2,"NumberOfLaps":11,"BestLapTime":{"Value":"1:47.250"}},
            "3":{"Position":3,"NumberOfLaps":9,"BestLapTime":{"Value":"1:47.800"}}}},
-         "TimingAppData":{"Lines":{"2":{"Stints":[{"Compound":"MEDIUM"},{"Compound":"SOFT"}]}}}}
+         "TimingAppData":{"Lines":{
+           "1":{"Stints":[{"Compound":"HARD","TotalLaps":12,"StartLaps":0}]},
+           "2":{"Stints":[{"Compound":"MEDIUM","TotalLaps":9,"StartLaps":9},{"Compound":"SOFT","TotalLaps":1,"StartLaps":0}]}}}}
         """)!.AsObject());
     Equal("LEAD", processor.Current.Competitors[0].GapToLeader);
     Equal("+0.250", processor.Current.Competitors[1].GapToLeader);
@@ -995,6 +1008,15 @@ static void F1PracticeTiming()
     Equal("+0.800", processor.Current.Competitors[2].GapToLeader);
     Equal("+0.550", processor.Current.Competitors[2].IntervalToPositionAhead);
     Equal("SOFT", processor.Current.Competitors[1].Tyre);
+    Equal(1, processor.Current.Competitors[1].TyreAge);
+    Equal(12, processor.Current.Competitors[0].TyreAge);
+    processor.ProcessDelta("TimingAppData", JsonNode.Parse("""{"Lines":{"2":{"Stints":{"1":{"TotalLaps":5}}}}}""")!.AsObject(), DateTimeOffset.UtcNow);
+    Equal(5, processor.Current.Competitors[1].TyreAge);
+    Equal("SOFT", processor.Current.Competitors[1].Tyre);
+    processor.ProcessDelta("TimingAppData", JsonNode.Parse("""{"Lines":{"2":{"Stints":{"1":{"TotalLaps":2}}}}}""")!.AsObject(), DateTimeOffset.UtcNow);
+    Equal(2, processor.Current.Competitors[1].TyreAge);
+    processor.ProcessDelta("TimingAppData", JsonNode.Parse("""{"Lines":{"2":{"Stints":{"1":{"StartLaps":1}}}}}""")!.AsObject(), DateTimeOffset.UtcNow);
+    Equal(1, processor.Current.Competitors[1].TyreAge);
 }
 
 static void F1QualifyingParts()
@@ -1342,6 +1364,7 @@ static void FlyoutColumnOrderNormalization()
     Equal(5, (int)FlyoutColumn.Status);
     Equal(6, (int)FlyoutColumn.Sectors);
     Equal(7, (int)FlyoutColumn.Splits);
+    Equal(8, (int)FlyoutColumn.Energy);
     var defaults = new ChampionshipDisplaySettings();
     False(defaults.FlyoutShowSectorTimes);
     False(defaults.FlyoutShowSplitTimes);
@@ -1351,6 +1374,9 @@ static void FlyoutColumnOrderNormalization()
         ChampionshipDisplay = new ChampionshipDisplayProfiles()
             .With(Championship.Formula1, defaults with { FlyoutShowSectorTimes = true, FlyoutShowSplitTimes = true })
             .With(Championship.Formula2, defaults with { FlyoutShowSectorTimes = true, FlyoutShowSplitTimes = true })
+            .With(Championship.GtWorldChallengeEurope, defaults with { FlyoutShowSectorTimes = true, FlyoutShowSplitTimes = true })
+            .With(Championship.WorldEnduranceChampionship, defaults with { FlyoutShowSectorTimes = true, FlyoutShowSplitTimes = true })
+            .With(Championship.EuropeanLeMansSeries, defaults with { FlyoutShowSectorTimes = true })
             .With(Championship.WorldRallyChampionship, defaults with { FlyoutShowSplitTimes = true })
     };
     True(configured.DisplayFor(Championship.Formula1).FlyoutShowSectorTimes);
@@ -1358,6 +1384,14 @@ static void FlyoutColumnOrderNormalization()
     False(configured.DisplayFor(Championship.Formula2).FlyoutShowSectorTimes);
     False(configured.DisplayFor(Championship.Formula2).FlyoutShowSplitTimes);
     True(configured.DisplayFor(Championship.WorldRallyChampionship).FlyoutShowSplitTimes);
+    foreach (var championship in new[] { Championship.GtWorldChallengeEurope, Championship.WorldEnduranceChampionship })
+    {
+        True(configured.DisplayFor(championship).FlyoutShowSectorTimes);
+        False(configured.DisplayFor(championship).FlyoutShowSplitTimes);
+        Equal(championship == Championship.WorldEnduranceChampionship, configured.DisplayFor(championship).FlyoutShowTyre);
+        False(new UserSettings().DisplayFor(championship).FlyoutShowSectorTimes);
+    }
+    False(configured.DisplayFor(Championship.EuropeanLeMansSeries).FlyoutShowSectorTimes);
 
     // A hand-edited order that repeats a column, names one that no longer exists, and omits four others.
     var repaired = new ChampionshipDisplaySettings
@@ -1365,7 +1399,7 @@ static void FlyoutColumnOrderNormalization()
         FlyoutColumnOrder = [FlyoutColumn.Status, FlyoutColumn.Status, (FlyoutColumn)99, FlyoutColumn.Tyre]
     }.Normalize().FlyoutColumnOrder;
     // The columns that were named keep their position, then the missing ones follow in the canonical order.
-    Equal("Status,Tyre,Gap,Interval,LapTime,Sectors,Splits,Category", string.Join(",", repaired));
+    Equal("Status,Tyre,Gap,Interval,LapTime,Sectors,Splits,Category,Energy", string.Join(",", repaired));
 
     var canonical = string.Join(",", ChampionshipDisplaySettings.DefaultColumnOrder);
     Equal(canonical, string.Join(",", new ChampionshipDisplaySettings { FlyoutColumnOrder = [] }.Normalize().FlyoutColumnOrder));
@@ -1378,16 +1412,19 @@ static void FlyoutColumnOrderNormalization()
     try
     {
         var store = new UserSettingsStore(path);
-        var order = new[] { FlyoutColumn.Status, FlyoutColumn.LapTime, FlyoutColumn.Sectors, FlyoutColumn.Splits, FlyoutColumn.Tyre, FlyoutColumn.Category, FlyoutColumn.Interval, FlyoutColumn.Gap };
+        var order = new[] { FlyoutColumn.Status, FlyoutColumn.LapTime, FlyoutColumn.Sectors, FlyoutColumn.Splits, FlyoutColumn.Tyre, FlyoutColumn.Category, FlyoutColumn.Interval, FlyoutColumn.Gap, FlyoutColumn.Energy };
+        var display = new ChampionshipDisplaySettings
+        {
+            FlyoutColumnOrder = order,
+            FlyoutShowSectorTimes = true,
+            FlyoutSectorTimeMode = SectorTimeMode.BestLap
+        };
         store.Save(new UserSettings
         {
             ChampionshipDisplay = new ChampionshipDisplayProfiles()
-                .With(Championship.Formula1, new ChampionshipDisplaySettings
-                {
-                    FlyoutColumnOrder = order,
-                    FlyoutShowSectorTimes = true,
-                    FlyoutSectorTimeMode = SectorTimeMode.BestLap
-                })
+                .With(Championship.Formula1, display)
+                .With(Championship.GtWorldChallengeEurope, display)
+                .With(Championship.WorldEnduranceChampionship, display)
         });
         // The enum is written by name, so the file stays readable to anyone editing it by hand.
         True(File.ReadAllText(path).Contains("\"Status\""));
@@ -1395,6 +1432,13 @@ static void FlyoutColumnOrderNormalization()
         Equal(string.Join(",", order), string.Join(",", loaded.FlyoutColumnOrder));
         True(loaded.FlyoutShowSectorTimes);
         Equal(SectorTimeMode.BestLap, loaded.FlyoutSectorTimeMode);
+        foreach (var championship in new[] { Championship.GtWorldChallengeEurope, Championship.WorldEnduranceChampionship })
+        {
+            var restored = store.Load().DisplayFor(championship);
+            True(restored.FlyoutShowSectorTimes);
+            Equal(SectorTimeMode.BestLap, restored.FlyoutSectorTimeMode);
+            Equal(string.Join(",", order), string.Join(",", restored.FlyoutColumnOrder));
+        }
     }
     finally
     {
@@ -1651,6 +1695,35 @@ static void LegacySettingsImport()
     {
         if (Directory.Exists(folder)) Directory.Delete(folder, true);
     }
+}
+
+static void SharedEntryNumbers()
+{
+    var standing = new CompetitorStanding("internal-guid", 1, "VAN", "Laurens Vanthoor", "Porsche", null, null,
+        null, 12, false, false, false, false) { CarNumber = "006" };
+    foreach (var championship in new[] { Championship.WorldEnduranceChampionship, Championship.Imsa,
+        Championship.GtWorldChallengeEurope, Championship.EuropeanLeMansSeries, Championship.MichelinLeMansCup })
+    {
+        Equal("#006  Laurens Vanthoor", ChampionshipDisplay.FlyoutDriverName(championship, standing));
+        Equal("#006  Driver Two", ChampionshipDisplay.FlyoutDriverName(championship, standing with { Name = "Driver Two" }));
+        Equal("Laurens Vanthoor", ChampionshipDisplay.FlyoutDriverName(championship, standing with { CarNumber = null }));
+        Equal("Laurens Vanthoor", ChampionshipDisplay.FlyoutDriverName(championship, standing with { CarNumber = " " }));
+        Equal("#006", ChampionshipDisplay.FlyoutDriverName(championship, standing with { Name = "", Code = "006" }));
+        Equal("#006  Laurens Vanthoor", ChampionshipDisplay.FlyoutDriverName(championship, standing with { CarNumber = " #006 " }));
+    }
+    Equal("Laurens Vanthoor", ChampionshipDisplay.FlyoutDriverName(Championship.Formula1, standing));
+    Equal("Laurens Vanthoor", ChampionshipDisplay.FlyoutDriverName(Championship.Dtm, standing));
+    Equal("VAN", standing.Code);
+    Equal("internal-guid", standing.DriverId);
+
+    var manifest = new JsonObject
+    {
+        ["name"] = "FIA World Endurance Championship",
+        ["colSpec"] = new JsonArray(new JsonArray("Num", "text"), new JsonArray("Driver", "text"))
+    };
+    var state = new JsonObject { ["cars"] = new JsonArray(new JsonArray("006", "Laurens Vanthoor")) };
+    var replay = TimingArchiveLoader.BuildSnapshot(manifest, state, DateTimeOffset.UtcNow);
+    Equal("006", replay.Competitors.Single().CarNumber);
 }
 
 static void ChampionshipLabels()
@@ -1971,7 +2044,14 @@ static void UserSettingsPersistence()
         False(loaded.DisplayFor(Championship.Formula2).FlyoutShowTyre);
         True(loaded.DisplayFor(Championship.Moto3).FlyoutUseManufacturerLogos);
         False(loaded.DisplayFor(Championship.Moto3).FlyoutShowTyre);
-        False(loaded.DisplayFor(Championship.WorldEnduranceChampionship).FlyoutShowTyre);
+        True(loaded.DisplayFor(Championship.WorldEnduranceChampionship).FlyoutShowTyre);
+        False(new UserSettings
+        {
+            ChampionshipDisplay = new ChampionshipDisplayProfiles
+            {
+                WorldEnduranceChampionship = new ChampionshipDisplaySettings { FlyoutShowTyre = false }
+            }
+        }.DisplayFor(Championship.WorldEnduranceChampionship).FlyoutShowTyre);
         False(loaded.DisplayFor(Championship.EuropeanLeMansSeries).FlyoutShowTyre);
         False(loaded.DisplayFor(Championship.MichelinLeMansCup).FlyoutShowTyre);
         False(loaded.DisplayFor(Championship.WorldRallyChampionship).FlyoutShowTeamNames);
@@ -2838,6 +2918,47 @@ static void GtwcStandings()
         new DateTimeOffset(2026, 8, 1, 13, 20, 0, TimeSpan.Zero), ConnectionState.Connected).Lifecycle);
 }
 
+static void GtwcSectorTiming()
+{
+    var fixture = SectorFixture("gtwc-portimao-fp1.json");
+    var timing = fixture["timing"]!.AsObject();
+    var detail = fixture["detail"]!.AsObject();
+    var unit = new GtwcUnit(JsonSupport.String(timing["UnitId"])!, "Free Practice 1", "gtwc", 1);
+    TimingSnapshot Read() => GtwcTiming.BuildSnapshot(new("meeting", "Portimao", "Portimao", 1), unit,
+        timing, detail, DateTimeOffset.Parse(JsonSupport.String(fixture["timestamp"])!), ConnectionState.Connected);
+    var snapshot = Read();
+    var leader = snapshot.Competitors.Single(value => value.Code == "MAG");
+    Equal("10", leader.CarNumber);
+    Equal("#10  Gilles Magnus", ChampionshipDisplay.FlyoutDriverName(snapshot.Championship, leader));
+    Equal("33.402", leader.CurrentSectors?.Sector1?.Value);
+    Equal(SectorTimingState.PersonalBest, leader.CurrentSectors?.Sector1?.State);
+    Equal("38.050", leader.CurrentSectors?.Sector3?.Value);
+    Equal(SectorTimingState.OverallBest, leader.CurrentSectors?.Sector3?.State);
+    Equal(leader.CurrentSectors, leader.BestLapSectors);
+    var following = snapshot.Competitors.Single(value => value.Code == "LIN");
+    Equal("32.324", following.CurrentSectors?.Sector1?.Value);
+    Equal<SectorTiming?>(null, following.CurrentSectors?.Sector2);
+    Equal<SectorTiming?>(null, following.CurrentSectors?.Sector3);
+    Equal("33.499", following.BestLapSectors?.Sector1?.Value);
+    Equal("38.052", following.BestLapSectors?.Sector3?.Value);
+    True(snapshot.Competitors.All(value => value.CurrentMiniSectors is null));
+
+    var main = timing["Results"]![following.DriverId]!["MainResult"]!.AsObject();
+    main["LastLap"]!["Intermediates"] = JsonNode.Parse("""
+        [{"Time":"40.000","TimeState":0},{"Time":"bad","TimeState":2},{"Time":"0.000","TimeState":1}]
+        """);
+    following = Read().Competitors.Single(value => value.Code == "LIN");
+    Equal("40.000", following.CurrentSectors?.Sector1?.Value);
+    Equal(SectorTimingState.Slower, following.CurrentSectors?.Sector1?.State);
+    Equal<SectorTiming?>(null, following.CurrentSectors?.Sector2);
+    Equal<SectorTiming?>(null, following.CurrentSectors?.Sector3);
+    Equal("33.499", following.BestLapSectors?.Sector1?.Value);
+    main["LastLap"]!["Intermediates"] = JsonNode.Parse("""[{"Time":"12.000","TimeState":99}]""");
+    Equal(SectorTimingState.None, Read().Competitors.Single(value => value.Code == "LIN").CurrentSectors?.Sector1?.State);
+    main["LastLap"] = new JsonObject();
+    Equal<SectorTimingSet?>(null, Read().Competitors.Single(value => value.Code == "LIN").CurrentSectors);
+}
+
 static void GtwcFlagsAndStatuses()
 {
     Equal("FIN", GtwcTiming.StatusLabel(1));
@@ -2972,6 +3093,7 @@ static void ImsaStandings()
     Equal("00:08:20", snapshot.TimeRemaining);
     Equal(3, snapshot.Competitors.Count);
     Equal("01", snapshot.Competitors[0].DriverId);
+    Equal("01", snapshot.Competitors[0].CarNumber);
     Equal("WIT", snapshot.Competitors[0].Code);
     Equal("BMW", snapshot.Competitors[0].Manufacturer);
     Equal("GTP", snapshot.Competitors[0].Category);
@@ -3388,6 +3510,8 @@ static void GriiipEnduranceBootstrapTiming()
     Equal(TrackCondition.Yellow, snapshot.TrackCondition);
     Equal("FUO", snapshot.Competitors[0].Code);
     Equal("Antonio FUOCO", snapshot.Competitors[0].Name);
+    Equal("51", snapshot.Competitors[0].CarNumber);
+    Equal("#51  Antonio FUOCO", ChampionshipDisplay.FlyoutDriverName(snapshot.Championship, snapshot.Competitors[0]));
     Equal("Ferrari", snapshot.Competitors[0].Manufacturer);
     Equal("SCH", snapshot.Competitors[1].Code);
     Equal("Clemens SCHMID", snapshot.Competitors[1].Name);
@@ -3405,10 +3529,223 @@ static void GriiipEnduranceBootstrapTiming()
     var elms = GriiipTiming.BuildSnapshot(session, bootstrap, now, ConnectionState.Connected, GriiipSeries.Elms);
     Equal(Championship.EuropeanLeMansSeries, elms.Championship);
     Equal("FUO", elms.Competitors[0].Code);
+    Equal("51", elms.Competitors[0].CarNumber);
     var michelinLeMansCup = GriiipTiming.BuildSnapshot(
         session, bootstrap, now, ConnectionState.Connected, GriiipSeries.MichelinLeMansCup);
     Equal(Championship.MichelinLeMansCup, michelinLeMansCup.Championship);
     Equal("FUO", michelinLeMansCup.Competitors[0].Code);
+    Equal("51", michelinLeMansCup.Competitors[0].CarNumber);
+}
+
+static void WecEnergy()
+{
+    (double? Percent, EnergyLevel Expected)[] levels =
+    [
+        (100, EnergyLevel.Good), (50.1, EnergyLevel.Good),
+        (50, EnergyLevel.Warning), (20.1, EnergyLevel.Warning),
+        (20, EnergyLevel.Low), (0, EnergyLevel.Low),
+        (null, EnergyLevel.Unavailable), (-1, EnergyLevel.Unavailable),
+        (101, EnergyLevel.Unavailable), (double.NaN, EnergyLevel.Unavailable),
+        (double.PositiveInfinity, EnergyLevel.Unavailable), (double.NegativeInfinity, EnergyLevel.Unavailable)
+    ];
+    foreach (var (percent, expected) in levels) Equal(expected, EnergyDisplay.Level(percent));
+    var fixture = SectorFixture("wec-energy.json");
+    var frames = fixture["frames"]!.AsArray();
+    var first = WecEnergyTiming.Read(frames[0]!["carsEnergyTanks"]);
+    Equal<double?>(89, first[424030]);
+    Equal<double?>(82, first[424039]);
+    Equal<double?>(81, WecEnergyTiming.Read(frames[1]!["carsEnergyTanks"])[424039]);
+    var limits = new JsonObject { ["items"] = new JsonArray(fixture["unavailable"]!.DeepClone(), fixture["full"]!.DeepClone()) };
+    Equal<double?>(null, WecEnergyTiming.Read(limits)[424035]);
+    Equal<double?>(100, WecEnergyTiming.Read(limits)[424022]);
+    var boundary = JsonNode.Parse("""
+        {"items":[{"pid":1,"e":0},{"pid":2,"e":32.5},{"pid":3,"e":101},
+          {"pid":4,"e":"NaN"},{"pid":5},{"pid":"invalid","e":20}]}
+        """);
+    var parsed = WecEnergyTiming.Read(boundary);
+    Equal<double?>(0, parsed[1]);
+    Equal<double?>(32.5, parsed[2]);
+    Equal<double?>(null, parsed[3]);
+    Equal<double?>(null, parsed[4]);
+    Equal<double?>(null, parsed[5]);
+    Equal(5, parsed.Count);
+    Equal(0, WecEnergyTiming.Read(null).Count);
+
+    var bootstrap = SectorFixture("wec-barcelona-fp1.json")["frames"]![0]!["bootstrap"]!.DeepClone().AsObject();
+    bootstrap["carsEnergyTanks"] = frames[0]!["carsEnergyTanks"]!.DeepClone();
+    var session = new JsonObject { ["isRunning"] = true };
+    var wec = GriiipTiming.BuildSnapshot(session, bootstrap, DateTimeOffset.UtcNow, ConnectionState.Connected, GriiipSeries.Wec);
+    Equal<double?>(89, wec.Competitors.Single(value => value.DriverId == "21").VirtualEnergyPercent);
+    Equal<double?>(82, wec.Competitors.Single(value => value.DriverId == "50").VirtualEnergyPercent);
+    bootstrap["carsEnergyTanks"] = null;
+    True(GriiipTiming.BuildSnapshot(session, bootstrap, DateTimeOffset.UtcNow, ConnectionState.Connected,
+        GriiipSeries.Wec).Competitors.All(value => value.VirtualEnergyPercent is null));
+    bootstrap["carsEnergyTanks"] = frames[0]!["carsEnergyTanks"]!.DeepClone();
+    True(GriiipTiming.BuildSnapshot(session, bootstrap, DateTimeOffset.UtcNow, ConnectionState.Connected,
+        GriiipSeries.Elms).Competitors.All(value => value.VirtualEnergyPercent is null));
+
+    var defaults = new UserSettings();
+    True(defaults.DisplayFor(Championship.WorldEnduranceChampionship).FlyoutShowEnergy);
+    foreach (var championship in UserSettings.AllChampionships.Where(value => value != Championship.WorldEnduranceChampionship))
+        False(defaults.DisplayFor(championship).FlyoutShowEnergy);
+    var legacy = System.Text.Json.JsonSerializer.Deserialize<ChampionshipDisplaySettings>("{}");
+    True(legacy!.FlyoutShowEnergy);
+    var folder = Path.Combine(Path.GetTempPath(), $"RaceDock-energy-{Guid.NewGuid():N}");
+    try
+    {
+        var store = new UserSettingsStore(Path.Combine(folder, "settings.json"));
+        store.Save(new UserSettings { ChampionshipDisplay = new ChampionshipDisplayProfiles
+        {
+            WorldEnduranceChampionship = new ChampionshipDisplaySettings
+            {
+                FlyoutShowEnergy = false,
+                FlyoutColumnOrder = [FlyoutColumn.Energy, .. ChampionshipDisplaySettings.DefaultColumnOrder.Where(value => value != FlyoutColumn.Energy)]
+            }
+        } });
+        var restored = store.Load().DisplayFor(Championship.WorldEnduranceChampionship);
+        False(restored.FlyoutShowEnergy);
+        Equal(FlyoutColumn.Energy, restored.FlyoutColumnOrder[0]);
+    }
+    finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+}
+
+static void WecTyreAges()
+{
+    var fixture = SectorFixture("wec-tyre-ages.json");
+    var frames = fixture["frames"]!.AsArray();
+    var first = WecTyreTiming.Read(frames[0]!["tires"])[424040];
+    Equal(6, first.FrontLeft?.AgeInLaps);
+    Equal("MEDIUM", first.FrontLeft?.Compound);
+    var mixed = WecTyreTiming.Read(frames[1]!["tires"])[424040];
+    Equal(10, mixed.FrontLeft?.AgeInLaps);
+    Equal(6, mixed.FrontRight?.AgeInLaps);
+    Equal(10, mixed.RearLeft?.AgeInLaps);
+    Equal(10, mixed.RearRight?.AgeInLaps);
+    Equal(10, JsonSupport.Int(frames[1]!["completedLaps"]));
+
+    var bootstrap = SectorFixture("wec-barcelona-fp1.json")["frames"]![0]!["bootstrap"]!.DeepClone().AsObject();
+    var row = frames[1]!["tires"]![0]!.DeepClone().AsObject();
+    row["pid"] = 424030;
+    bootstrap["tires"] = new JsonArray(row);
+    var session = new JsonObject { ["isRunning"] = true };
+    var standing = GriiipTiming.BuildSnapshot(session, bootstrap, DateTimeOffset.UtcNow,
+        ConnectionState.Connected, GriiipSeries.Wec).Competitors.Single(value => value.DriverId == "21");
+    Equal(mixed, standing.CurrentTyres);
+    True(standing.Lap != standing.CurrentTyres?.FrontRight?.AgeInLaps);
+    var unsupported = GriiipTiming.BuildSnapshot(session, bootstrap, DateTimeOffset.UtcNow,
+        ConnectionState.Connected, GriiipSeries.Elms);
+    True(unsupported.Competitors.All(value => value.CurrentTyres is null));
+
+    var changed = row.DeepClone().AsObject();
+    changed["elapsedTimeMillis"] = (JsonSupport.Int(row["elapsedTimeMillis"]) ?? 0) + 1;
+    changed["tires"] = JsonNode.Parse("""
+        [{"id":"frontLeft","compound":"SOFT","ageInLaps":0},
+         {"id":"frontRight","ageInLaps":-1},{"id":"rearLeft","compound":"MEDIUM"}]
+        """);
+    // Explicit provider ages may reset to zero; older records cannot restore the old age.
+    var latest = WecTyreTiming.Read(new JsonArray(changed, row.DeepClone()))[424030];
+    Equal(0, latest.FrontLeft?.AgeInLaps);
+    Equal("SOFT", latest.FrontLeft?.Compound);
+    Equal<int?>(null, latest.FrontRight?.AgeInLaps);
+    Equal<int?>(null, latest.RearLeft?.AgeInLaps);
+    Equal<WheelTyre?>(null, latest.RearRight);
+    Equal(0, WecTyreTiming.Read(null).Count);
+    bootstrap["tires"] = new JsonArray();
+    True(GriiipTiming.BuildSnapshot(session, bootstrap, DateTimeOffset.UtcNow,
+        ConnectionState.Connected, GriiipSeries.Wec).Competitors.All(value => value.CurrentTyres is null));
+}
+
+static void WecSectorTiming()
+{
+    var fixture = SectorFixture("wec-barcelona-fp1.json");
+    var session = fixture["session"]!.AsObject();
+    var frames = fixture["frames"]!.AsArray();
+    var sectors = new GriiipSectorTiming();
+    TimingSnapshot Read(int index) => GriiipTiming.BuildSnapshot(session, frames[index]!["bootstrap"]!.AsObject(),
+        DateTimeOffset.Parse(JsonSupport.String(frames[index]!["timestamp"])!), ConnectionState.Connected, GriiipSeries.Wec, sectors);
+    var first = Read(0);
+    var entry = first.Competitors.Single(value => value.DriverId == "21");
+    Equal("30.270", entry.CurrentSectors?.Sector1?.Value);
+    Equal(SectorTimingState.PersonalBest, entry.CurrentSectors?.Sector1?.State);
+    Equal("40.818", entry.CurrentSectors?.Sector2?.Value);
+    Equal(SectorTimingState.OverallBest, entry.CurrentSectors?.Sector2?.State);
+    Equal("30.332", entry.CurrentSectors?.Sector3?.Value);
+    Equal(entry.CurrentSectors, entry.BestLapSectors);
+    var best = entry.BestLapSectors;
+    var hypercar = first.Competitors.Single(value => value.DriverId == "50");
+    Equal("26.616", hypercar.CurrentSectors?.Sector1?.Value);
+    Equal<SectorTiming?>(null, hypercar.CurrentSectors?.Sector2);
+    Equal<SectorTiming?>(null, hypercar.CurrentSectors?.Sector3);
+
+    entry = Read(1).Competitors.Single(value => value.DriverId == "21");
+    Equal("31.001", entry.CurrentSectors?.Sector1?.Value);
+    Equal(SectorTimingState.Slower, entry.CurrentSectors?.Sector1?.State);
+    Equal<SectorTiming?>(null, entry.CurrentSectors?.Sector2);
+    Equal<SectorTiming?>(null, entry.CurrentSectors?.Sector3);
+    Equal(best, entry.BestLapSectors);
+    True(Read(1).Competitors.All(value => value.CurrentMiniSectors is null));
+    entry = Read(2).Competitors.Single(value => value.DriverId == "21");
+    Equal("33.072", entry.CurrentSectors?.Sector1?.Value);
+    Equal("44.836", entry.CurrentSectors?.Sector2?.Value);
+    Equal(SectorTimingState.None, entry.CurrentSectors?.Sector2?.State);
+    Equal("39.713", entry.CurrentSectors?.Sector3?.Value);
+    Equal(best, entry.BestLapSectors);
+
+    // The bounded provider history no longer contains lap four when joining the later snapshot.
+    sectors.Reset();
+    Equal<SectorTimingSet?>(null, Read(1).Competitors.Single(value => value.DriverId == "21").BestLapSectors);
+    foreach (var series in new[] { GriiipSeries.Dtm, GriiipSeries.Elms, GriiipSeries.MichelinLeMansCup })
+    {
+        var unsupported = GriiipTiming.BuildSnapshot(session, frames[0]!["bootstrap"]!.AsObject(),
+            DateTimeOffset.UtcNow, ConnectionState.Connected, series, sectors);
+        True(unsupported.Competitors.All(value => value.CurrentSectors is null && value.BestLapSectors is null));
+    }
+}
+
+static void WecSectorValidation()
+{
+    var fixture = SectorFixture("wec-barcelona-fp1.json");
+    var session = fixture["session"]!.AsObject();
+    var first = fixture["frames"]![0]!["bootstrap"]!.AsObject();
+    var later = fixture["frames"]![1]!["bootstrap"]!.AsObject();
+    var sectors = new GriiipSectorTiming();
+    TimingSnapshot Read(JsonObject bootstrap) => GriiipTiming.BuildSnapshot(session, bootstrap,
+        DateTimeOffset.UtcNow, ConnectionState.Connected, GriiipSeries.Wec, sectors);
+    var best = Read(first).Competitors.Single(value => value.DriverId == "21").BestLapSectors;
+    True(best is not null);
+    var bestLap = later["bestLaps"]!.AsArray().OfType<JsonObject>().Single(value => JsonSupport.Int(value["pid"]) == 424030);
+    bestLap["lapNumber"] = 16;
+    bestLap["lapTimeMillis"] = 100000;
+    Equal<SectorTimingSet?>(null, Read(later).Competitors.Single(value => value.DriverId == "21").BestLapSectors);
+
+    // Matching the lap number is insufficient if the sectors do not sum to its published time.
+    sectors.Reset();
+    bestLap = first["bestLaps"]!.AsArray().OfType<JsonObject>().Single(value => JsonSupport.Int(value["pid"]) == 424030);
+    bestLap["lapTimeMillis"] = 101421;
+    Equal<SectorTimingSet?>(null, Read(first).Competitors.Single(value => value.DriverId == "21").BestLapSectors);
+    bestLap["lapTimeMillis"] = 101420;
+    var samples = first["sectors"]!.AsArray();
+    var sector = samples.OfType<JsonObject>().Single(value => JsonSupport.Int(value["pid"]) == 424030 &&
+        JsonSupport.Int(value["lapNumber"]) == 4 && JsonSupport.Int(value["sectorNumber"]) == 1);
+    sector["isValid"] = false;
+    Equal<SectorTimingSet?>(null, Read(first).Competitors.Single(value => value.DriverId == "21").BestLapSectors);
+    sector["isValid"] = true;
+    var duplicate = sector.DeepClone().AsObject();
+    duplicate["sectorTimeMillis"] = 12345;
+    duplicate["ts"] = "2026-10-16T09:00:00+00:00";
+    samples.Add(duplicate);
+    Equal(best, Read(first).Competitors.Single(value => value.DriverId == "21").BestLapSectors);
+    // An explicit invalidation must clear a previously retained best-lap sector set as well.
+    sector["isValid"] = false;
+    Equal<SectorTimingSet?>(null, Read(first).Competitors.Single(value => value.DriverId == "21").BestLapSectors);
+    sector["isValid"] = true;
+    Equal(best, Read(first).Competitors.Single(value => value.DriverId == "21").BestLapSectors);
+    first["bestLaps"] = new JsonArray();
+    first["laps"] = new JsonArray();
+    first["sectors"] = new JsonArray();
+    first["currentLapSectors"] = new JsonObject();
+    var empty = Read(first);
+    True(empty.Competitors.All(value => value.CurrentSectors is null && value.BestLapSectors is null));
 }
 
 static void GriiipSessionSelection()
@@ -3434,6 +3771,25 @@ static void GriiipSessionSelection()
     Equal(TimeSpan.FromHours(3.5), GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Wec, now, options));
     Equal(TimeSpan.FromSeconds(15), GriiipLiveTimingSource.NextIdleDelay(
         scheduled, GriiipSeries.Wec, now.AddHours(3.75), options));
+    var start = now.AddHours(4);
+    Equal(options.NearSessionInterval, GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Wec, start.AddSeconds(-1), options));
+    Equal(options.NearSessionInterval, GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Wec, start, options));
+    Equal(options.NearSessionInterval, GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Wec, start.AddMinutes(5), options));
+    // A missing or invalid end time gets only a bounded recent-start grace.
+    Equal(options.ScheduleRefreshInterval, GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Wec, start.Add(options.PreSessionLead), options));
+    foreach (var invalidEnd in new[] { "not-a-date", start.ToString("O"), start.AddMinutes(-1).ToString("O") })
+    {
+        scheduled[0]!["endTime"] = invalidEnd;
+        Equal(options.NearSessionInterval, GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Wec, start.AddMinutes(5), options));
+        Equal(options.ScheduleRefreshInterval, GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Wec, start.Add(options.PreSessionLead), options));
+    }
+    scheduled[0]!["endTime"] = start.AddHours(1).ToString("O");
+    Equal(options.NearSessionInterval, GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Wec, start.AddMinutes(45), options));
+    Equal(options.ScheduleRefreshInterval, GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Wec, start.AddHours(1), options));
+    scheduled[0]!["hideFromUsers"] = true;
+    Equal(options.ScheduleRefreshInterval, GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Wec, start.AddMinutes(5), options));
+    scheduled[0]!["hideFromUsers"] = false;
+    Equal(options.ScheduleRefreshInterval, GriiipLiveTimingSource.NextIdleDelay(scheduled, GriiipSeries.Elms, start.AddMinutes(5), options));
     Equal(TimeSpan.FromHours(6), GriiipLiveTimingSource.NextIdleDelay([], GriiipSeries.Wec, now, options));
 }
 
@@ -3942,6 +4298,8 @@ static void True(bool value) { if (!value) throw new Exception("Expected true.")
 static void False(bool value) { if (value) throw new Exception("Expected false."); }
 static void Equal<T>(T expected, T actual) { if (!EqualityComparer<T>.Default.Equals(expected, actual)) throw new Exception($"Expected '{expected}', got '{actual}'."); }
 static string FixtureText(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Wrc", name));
+static JsonObject SectorFixture(string name) => JsonNode.Parse(File.ReadAllText(
+    Path.Combine(AppContext.BaseDirectory, "Fixtures", "Sectors", name)))!.AsObject();
 static Queue<HttpResponseMessage> Responses(params string[] bodies) => new(bodies.Select(body => new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) }));
 static WrcPollingOptions TestWrcOptions() => new(
     TimeSpan.FromHours(1), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(1), TimeSpan.FromHours(6),

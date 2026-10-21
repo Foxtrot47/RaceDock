@@ -29,6 +29,19 @@ public static class ChampionshipDisplay
     public static string FullEvent(TimingSnapshot snapshot) =>
         Join(FullName(snapshot.Championship), ShortEventName(snapshot.Championship, snapshot.Meeting), " · ");
 
+    /// <summary>Shared-entry championships identify the car as well as its active driver in the flyout.</summary>
+    public static string FlyoutDriverName(Championship championship, CompetitorStanding standing)
+    {
+        var name = string.IsNullOrWhiteSpace(standing.Name) ? standing.Code : standing.Name;
+        if (championship is not (Championship.WorldEnduranceChampionship or Championship.Imsa or
+            Championship.GtWorldChallengeEurope or Championship.EuropeanLeMansSeries or Championship.MichelinLeMansCup))
+            return name;
+        if (string.IsNullOrWhiteSpace(standing.CarNumber)) return name;
+        var number = standing.CarNumber.Trim().TrimStart('#');
+        if (number.Length == 0) return name;
+        return name == number || name == "#" + number ? $"#{number}" : $"#{number}  {name}";
+    }
+
     public static string CompactCategory(Championship championship, string? category)
     {
         if (string.IsNullOrWhiteSpace(category)) return "—";

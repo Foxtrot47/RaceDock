@@ -13,6 +13,8 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
     private readonly JsonObject _manifest;
     private readonly IReadOnlyList<ArchiveFrame> _frames;
     private JsonObject? _state;
+    private readonly Func<int, TimingSnapshot>? _readSnapshot;
+    private readonly bool _startPaused;
     private readonly SemaphoreSlim _wake = new(0, 1);
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly object _gate = new();
@@ -39,6 +41,18 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
         ArchiveName = archive.Name;
         _manifest = archive.Manifest;
         _frames = archive.Frames;
+    }
+
+    internal TimingArchiveReplaySource(string path, string name, IClock clock,
+        IReadOnlyList<TimingSnapshot> snapshots, IReadOnlyList<DateTimeOffset> timestamps, string source = "GTWC")
+    {
+        _clock = clock;
+        ArchivePath = path;
+        ArchiveName = name;
+        _manifest = new JsonObject();
+        _frames = timestamps.Select(timestamp => new ArchiveFrame(timestamp, [], source, false)).ToList();
+        _readSnapshot = index => snapshots[index];
+        _startPaused = true;
     }
 
     public static Task<TimingArchiveReplaySource> CreateAsync(string path, IClock clock, CancellationToken cancellationToken = default) =>
@@ -81,8 +95,8 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
                 runToken = _cts.Token;
                 _nextFrame = 1;
                 _generation++;
-                _completed = false;
-                _paused = false;
+                _completed = _startPaused && _frames.Count == 1;
+                _paused = _startPaused;
                 _active = true;
                 ConnectionChanged?.Invoke(ConnectionState.Connected);
                 Publish(ReadFrame(0));
@@ -122,7 +136,7 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
             if (!_active) return;
             _nextFrame = 1;
             _generation++;
-            _completed = false;
+            _completed = _startPaused && _frames.Count == 1;
             Publish(ReadFrame(0));
         }
         Signal();
@@ -215,6 +229,7 @@ public sealed class TimingArchiveReplaySource : ITimingArchiveSource
 
     private TimingSnapshot ReadFrame(int index)
     {
+        if (_readSnapshot is not null) return _readSnapshot(index);
         var frame = _frames[index];
         _state = TimingArchiveLoader.AdvanceState(_manifest, _state, frame, CancellationToken.None);
         return TimingArchiveLoader.BuildSnapshot(_manifest, _state, frame.Timestamp);
@@ -667,7 +682,10 @@ internal static class TimingArchiveLoader
                 CellText(row, columns, "Class", "Category"),
                 Manufacturer(CellText(row, columns, "Car", "Vehicle", "Bike")),
                 FormatTime(CellDouble(row, columns, "Last", "Last lap time") ?? 0),
-                CurrentSectors: ArchiveSectors(row, columns)), best));
+                CurrentSectors: ArchiveSectors(row, columns))
+            {
+                CarNumber = CellText(row, columns, "Num", "Number", "No")
+            }, best));
         }
         var fastest = parsed.Where(value => value.Best > 0).OrderBy(value => value.Best).FirstOrDefault().Standing?.DriverId;
         var competitors = parsed.Select(value => value.Standing with { IsOverallFastest = value.Standing.DriverId == fastest }).ToList();

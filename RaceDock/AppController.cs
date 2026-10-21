@@ -84,7 +84,7 @@ public sealed class AppController : IAsyncDisposable
         try
         {
             ITimingArchiveSource replay = string.Equals(Path.GetExtension(fullPath), ".ndjson", StringComparison.OrdinalIgnoreCase)
-                ? await F1FeedDumpReplaySource.CreateAsync(fullPath, _clock, _lifetime.Token)
+                ? await FeedDumpReplayLoader.CreateAsync(fullPath, _clock, _lifetime.Token)
                 : await TimingArchiveReplaySource.CreateAsync(fullPath, _clock, _lifetime.Token);
             await SwitchSourceCoreAsync(TimingSourceMode.ArchiveReplay, replay);
         }
@@ -231,9 +231,25 @@ public sealed class AppController : IAsyncDisposable
     private void OnFailure(FeedFailure failure) => AppLog.Warning("Feed", failure.Message, failure.Exception);
     private void RenderPending()
     {
+        if (_disposed) return;
         var snapshot = Interlocked.Exchange(ref _pending, null); if (snapshot is null) return;
         // Live feeds never start for a hidden championship, but archive playback can still produce one.
         if (snapshot.Championship != Championship.Unknown && !_settings.IsChampionshipVisible(snapshot.Championship)) return;
+        UpdateTimingStatuses(snapshot);
+        if (snapshot.Lifecycle == SessionLifecycle.OffSession || (snapshot.Lifecycle == SessionLifecycle.Ended && Archive is null))
+        {
+            _taskbar?.Hide();
+            UpdateIdleWidget();
+            return;
+        }
+        var taskbar = EnsureTaskbar();
+        taskbar.UpdateSnapshot(snapshot);
+        taskbar.SetAlert(_alerts.Current);
+        if (!taskbar.IsVisible) taskbar.Show();
+    }
+
+    private void UpdateTimingStatuses(TimingSnapshot snapshot)
+    {
         if (snapshot.Championship == Championship.Unknown && snapshot.Lifecycle == SessionLifecycle.OffSession)
         {
             _latestSnapshots.Clear();
@@ -245,8 +261,19 @@ public sealed class AppController : IAsyncDisposable
             else _latestSnapshots[snapshot.Championship] = snapshot;
             _settingsWindow?.UpdateSnapshot(snapshot);
         }
-        if (snapshot.Lifecycle == SessionLifecycle.OffSession || (snapshot.Lifecycle == SessionLifecycle.Ended && Archive is null)) { _taskbar?.Hide(); UpdateIdleWidget(); return; }
-        _taskbar ??= new TaskbarWindow(_settings); _taskbar.UpdateSnapshot(snapshot); _taskbar.SetAlert(_alerts.Current); if (!_taskbar.IsVisible) _taskbar.Show();
+    }
+
+    /// <summary>A closed WPF window cannot be shown again; later updates must create a new widget.</summary>
+    private TaskbarWindow EnsureTaskbar()
+    {
+        if (_taskbar is not null) return _taskbar;
+        var taskbar = new TaskbarWindow(_settings);
+        taskbar.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_taskbar, taskbar)) _taskbar = null;
+        };
+        _taskbar = taskbar;
+        return taskbar;
     }
 
     /// <summary>
@@ -256,11 +283,12 @@ public sealed class AppController : IAsyncDisposable
     private void UpdateIdleWidget()
     {
         // A snapshot on the widget outranks the calendar, including a completed session still being retained.
-        if (TestMode || _taskbar is { ShowingSnapshot: true }) return;
-        if (!_settings.ShowNextSessionWhenIdle) { _taskbar?.Hide(); return; }
+        if (_disposed || TestMode || _taskbar is { ShowingSnapshot: true }) return;
         var now = _clock.UtcNow;
-        if (_upcoming.Any(session => session.StartUtc <= now)) _ = RefreshNextSessionAsync();
         var upcoming = NextSessionDisplay.Schedule(_upcoming, now);
+        _taskbar?.UpdateOverlaySchedule(upcoming, now);
+        if (!_settings.ShowNextSessionWhenIdle) { _taskbar?.Hide(); return; }
+        if (_upcoming.Any(session => session.StartUtc <= now)) _ = RefreshNextSessionAsync();
         // An exhausted calendar means the feeds, not the schedule, own what happens next.
         if (upcoming.Count == 0)
         {
@@ -268,8 +296,7 @@ public sealed class AppController : IAsyncDisposable
             _ = RefreshNextSessionAsync();
             return;
         }
-        _taskbar ??= new TaskbarWindow(_settings);
-        _taskbar.ShowNextSession(upcoming[0], upcoming, now);
+        EnsureTaskbar().ShowNextSession(upcoming[0], upcoming, now);
     }
 
     /// <summary>Reloads the published schedule. The service caches, so calling this often costs nothing.</summary>

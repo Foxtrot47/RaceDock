@@ -174,7 +174,7 @@
                 <ui:CardControl.Header>
                     <StackPanel HorizontalAlignment="Left">
                         <TextBlock Text="Sector timing mode" Style="{StaticResource SettingsCardTitleStyle}" />
-                        <TextBlock Text="Choose current/last-lap sectors or the sectors from each driver’s best lap."
+                        <TextBlock Text="Choose current/last-lap sectors or the sectors from each competitor’s best lap. Unavailable sectors show —."
                                    Style="{StaticResource SettingsCardDescriptionStyle}" />
                     </StackPanel>
                 </ui:CardControl.Header>

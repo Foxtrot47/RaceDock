@@ -24,7 +24,8 @@ public enum FlyoutColumn
     Category = 4,
     Status = 5,
     Sectors = 6,
-    Splits = 7
+    Splits = 7,
+    Energy = 8
 }
 
 public sealed record ChampionshipDisplaySettings
@@ -43,6 +44,7 @@ public sealed record ChampionshipDisplaySettings
     public bool FlyoutShowLapTime { get; init; } = true;
     public bool FlyoutShowSectorTimes { get; init; }
     public bool FlyoutShowSplitTimes { get; init; }
+    public bool FlyoutShowEnergy { get; init; } = true;
     public SectorTimeMode FlyoutSectorTimeMode { get; init; } = SectorTimeMode.CurrentLast;
     public bool FlyoutShowTyre { get; init; } = true;
     public bool FlyoutShowCategoryOrLap { get; init; } = true;
@@ -59,7 +61,8 @@ public sealed record ChampionshipDisplaySettings
         FlyoutColumn.Splits,
         FlyoutColumn.Tyre,
         FlyoutColumn.Category,
-        FlyoutColumn.Status
+        FlyoutColumn.Status,
+        FlyoutColumn.Energy
     ];
 
     /// <summary>
@@ -86,7 +89,7 @@ public sealed record ChampionshipDisplaySettings
         FlyoutCompetitorCount = Math.Clamp(FlyoutCompetitorCount, 5, 40)
     };
 
-    internal ChampionshipDisplaySettings ApplyCapabilities(Championship championship) => championship switch
+    internal ChampionshipDisplaySettings ApplyCapabilities(Championship championship) => (championship switch
     {
         Championship.Formula2 or Championship.Formula3 => this with
         {
@@ -96,9 +99,14 @@ public sealed record ChampionshipDisplaySettings
             FlyoutShowSectorTimes = false,
             FlyoutShowSplitTimes = false
         },
+        Championship.WorldEnduranceChampionship => this with { FlyoutShowSplitTimes = false },
+        Championship.GtWorldChallengeEurope => this with
+        {
+            FlyoutShowTyre = false,
+            FlyoutShowSplitTimes = false
+        },
         // Bike and sportscar feeds carry no tyre compound, so the column would only hold placeholders.
         Championship.MotoGp or Championship.Moto2 or Championship.Moto3
-            or Championship.GtWorldChallengeEurope or Championship.WorldEnduranceChampionship
             or Championship.EuropeanLeMansSeries or Championship.MichelinLeMansCup or Championship.Imsa
             or Championship.FormulaE or Championship.Dtm => this with
         {
@@ -115,7 +123,7 @@ public sealed record ChampionshipDisplaySettings
         Championship.IndyCar => this with { FlyoutShowSectorTimes = false, FlyoutShowSplitTimes = false },
         Championship.Formula1 => this with { FlyoutShowSplitTimes = false },
         _ => this with { FlyoutShowSectorTimes = false, FlyoutShowSplitTimes = false }
-    };
+    }) with { FlyoutShowEnergy = championship == Championship.WorldEnduranceChampionship && FlyoutShowEnergy };
 
     internal static ChampionshipDisplaySettings FromLegacy(UserSettings settings) => new()
     {

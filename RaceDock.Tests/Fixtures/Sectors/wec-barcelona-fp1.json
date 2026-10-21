@@ -1,0 +1,2406 @@
+{
+  "session": {
+    "id": 17718,
+    "name": "Free Practice 1",
+    "isRunning": true,
+    "hasResult": false,
+    "hasSeenChequered": false
+  },
+  "frames": [
+    {
+      "source": "D:\\Projects\\HAR\\feed-dump-20261016-150641\\wec.ndjson",
+      "timestamp": "2026-10-16T09:38:59.1926493+00:00",
+      "bootstrap": {
+        "sessionInfo": {
+          "eventName": "FIA WEC - 6 Hours of Barcelona",
+          "sessionName": "Free Practice 1",
+          "trackName": "Circuito de Barcelona",
+          "isStarted": true,
+          "hasSeenChequered": false,
+          "sectorColors": [
+            "#3B82F6",
+            "#EAB308",
+            "#EF4444"
+          ]
+        },
+        "trackDetails": {
+          "trackName": "Circuito de Barcelona",
+          "sectorsCount": 3,
+          "hasSegments": false,
+          "segments": []
+        },
+        "sessionLengthLimit": {
+          "sessionLengthType": "TimeOnly",
+          "lapsLimit": -1,
+          "timeLimitSeconds": 5400,
+          "extraLapsAfterTimeEnds": 0,
+          "ts": "2026-10-16T09:30:00+00:00",
+          "elapsedTimeMillis": -1,
+          "sid": 17718,
+          "pid": -1,
+          "carNumber": "",
+          "classId": ""
+        },
+        "sessionClock": {
+          "increment": 1,
+          "tsNow": "2026-10-16T09:39:04.114+00:00",
+          "startTime": "2026-10-16T09:30:00+00:00",
+          "ts": "2026-10-16T09:30:00+00:00",
+          "elapsedTimeMillis": 0,
+          "sid": 17718,
+          "pid": -1,
+          "carNumber": "",
+          "classId": ""
+        },
+        "raceFlags": [
+          {
+            "raceFlagID": "20261016093000000",
+            "flag": "Green",
+            "sectorNumbers": [],
+            "lapNumber": 1,
+            "info": "",
+            "ts": "2026-10-16T09:30:00+00:00",
+            "elapsedTimeMillis": 0,
+            "sid": 17718,
+            "pid": -1,
+            "carNumber": "",
+            "classId": ""
+          }
+        ],
+        "chequeredFlags": [],
+        "participants": [
+          {
+            "firstname": "Antonio",
+            "lastname": "FUOCO",
+            "displayName": "FERRARI AF CORSE",
+            "threeLettersName": "FER",
+            "currentDriverId": "1",
+            "manufacturer": "Ferrari 499P",
+            "teamName": "FERRARI AF CORSE",
+            "drivers": [
+              {
+                "externalDriverID": "1",
+                "displayName": "Antonio Fuoco",
+                "threeLettersName": "FUO"
+              },
+              {
+                "externalDriverID": "2",
+                "displayName": "Miguel Molina",
+                "threeLettersName": "MOL"
+              },
+              {
+                "externalDriverID": "3",
+                "displayName": "Nicklas Nielsen ",
+                "threeLettersName": "NIE"
+              }
+            ],
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "firstname": "Alessio",
+            "lastname": "ROVERA",
+            "displayName": "VISTA AF CORSE",
+            "threeLettersName": "VST",
+            "currentDriverId": "3",
+            "manufacturer": "Ferrari 296 LMGT3 Evo",
+            "teamName": "VISTA AF CORSE",
+            "drivers": [
+              {
+                "externalDriverID": "2",
+                "displayName": "François HÉRIAU",
+                "threeLettersName": "HÉR"
+              },
+              {
+                "externalDriverID": "1",
+                "displayName": "Simon Mann ",
+                "threeLettersName": "MAN"
+              },
+              {
+                "externalDriverID": "3",
+                "displayName": "Alessio Rovera",
+                "threeLettersName": "ROV"
+              }
+            ],
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "ranks": [
+          {
+            "overallPosition": 2,
+            "position": 2,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:38:33.248+00:00",
+            "elapsedTimeMillis": 513248,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "overallPosition": 16,
+            "position": 1,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:38:36.373+00:00",
+            "elapsedTimeMillis": 516373,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "gaps": [
+          {
+            "gapToFirstMillis": 13,
+            "gapToFirstLaps": -2,
+            "gapToAheadMillis": 13,
+            "gapToAheadLaps": -2,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:38:33.248+00:00",
+            "elapsedTimeMillis": 513248,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "gapToFirstMillis": 0,
+            "gapToFirstLaps": -2,
+            "gapToAheadMillis": 0,
+            "gapToAheadLaps": -2,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:38:36.373+00:00",
+            "elapsedTimeMillis": 516373,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "bestLaps": [
+          {
+            "sessionPart": 1,
+            "lapNumber": 5,
+            "lapTimeMillis": 92066,
+            "isValid": true,
+            "color": "Green",
+            "ts": "2026-10-16T09:38:33.248+00:00",
+            "elapsedTimeMillis": 513248,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 4,
+            "lapTimeMillis": 101420,
+            "isValid": true,
+            "color": "Purple",
+            "ts": "2026-10-16T09:38:36.373+00:00",
+            "elapsedTimeMillis": 516373,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "laps": [
+          {
+            "sessionPart": 1,
+            "lapNumber": 5,
+            "lapTimeMillis": 92066,
+            "isValid": true,
+            "color": "Green",
+            "ts": "2026-10-16T09:38:33.248+00:00",
+            "elapsedTimeMillis": 513248,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 4,
+            "lapTimeMillis": 108150,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:37:01.182+00:00",
+            "elapsedTimeMillis": 421182,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 3,
+            "lapTimeMillis": 92201,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:38:33.248+00:00",
+            "elapsedTimeMillis": 513248,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 2,
+            "lapTimeMillis": 97766,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:35:13.032+00:00",
+            "elapsedTimeMillis": 313032,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 1,
+            "lapTimeMillis": 123065,
+            "isValid": false,
+            "color": "Gray",
+            "ts": "2026-10-16T09:32:03.065+00:00",
+            "elapsedTimeMillis": 123065,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 4,
+            "lapTimeMillis": 101420,
+            "isValid": true,
+            "color": "Purple",
+            "ts": "2026-10-16T09:38:36.373+00:00",
+            "elapsedTimeMillis": 516373,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 3,
+            "lapTimeMillis": 105975,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:38:36.373+00:00",
+            "elapsedTimeMillis": 516373,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 2,
+            "lapTimeMillis": 180308,
+            "isValid": false,
+            "color": "Gray",
+            "ts": "2026-10-16T09:35:08.978+00:00",
+            "elapsedTimeMillis": 308978,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 1,
+            "lapTimeMillis": 128670,
+            "isValid": false,
+            "color": "Gray",
+            "ts": "2026-10-16T09:32:08.67+00:00",
+            "elapsedTimeMillis": 128670,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "runningStatuses": [
+          {
+            "status": "Running",
+            "ts": "2026-10-16T09:30:00+00:00",
+            "elapsedTimeMillis": -1,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "status": "Running",
+            "ts": "2026-10-16T09:30:00+00:00",
+            "elapsedTimeMillis": -1,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          }
+        ],
+        "carLocations": [
+          {
+            "carLocation": "Track",
+            "ts": "2026-10-16T09:37:25.223+00:00",
+            "elapsedTimeMillis": 445223,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "carLocation": "Track",
+            "ts": "2026-10-16T09:38:59.864+00:00",
+            "elapsedTimeMillis": 539864,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          }
+        ],
+        "sectors": [
+          {
+            "sectorNumber": 3,
+            "lapNumber": 4,
+            "sectorTimeMillis": 30332,
+            "isValid": true,
+            "color": "Purple",
+            "ts": "2026-10-16T09:38:36.373+00:00",
+            "elapsedTimeMillis": 516373,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 2,
+            "lapNumber": 4,
+            "sectorTimeMillis": 40818,
+            "isValid": true,
+            "color": "Purple",
+            "ts": "2026-10-16T09:38:06.041+00:00",
+            "elapsedTimeMillis": 486041,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 1,
+            "lapNumber": 4,
+            "sectorTimeMillis": 30270,
+            "isValid": true,
+            "color": "Green",
+            "ts": "2026-10-16T09:37:25.223+00:00",
+            "elapsedTimeMillis": 445223,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 3,
+            "lapNumber": 3,
+            "sectorTimeMillis": 34200,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:36:54.953+00:00",
+            "elapsedTimeMillis": 414953,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 2,
+            "lapNumber": 3,
+            "sectorTimeMillis": 41393,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:38:06.041+00:00",
+            "elapsedTimeMillis": 486041,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 1,
+            "lapNumber": 6,
+            "sectorTimeMillis": 26616,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:38:59.864+00:00",
+            "elapsedTimeMillis": 539864,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 3,
+            "lapNumber": 5,
+            "sectorTimeMillis": 27822,
+            "isValid": true,
+            "color": "Purple",
+            "ts": "2026-10-16T09:38:33.248+00:00",
+            "elapsedTimeMillis": 513248,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 2,
+            "lapNumber": 5,
+            "sectorTimeMillis": 37649,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:38:05.426+00:00",
+            "elapsedTimeMillis": 485426,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 1,
+            "lapNumber": 5,
+            "sectorTimeMillis": 26595,
+            "isValid": true,
+            "color": "Purple",
+            "ts": "2026-10-16T09:37:27.777+00:00",
+            "elapsedTimeMillis": 447777,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 3,
+            "lapNumber": 4,
+            "sectorTimeMillis": 33507,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:37:01.182+00:00",
+            "elapsedTimeMillis": 421182,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          }
+        ],
+        "currentLapSectors": {
+          "424030": [],
+          "424039": [
+            {
+              "sectorNumber": 1,
+              "lapNumber": 6,
+              "sectorTimeMillis": 26616,
+              "isValid": true,
+              "color": "Gray",
+              "ts": "2026-10-16T09:38:59.864+00:00",
+              "elapsedTimeMillis": 539864,
+              "sid": 17718,
+              "pid": 424039,
+              "carNumber": "50",
+              "classId": "HYPERCAR"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "source": "D:\\Projects\\HAR\\feed-dump-20261016-151135\\wec.ndjson",
+      "timestamp": "2026-10-16T09:59:52.333948+00:00",
+      "bootstrap": {
+        "sessionInfo": {
+          "eventName": "FIA WEC - 6 Hours of Barcelona",
+          "sessionName": "Free Practice 1",
+          "trackName": "Circuito de Barcelona",
+          "isStarted": true,
+          "hasSeenChequered": false,
+          "sectorColors": [
+            "#3B82F6",
+            "#EAB308",
+            "#EF4444"
+          ]
+        },
+        "trackDetails": {
+          "trackName": "Circuito de Barcelona",
+          "sectorsCount": 3,
+          "hasSegments": false,
+          "segments": []
+        },
+        "sessionLengthLimit": {
+          "sessionLengthType": "TimeOnly",
+          "lapsLimit": -1,
+          "timeLimitSeconds": 5400,
+          "extraLapsAfterTimeEnds": 0,
+          "ts": "2026-10-16T09:30:00+00:00",
+          "elapsedTimeMillis": -1,
+          "sid": 17718,
+          "pid": -1,
+          "carNumber": "",
+          "classId": ""
+        },
+        "sessionClock": {
+          "increment": 1,
+          "tsNow": "2026-10-16T09:59:56.361+00:00",
+          "startTime": "2026-10-16T09:30:00+00:00",
+          "ts": "2026-10-16T09:30:00+00:00",
+          "elapsedTimeMillis": 0,
+          "sid": 17718,
+          "pid": -1,
+          "carNumber": "",
+          "classId": ""
+        },
+        "raceFlags": [
+          {
+            "raceFlagID": "20261016093000000",
+            "flag": "Green",
+            "sectorNumbers": [],
+            "lapNumber": 1,
+            "info": "",
+            "ts": "2026-10-16T09:30:00+00:00",
+            "elapsedTimeMillis": 0,
+            "sid": 17718,
+            "pid": -1,
+            "carNumber": "",
+            "classId": ""
+          }
+        ],
+        "chequeredFlags": [],
+        "participants": [
+          {
+            "firstname": "Antonio",
+            "lastname": "FUOCO",
+            "displayName": "FERRARI AF CORSE",
+            "threeLettersName": "FER",
+            "currentDriverId": "1",
+            "manufacturer": "Ferrari 499P",
+            "teamName": "FERRARI AF CORSE",
+            "drivers": [
+              {
+                "externalDriverID": "1",
+                "displayName": "Antonio Fuoco",
+                "threeLettersName": "FUO"
+              },
+              {
+                "externalDriverID": "2",
+                "displayName": "Miguel Molina",
+                "threeLettersName": "MOL"
+              },
+              {
+                "externalDriverID": "3",
+                "displayName": "Nicklas Nielsen ",
+                "threeLettersName": "NIE"
+              }
+            ],
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "firstname": "Alessio",
+            "lastname": "ROVERA",
+            "displayName": "VISTA AF CORSE",
+            "threeLettersName": "VST",
+            "currentDriverId": "3",
+            "manufacturer": "Ferrari 296 LMGT3 Evo",
+            "teamName": "VISTA AF CORSE",
+            "drivers": [
+              {
+                "externalDriverID": "2",
+                "displayName": "François HÉRIAU",
+                "threeLettersName": "HÉR"
+              },
+              {
+                "externalDriverID": "1",
+                "displayName": "Simon Mann ",
+                "threeLettersName": "MAN"
+              },
+              {
+                "externalDriverID": "3",
+                "displayName": "Alessio Rovera",
+                "threeLettersName": "ROV"
+              }
+            ],
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "ranks": [
+          {
+            "overallPosition": 4,
+            "position": 4,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:45:55.969+00:00",
+            "elapsedTimeMillis": 955969,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "overallPosition": 18,
+            "position": 1,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:41:32.835+00:00",
+            "elapsedTimeMillis": 692835,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "gaps": [
+          {
+            "gapToFirstMillis": 175,
+            "gapToFirstLaps": -2,
+            "gapToAheadMillis": 13,
+            "gapToAheadLaps": -2,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:45:55.969+00:00",
+            "elapsedTimeMillis": 955969,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "gapToFirstMillis": 0,
+            "gapToFirstLaps": -2,
+            "gapToAheadMillis": 0,
+            "gapToAheadLaps": -2,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:41:32.835+00:00",
+            "elapsedTimeMillis": 692835,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "bestLaps": [
+          {
+            "sessionPart": 1,
+            "lapNumber": 5,
+            "lapTimeMillis": 92066,
+            "isValid": true,
+            "color": "Green",
+            "ts": "2026-10-16T09:38:33.248+00:00",
+            "elapsedTimeMillis": 513248,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 4,
+            "lapTimeMillis": 101420,
+            "isValid": true,
+            "color": "Purple",
+            "ts": "2026-10-16T09:58:29.02+00:00",
+            "elapsedTimeMillis": 1709020,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "laps": [
+          {
+            "sessionPart": 1,
+            "lapNumber": 13,
+            "lapTimeMillis": 99389,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:58:21.488+00:00",
+            "elapsedTimeMillis": 1701488,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 12,
+            "lapTimeMillis": 509339,
+            "isValid": false,
+            "color": "Gray",
+            "ts": "2026-10-16T09:56:42.099+00:00",
+            "elapsedTimeMillis": 1602099,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 11,
+            "lapTimeMillis": 102415,
+            "isValid": false,
+            "color": "Gray",
+            "ts": "2026-10-16T09:48:12.76+00:00",
+            "elapsedTimeMillis": 1092760,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 10,
+            "lapTimeMillis": 93969,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:46:30.345+00:00",
+            "elapsedTimeMillis": 990345,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 9,
+            "lapTimeMillis": 93587,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:44:56.376+00:00",
+            "elapsedTimeMillis": 896376,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 15,
+            "lapTimeMillis": 104120,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:59:20.431+00:00",
+            "elapsedTimeMillis": 1760431,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 14,
+            "lapTimeMillis": 103758,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:57:36.311+00:00",
+            "elapsedTimeMillis": 1656311,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 13,
+            "lapTimeMillis": 104471,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:55:52.553+00:00",
+            "elapsedTimeMillis": 1552553,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 12,
+            "lapTimeMillis": 199793,
+            "isValid": false,
+            "color": "Gray",
+            "ts": "2026-10-16T09:54:08.082+00:00",
+            "elapsedTimeMillis": 1448082,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 11,
+            "lapTimeMillis": 110486,
+            "isValid": false,
+            "color": "Gray",
+            "ts": "2026-10-16T09:50:48.289+00:00",
+            "elapsedTimeMillis": 1248289,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "runningStatuses": [
+          {
+            "status": "Running",
+            "ts": "2026-10-16T09:30:00+00:00",
+            "elapsedTimeMillis": -1,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "status": "Running",
+            "ts": "2026-10-16T09:30:00+00:00",
+            "elapsedTimeMillis": -1,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          }
+        ],
+        "carLocations": [
+          {
+            "carLocation": "Track",
+            "ts": "2026-10-16T09:59:51.432+00:00",
+            "elapsedTimeMillis": 1791432,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "carLocation": "Track",
+            "ts": "2026-10-16T09:58:49.176+00:00",
+            "elapsedTimeMillis": 1729176,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          }
+        ],
+        "sectors": [
+          {
+            "sectorNumber": 1,
+            "lapNumber": 16,
+            "sectorTimeMillis": 31001,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:59:51.432+00:00",
+            "elapsedTimeMillis": 1791432,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 3,
+            "lapNumber": 15,
+            "sectorTimeMillis": 31292,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:59:20.431+00:00",
+            "elapsedTimeMillis": 1760431,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 2,
+            "lapNumber": 15,
+            "sectorTimeMillis": 41961,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:58:49.139+00:00",
+            "elapsedTimeMillis": 1729139,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 1,
+            "lapNumber": 15,
+            "sectorTimeMillis": 30867,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:58:07.178+00:00",
+            "elapsedTimeMillis": 1687178,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 3,
+            "lapNumber": 14,
+            "sectorTimeMillis": 31027,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:57:36.311+00:00",
+            "elapsedTimeMillis": 1656311,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 2,
+            "lapNumber": 14,
+            "sectorTimeMillis": 38426,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:59:27.602+00:00",
+            "elapsedTimeMillis": 1767602,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 1,
+            "lapNumber": 14,
+            "sectorTimeMillis": 27688,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:58:49.176+00:00",
+            "elapsedTimeMillis": 1729176,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 3,
+            "lapNumber": 13,
+            "sectorTimeMillis": 32420,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:58:21.488+00:00",
+            "elapsedTimeMillis": 1701488,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 2,
+            "lapNumber": 13,
+            "sectorTimeMillis": 39032,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:57:49.068+00:00",
+            "elapsedTimeMillis": 1669068,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 1,
+            "lapNumber": 13,
+            "sectorTimeMillis": 27937,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T09:57:10.036+00:00",
+            "elapsedTimeMillis": 1630036,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          }
+        ],
+        "currentLapSectors": {
+          "424030": [
+            {
+              "sectorNumber": 1,
+              "lapNumber": 16,
+              "sectorTimeMillis": 31001,
+              "isValid": true,
+              "color": "Gray",
+              "ts": "2026-10-16T09:59:51.432+00:00",
+              "elapsedTimeMillis": 1791432,
+              "sid": 17718,
+              "pid": 424030,
+              "carNumber": "21",
+              "classId": "LMGT3"
+            }
+          ],
+          "424039": [
+            {
+              "sectorNumber": 2,
+              "lapNumber": 14,
+              "sectorTimeMillis": 38426,
+              "isValid": true,
+              "color": "Gray",
+              "ts": "2026-10-16T09:59:27.602+00:00",
+              "elapsedTimeMillis": 1767602,
+              "sid": 17718,
+              "pid": 424039,
+              "carNumber": "50",
+              "classId": "HYPERCAR"
+            },
+            {
+              "sectorNumber": 1,
+              "lapNumber": 14,
+              "sectorTimeMillis": 27688,
+              "isValid": true,
+              "color": "Gray",
+              "ts": "2026-10-16T09:58:49.176+00:00",
+              "elapsedTimeMillis": 1729176,
+              "sid": 17718,
+              "pid": 424039,
+              "carNumber": "50",
+              "classId": "HYPERCAR"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "source": "D:\\Projects\\HAR\\feed-dump-20261016-151135\\wec.ndjson",
+      "timestamp": "2026-10-16T11:12:45.98024+00:00",
+      "bootstrap": {
+        "sessionInfo": {
+          "eventName": "FIA WEC - 6 Hours of Barcelona",
+          "sessionName": "Free Practice 1",
+          "trackName": "Circuito de Barcelona",
+          "isStarted": true,
+          "hasSeenChequered": true,
+          "sectorColors": [
+            "#3B82F6",
+            "#EAB308",
+            "#EF4444"
+          ]
+        },
+        "trackDetails": {
+          "trackName": "Circuito de Barcelona",
+          "sectorsCount": 3,
+          "hasSegments": false,
+          "segments": []
+        },
+        "sessionLengthLimit": {
+          "sessionLengthType": "TimeOnly",
+          "lapsLimit": -1,
+          "timeLimitSeconds": 5400,
+          "extraLapsAfterTimeEnds": 0,
+          "ts": "2026-10-16T09:30:00+00:00",
+          "elapsedTimeMillis": -1,
+          "sid": 17718,
+          "pid": -1,
+          "carNumber": "",
+          "classId": ""
+        },
+        "sessionClock": {
+          "increment": 1,
+          "tsNow": "2026-10-16T11:12:51.143+00:00",
+          "startTime": "2026-10-16T09:30:00+00:00",
+          "ts": "2026-10-16T11:02:13.078+00:00",
+          "elapsedTimeMillis": 5533078,
+          "sid": 17718,
+          "pid": -1,
+          "carNumber": "",
+          "classId": ""
+        },
+        "raceFlags": [
+          {
+            "raceFlagID": "20261016093000000",
+            "flag": "Green",
+            "sectorNumbers": [],
+            "lapNumber": 1,
+            "info": "",
+            "ts": "2026-10-16T09:30:00+00:00",
+            "elapsedTimeMillis": 0,
+            "sid": 17718,
+            "pid": -1,
+            "carNumber": "",
+            "classId": ""
+          },
+          {
+            "raceFlagID": "20261016100030006",
+            "flag": "Yellow",
+            "sectorNumbers": [],
+            "lapNumber": 1,
+            "info": "",
+            "ts": "2026-10-16T10:00:30.006+00:00",
+            "elapsedTimeMillis": 1830006,
+            "sid": 17718,
+            "pid": -1,
+            "carNumber": "",
+            "classId": ""
+          },
+          {
+            "raceFlagID": "20261016100500060",
+            "flag": "Green",
+            "sectorNumbers": [],
+            "lapNumber": 1,
+            "info": "",
+            "ts": "2026-10-16T10:05:00.06+00:00",
+            "elapsedTimeMillis": 2100060,
+            "sid": 17718,
+            "pid": -1,
+            "carNumber": "",
+            "classId": ""
+          },
+          {
+            "raceFlagID": "20261016110000000",
+            "flag": "Chequered",
+            "sectorNumbers": [],
+            "lapNumber": 1,
+            "info": "",
+            "ts": "2026-10-16T11:00:00+00:00",
+            "elapsedTimeMillis": 5400000,
+            "sid": 17718,
+            "pid": -1,
+            "carNumber": "",
+            "classId": ""
+          },
+          {
+            "raceFlagID": "20261016110142092",
+            "flag": "ChequeredYellow",
+            "sectorNumbers": [],
+            "lapNumber": 1,
+            "info": "",
+            "ts": "2026-10-16T11:01:42.092+00:00",
+            "elapsedTimeMillis": 5502092,
+            "sid": 17718,
+            "pid": -1,
+            "carNumber": "",
+            "classId": ""
+          }
+        ],
+        "chequeredFlags": [
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:00+00:00",
+            "elapsedTimeMillis": 5400000,
+            "sid": 17718,
+            "pid": 424024,
+            "carNumber": "10",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:00+00:00",
+            "elapsedTimeMillis": 5400000,
+            "sid": 17718,
+            "pid": 424027,
+            "carNumber": "17",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:00+00:00",
+            "elapsedTimeMillis": 5400000,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:00+00:00",
+            "elapsedTimeMillis": 5400000,
+            "sid": 17718,
+            "pid": 424031,
+            "carNumber": "23",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:00+00:00",
+            "elapsedTimeMillis": 5400000,
+            "sid": 17718,
+            "pid": 424041,
+            "carNumber": "54",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:00+00:00",
+            "elapsedTimeMillis": 5400000,
+            "sid": 17718,
+            "pid": 424043,
+            "carNumber": "61",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:00+00:00",
+            "elapsedTimeMillis": 5400000,
+            "sid": 17718,
+            "pid": 424052,
+            "carNumber": "88",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:00+00:00",
+            "elapsedTimeMillis": 5400000,
+            "sid": 17718,
+            "pid": 424055,
+            "carNumber": "93",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 45,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:01.931+00:00",
+            "elapsedTimeMillis": 5401931,
+            "sid": 17718,
+            "pid": 424040,
+            "carNumber": "51",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 42,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:05.946+00:00",
+            "elapsedTimeMillis": 5405946,
+            "sid": 17718,
+            "pid": 424037,
+            "carNumber": "36",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 45,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:06.506+00:00",
+            "elapsedTimeMillis": 5406506,
+            "sid": 17718,
+            "pid": 424023,
+            "carNumber": "009",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 45,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:10.432+00:00",
+            "elapsedTimeMillis": 5410432,
+            "sid": 17718,
+            "pid": 424050,
+            "carNumber": "83",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 40,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:18.717+00:00",
+            "elapsedTimeMillis": 5418717,
+            "sid": 17718,
+            "pid": 424048,
+            "carNumber": "79",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 40,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:21.85+00:00",
+            "elapsedTimeMillis": 5421850,
+            "sid": 17718,
+            "pid": 424046,
+            "carNumber": "77",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:30.612+00:00",
+            "elapsedTimeMillis": 5430612,
+            "sid": 17718,
+            "pid": 424026,
+            "carNumber": "15",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 44,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:31.846+00:00",
+            "elapsedTimeMillis": 5431846,
+            "sid": 17718,
+            "pid": 424022,
+            "carNumber": "007",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 45,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:32.055+00:00",
+            "elapsedTimeMillis": 5432055,
+            "sid": 17718,
+            "pid": 424053,
+            "carNumber": "91",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 39,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:36.943+00:00",
+            "elapsedTimeMillis": 5436943,
+            "sid": 17718,
+            "pid": 424033,
+            "carNumber": "32",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 49,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:42.717+00:00",
+            "elapsedTimeMillis": 5442717,
+            "sid": 17718,
+            "pid": 424025,
+            "carNumber": "12",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 47,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:43.278+00:00",
+            "elapsedTimeMillis": 5443278,
+            "sid": 17718,
+            "pid": 424028,
+            "carNumber": "19",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 50,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:51.558+00:00",
+            "elapsedTimeMillis": 5451558,
+            "sid": 17718,
+            "pid": 424029,
+            "carNumber": "20",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 50,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:52.032+00:00",
+            "elapsedTimeMillis": 5452032,
+            "sid": 17718,
+            "pid": 424045,
+            "carNumber": "7",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 40,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:55.982+00:00",
+            "elapsedTimeMillis": 5455982,
+            "sid": 17718,
+            "pid": 424042,
+            "carNumber": "58",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 40,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:57.068+00:00",
+            "elapsedTimeMillis": 5457068,
+            "sid": 17718,
+            "pid": 424032,
+            "carNumber": "27",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 40,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:00:57.12+00:00",
+            "elapsedTimeMillis": 5457120,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 36,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:04.548+00:00",
+            "elapsedTimeMillis": 5464548,
+            "sid": 17718,
+            "pid": 424047,
+            "carNumber": "78",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 49,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:09.039+00:00",
+            "elapsedTimeMillis": 5469039,
+            "sid": 17718,
+            "pid": 424049,
+            "carNumber": "8",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 41,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:12.839+00:00",
+            "elapsedTimeMillis": 5472839,
+            "sid": 17718,
+            "pid": 424036,
+            "carNumber": "35",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 33,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:25.315+00:00",
+            "elapsedTimeMillis": 5485315,
+            "sid": 17718,
+            "pid": 424051,
+            "carNumber": "87",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 42,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:28.198+00:00",
+            "elapsedTimeMillis": 5488198,
+            "sid": 17718,
+            "pid": 424034,
+            "carNumber": "33",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 50,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:28.346+00:00",
+            "elapsedTimeMillis": 5488346,
+            "sid": 17718,
+            "pid": 424038,
+            "carNumber": "38",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 46,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:32.483+00:00",
+            "elapsedTimeMillis": 5492483,
+            "sid": 17718,
+            "pid": 424035,
+            "carNumber": "34",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 45,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:34.736+00:00",
+            "elapsedTimeMillis": 5494736,
+            "sid": 17718,
+            "pid": 424056,
+            "carNumber": "94",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": 43,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:42.35+00:00",
+            "elapsedTimeMillis": 5502350,
+            "sid": 17718,
+            "pid": 424044,
+            "carNumber": "69",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:43.51+00:00",
+            "elapsedTimeMillis": 5503510,
+            "sid": 17718,
+            "pid": 424040,
+            "carNumber": "51",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:46.822+00:00",
+            "elapsedTimeMillis": 5506822,
+            "sid": 17718,
+            "pid": 424054,
+            "carNumber": "92",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:47.626+00:00",
+            "elapsedTimeMillis": 5507626,
+            "sid": 17718,
+            "pid": 424037,
+            "carNumber": "36",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:01:51.047+00:00",
+            "elapsedTimeMillis": 5511047,
+            "sid": 17718,
+            "pid": 424023,
+            "carNumber": "009",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:16.1+00:00",
+            "elapsedTimeMillis": 5536100,
+            "sid": 17718,
+            "pid": 424050,
+            "carNumber": "83",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:18.384+00:00",
+            "elapsedTimeMillis": 5538384,
+            "sid": 17718,
+            "pid": 424048,
+            "carNumber": "79",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:22.118+00:00",
+            "elapsedTimeMillis": 5542118,
+            "sid": 17718,
+            "pid": 424046,
+            "carNumber": "77",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:24.511+00:00",
+            "elapsedTimeMillis": 5544511,
+            "sid": 17718,
+            "pid": 424053,
+            "carNumber": "91",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:26.955+00:00",
+            "elapsedTimeMillis": 5546955,
+            "sid": 17718,
+            "pid": 424025,
+            "carNumber": "12",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:28.456+00:00",
+            "elapsedTimeMillis": 5548456,
+            "sid": 17718,
+            "pid": 424028,
+            "carNumber": "19",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:31.069+00:00",
+            "elapsedTimeMillis": 5551069,
+            "sid": 17718,
+            "pid": 424033,
+            "carNumber": "32",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:49.905+00:00",
+            "elapsedTimeMillis": 5569905,
+            "sid": 17718,
+            "pid": 424045,
+            "carNumber": "7",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:53.38+00:00",
+            "elapsedTimeMillis": 5573380,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:55.812+00:00",
+            "elapsedTimeMillis": 5575812,
+            "sid": 17718,
+            "pid": 424042,
+            "carNumber": "58",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:57.659+00:00",
+            "elapsedTimeMillis": 5577659,
+            "sid": 17718,
+            "pid": 424032,
+            "carNumber": "27",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:02:59.204+00:00",
+            "elapsedTimeMillis": 5579204,
+            "sid": 17718,
+            "pid": 424047,
+            "carNumber": "78",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:03:04.718+00:00",
+            "elapsedTimeMillis": 5584718,
+            "sid": 17718,
+            "pid": 424049,
+            "carNumber": "8",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:03:05.951+00:00",
+            "elapsedTimeMillis": 5585951,
+            "sid": 17718,
+            "pid": 424036,
+            "carNumber": "35",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:03:07.298+00:00",
+            "elapsedTimeMillis": 5587298,
+            "sid": 17718,
+            "pid": 424029,
+            "carNumber": "20",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:03:13.154+00:00",
+            "elapsedTimeMillis": 5593154,
+            "sid": 17718,
+            "pid": 424038,
+            "carNumber": "38",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:03:18.878+00:00",
+            "elapsedTimeMillis": 5598878,
+            "sid": 17718,
+            "pid": 424051,
+            "carNumber": "87",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:03:19.936+00:00",
+            "elapsedTimeMillis": 5599936,
+            "sid": 17718,
+            "pid": 424056,
+            "carNumber": "94",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:03:21.661+00:00",
+            "elapsedTimeMillis": 5601661,
+            "sid": 17718,
+            "pid": 424034,
+            "carNumber": "33",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:03:32.352+00:00",
+            "elapsedTimeMillis": 5612352,
+            "sid": 17718,
+            "pid": 424035,
+            "carNumber": "34",
+            "classId": ""
+          },
+          {
+            "flag": "Chequered",
+            "lapNumber": -1,
+            "sectorNumber": -1,
+            "isActive": true,
+            "info": "",
+            "ts": "2026-10-16T11:03:40.461+00:00",
+            "elapsedTimeMillis": 5620461,
+            "sid": 17718,
+            "pid": 424044,
+            "carNumber": "69",
+            "classId": ""
+          }
+        ],
+        "participants": [
+          {
+            "firstname": "Nicklas",
+            "lastname": "NIELSEN",
+            "displayName": "FERRARI AF CORSE",
+            "threeLettersName": "FER",
+            "currentDriverId": "3",
+            "manufacturer": "Ferrari 499P",
+            "teamName": "FERRARI AF CORSE",
+            "drivers": [
+              {
+                "externalDriverID": "1",
+                "displayName": "Antonio Fuoco",
+                "threeLettersName": "FUO"
+              },
+              {
+                "externalDriverID": "2",
+                "displayName": "Miguel Molina",
+                "threeLettersName": "MOL"
+              },
+              {
+                "externalDriverID": "3",
+                "displayName": "Nicklas Nielsen ",
+                "threeLettersName": "NIE"
+              }
+            ],
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "firstname": "François",
+            "lastname": "HÉRIAU",
+            "displayName": "VISTA AF CORSE",
+            "threeLettersName": "VST",
+            "currentDriverId": "2",
+            "manufacturer": "Ferrari 296 LMGT3 Evo",
+            "teamName": "VISTA AF CORSE",
+            "drivers": [
+              {
+                "externalDriverID": "2",
+                "displayName": "François HÉRIAU",
+                "threeLettersName": "HÉR"
+              },
+              {
+                "externalDriverID": "1",
+                "displayName": "Simon Mann ",
+                "threeLettersName": "MAN"
+              },
+              {
+                "externalDriverID": "3",
+                "displayName": "Alessio Rovera",
+                "threeLettersName": "ROV"
+              }
+            ],
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "ranks": [
+          {
+            "overallPosition": 4,
+            "position": 4,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:45:55.969+00:00",
+            "elapsedTimeMillis": 955969,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "overallPosition": 18,
+            "position": 1,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:41:32.835+00:00",
+            "elapsedTimeMillis": 692835,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "gaps": [
+          {
+            "gapToFirstMillis": 175,
+            "gapToFirstLaps": -2,
+            "gapToAheadMillis": 13,
+            "gapToAheadLaps": -2,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:45:55.969+00:00",
+            "elapsedTimeMillis": 955969,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "gapToFirstMillis": 0,
+            "gapToFirstLaps": -2,
+            "gapToAheadMillis": 0,
+            "gapToAheadLaps": -2,
+            "isDeleted": false,
+            "ts": "2026-10-16T09:41:32.835+00:00",
+            "elapsedTimeMillis": 692835,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "bestLaps": [
+          {
+            "sessionPart": 1,
+            "lapNumber": 5,
+            "lapTimeMillis": 92066,
+            "isValid": true,
+            "color": "Green",
+            "ts": "2026-10-16T09:38:33.248+00:00",
+            "elapsedTimeMillis": 513248,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 4,
+            "lapTimeMillis": 101420,
+            "isValid": true,
+            "color": "Purple",
+            "ts": "2026-10-16T10:53:08.98+00:00",
+            "elapsedTimeMillis": 4988980,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "laps": [
+          {
+            "sessionPart": 1,
+            "lapNumber": 40,
+            "lapTimeMillis": 97297,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T11:00:57.12+00:00",
+            "elapsedTimeMillis": 5457120,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 39,
+            "lapTimeMillis": 95925,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:59:19.823+00:00",
+            "elapsedTimeMillis": 5359823,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 38,
+            "lapTimeMillis": 97398,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:57:43.898+00:00",
+            "elapsedTimeMillis": 5263898,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 37,
+            "lapTimeMillis": 97307,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:56:06.5+00:00",
+            "elapsedTimeMillis": 5166500,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 36,
+            "lapTimeMillis": 96666,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:54:29.193+00:00",
+            "elapsedTimeMillis": 5069193,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 42,
+            "lapTimeMillis": 117621,
+            "isValid": false,
+            "color": "Gray",
+            "ts": "2026-10-16T10:55:32.794+00:00",
+            "elapsedTimeMillis": 5132794,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 41,
+            "lapTimeMillis": 111890,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:53:35.173+00:00",
+            "elapsedTimeMillis": 5015173,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 40,
+            "lapTimeMillis": 112184,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:51:43.283+00:00",
+            "elapsedTimeMillis": 4903283,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 39,
+            "lapTimeMillis": 111052,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:49:51.099+00:00",
+            "elapsedTimeMillis": 4791099,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sessionPart": 1,
+            "lapNumber": 38,
+            "lapTimeMillis": 109484,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:48:00.047+00:00",
+            "elapsedTimeMillis": 4680047,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          }
+        ],
+        "runningStatuses": [
+          {
+            "status": "Running",
+            "ts": "2026-10-16T09:30:00+00:00",
+            "elapsedTimeMillis": -1,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "status": "Running",
+            "ts": "2026-10-16T09:30:00+00:00",
+            "elapsedTimeMillis": -1,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          }
+        ],
+        "carLocations": [
+          {
+            "carLocation": "Pit",
+            "ts": "2026-10-16T10:55:29.035+00:00",
+            "elapsedTimeMillis": 5129035,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "carLocation": "Pit",
+            "ts": "2026-10-16T11:02:53.38+00:00",
+            "elapsedTimeMillis": 5573380,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          }
+        ],
+        "sectors": [
+          {
+            "sectorNumber": 3,
+            "lapNumber": 42,
+            "sectorTimeMillis": 39713,
+            "isValid": false,
+            "color": "Gray",
+            "ts": "2026-10-16T10:55:32.794+00:00",
+            "elapsedTimeMillis": 5132794,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 2,
+            "lapNumber": 42,
+            "sectorTimeMillis": 44836,
+            "isValid": false,
+            "color": "Gray",
+            "ts": "2026-10-16T10:54:59.722+00:00",
+            "elapsedTimeMillis": 5099722,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 1,
+            "lapNumber": 42,
+            "sectorTimeMillis": 33072,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:54:08.245+00:00",
+            "elapsedTimeMillis": 5048245,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 3,
+            "lapNumber": 41,
+            "sectorTimeMillis": 34830,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:53:35.173+00:00",
+            "elapsedTimeMillis": 5015173,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 2,
+            "lapNumber": 41,
+            "sectorTimeMillis": 44332,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:53:00.343+00:00",
+            "elapsedTimeMillis": 4980343,
+            "sid": 17718,
+            "pid": 424030,
+            "carNumber": "21",
+            "classId": "LMGT3"
+          },
+          {
+            "sectorNumber": 3,
+            "lapNumber": 40,
+            "sectorTimeMillis": 29733,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T11:00:57.12+00:00",
+            "elapsedTimeMillis": 5457120,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 2,
+            "lapNumber": 40,
+            "sectorTimeMillis": 39117,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T11:00:27.387+00:00",
+            "elapsedTimeMillis": 5427387,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 1,
+            "lapNumber": 40,
+            "sectorTimeMillis": 28447,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:59:48.27+00:00",
+            "elapsedTimeMillis": 5388270,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 3,
+            "lapNumber": 39,
+            "sectorTimeMillis": 29148,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:59:19.823+00:00",
+            "elapsedTimeMillis": 5359823,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          },
+          {
+            "sectorNumber": 2,
+            "lapNumber": 39,
+            "sectorTimeMillis": 38890,
+            "isValid": true,
+            "color": "Gray",
+            "ts": "2026-10-16T10:58:50.675+00:00",
+            "elapsedTimeMillis": 5330675,
+            "sid": 17718,
+            "pid": 424039,
+            "carNumber": "50",
+            "classId": "HYPERCAR"
+          }
+        ],
+        "currentLapSectors": {
+          "424030": [],
+          "424039": []
+        }
+      }
+    }
+  ]
+}

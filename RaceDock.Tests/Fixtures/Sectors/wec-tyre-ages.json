@@ -1,0 +1,81 @@
+{
+  "source": "wec.ndjson",
+  "frames": [
+    {
+      "timestamp": "2026-10-16T09:41:40.2594525+00:00",
+      "completedLaps": 6,
+      "tires": [
+        {
+          "pid": 424040,
+          "carNumber": "51",
+          "elapsedTimeMillis": 638808,
+          "lapNumber": 1,
+          "tires": [
+            {
+              "id": "frontLeft",
+              "compound": "MEDIUM",
+              "isChanged": false,
+              "ageInLaps": 6
+            },
+            {
+              "id": "frontRight",
+              "compound": "MEDIUM",
+              "isChanged": false,
+              "ageInLaps": 6
+            },
+            {
+              "id": "rearLeft",
+              "compound": "MEDIUM",
+              "isChanged": false,
+              "ageInLaps": 6
+            },
+            {
+              "id": "rearRight",
+              "compound": "MEDIUM",
+              "isChanged": false,
+              "ageInLaps": 6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-10-16T09:48:13.6122687+00:00",
+      "completedLaps": 10,
+      "tires": [
+        {
+          "pid": 424040,
+          "carNumber": "51",
+          "elapsedTimeMillis": 1096864,
+          "lapNumber": 11,
+          "tires": [
+            {
+              "id": "frontLeft",
+              "compound": "MEDIUM",
+              "isChanged": false,
+              "ageInLaps": 10
+            },
+            {
+              "id": "frontRight",
+              "compound": "MEDIUM",
+              "isChanged": false,
+              "ageInLaps": 6
+            },
+            {
+              "id": "rearLeft",
+              "compound": "MEDIUM",
+              "isChanged": false,
+              "ageInLaps": 10
+            },
+            {
+              "id": "rearRight",
+              "compound": "MEDIUM",
+              "isChanged": false,
+              "ageInLaps": 10
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -57,11 +57,21 @@ public sealed record CompetitorStanding(
     string? Manufacturer = null, string? LastLapTime = null,
     SectorTimingSet? CurrentSectors = null, SectorTimingSet? BestLapSectors = null,
     IReadOnlyList<RallySplitTiming>? StageSplits = null,
-    IReadOnlyList<IReadOnlyList<MiniSectorState>>? CurrentMiniSectors = null);
+    IReadOnlyList<IReadOnlyList<MiniSectorState>>? CurrentMiniSectors = null)
+{
+    /// <summary>The provider's car entry number, distinct from position and internal competitor identity.</summary>
+    public string? CarNumber { get; init; }
+    public CarTyres? CurrentTyres { get; init; }
+    public int? TyreAge { get; init; }
+    public double? VirtualEnergyPercent { get; init; }
+}
 
 /// <summary>Which lap time a session is judged on: the best lap set, or the most recent one.</summary>
 public enum LapTimeMode { BestLap, LastLap }
 public enum SectorTimeMode { CurrentLast, BestLap }
+
+public sealed record WheelTyre(int? AgeInLaps, string? Compound);
+public sealed record CarTyres(WheelTyre? FrontLeft, WheelTyre? FrontRight, WheelTyre? RearLeft, WheelTyre? RearRight);
 
 public sealed record TimingSnapshot(
     string Meeting, string Session, string Circuit, int CurrentLap, int? TotalLaps,

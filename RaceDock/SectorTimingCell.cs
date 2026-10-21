@@ -116,7 +116,8 @@ internal sealed class SectorTimingCell
         {
             SectorTimingState.OverallBest => OverallBestBrush,
             SectorTimingState.PersonalBest => PersonalBestBrush,
-            _ => SlowerBrush
+            SectorTimingState.Slower => SlowerBrush,
+            _ => NeutralBrush
         };
     }
 }

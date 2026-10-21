@@ -62,8 +62,13 @@ internal sealed class ClassificationRow
     private readonly ScrollingTextBlock _result;
     private readonly SectorTimingCell _sectors;
     private readonly RallySplitTimingCell _splits;
+    private readonly EnergyTimingCell _energy = new();
+    private readonly Grid _tyreCell = new();
+    private readonly TyreAgeCell _tyreAges = new();
     private readonly Border _tyreBadge;
     private readonly TextBlock _tyreText;
+    private readonly TextBlock _tyreAgeText;
+    private readonly StackPanel _tyrePanel;
     private readonly ScrollingTextBlock _category;
     private readonly Border _statusBadge;
     private readonly TextBlock _statusText;
@@ -73,7 +78,7 @@ internal sealed class ClassificationRow
     public ClassificationRow(ScrollingTextClock clock)
     {
         _grid = new Grid { MinHeight = 38 };
-        for (var index = 0; index < 10; index++) _grid.ColumnDefinitions.Add(new ColumnDefinition());
+        for (var index = 0; index < 2 + ChampionshipDisplaySettings.DefaultColumnOrder.Count; index++) _grid.ColumnDefinitions.Add(new ColumnDefinition());
         _container = new Border { Child = _grid, CornerRadius = new CornerRadius(6) };
         SurfaceMotion.AttachHover(_container, highlightTopEdge: false);
 
@@ -151,17 +156,29 @@ internal sealed class ClassificationRow
         _grid.Children.Add(_splits.Element);
 
         _tyreText = new TextBlock { Foreground = Brushes.White, FontSize = 9.5, FontWeight = FontWeights.SemiBold };
+        _tyreAgeText = new TextBlock { FontSize = 10, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         _tyreBadge = new Border
         {
             CornerRadius = new CornerRadius(7),
-            Padding = new Thickness(7, 3, 7, 3),
-            Margin = new Thickness(4, 0, 8, 0),
-            HorizontalAlignment = HorizontalAlignment.Center,
+            Padding = new Thickness(5, 2, 5, 2),
+            Margin = new Thickness(4, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
             Child = _tyreText
         };
-        Grid.SetColumn(_tyreBadge, 7);
-        _grid.Children.Add(_tyreBadge);
+        _tyrePanel = new StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 6, 0)
+        };
+        _tyrePanel.Children.Add(_tyreAgeText);
+        _tyrePanel.Children.Add(_tyreBadge);
+        _tyreAges.Element.Visibility = Visibility.Collapsed;
+        _tyreCell.Children.Add(_tyrePanel);
+        _tyreCell.Children.Add(_tyreAges.Element);
+        Grid.SetColumn(_tyreCell, 7);
+        _grid.Children.Add(_tyreCell);
 
         _statusText = new TextBlock { Foreground = Brushes.White, FontSize = 9.5, FontWeight = FontWeights.SemiBold };
         _statusBadge = new Border
@@ -174,6 +191,8 @@ internal sealed class ClassificationRow
         };
         Grid.SetColumn(_statusBadge, 9);
         _grid.Children.Add(_statusBadge);
+        Grid.SetColumn(_energy.Element, 10);
+        _grid.Children.Add(_energy.Element);
     }
 
     public UIElement Element => _container;
@@ -197,7 +216,8 @@ internal sealed class ClassificationRow
                 case FlyoutColumn.LapTime: Grid.SetColumn(_result, column); break;
                 case FlyoutColumn.Sectors: Grid.SetColumn(_sectors.Element, column); break;
                 case FlyoutColumn.Splits: Grid.SetColumn(_splits.Element, column); break;
-                case FlyoutColumn.Tyre: Grid.SetColumn(_tyreBadge, column); break;
+                case FlyoutColumn.Energy: Grid.SetColumn(_energy.Element, column); break;
+                case FlyoutColumn.Tyre: Grid.SetColumn(_tyreCell, column); break;
                 case FlyoutColumn.Category: Grid.SetColumn(_category, column); break;
                 case FlyoutColumn.Status: Grid.SetColumn(_statusBadge, column); break;
             }
@@ -216,7 +236,8 @@ internal sealed class ClassificationRow
         _result.Visibility = display.FlyoutShowLapTime ? Visibility.Visible : Visibility.Collapsed;
         _sectors.Element.Visibility = display.FlyoutShowSectorTimes ? Visibility.Visible : Visibility.Collapsed;
         _splits.Element.Visibility = display.FlyoutShowSplitTimes ? Visibility.Visible : Visibility.Collapsed;
-        _tyreBadge.Visibility = display.FlyoutShowTyre && _tyreText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _energy.Element.Visibility = display.FlyoutShowEnergy ? Visibility.Visible : Visibility.Collapsed;
+        _tyreCell.Visibility = display.FlyoutShowTyre ? Visibility.Visible : Visibility.Collapsed;
         _category.Visibility = display.FlyoutShowCategoryOrLap ? Visibility.Visible : Visibility.Collapsed;
         _statusBadge.Visibility = display.FlyoutShowStatus ? Visibility.Visible : Visibility.Collapsed;
         _team.Visibility = display.FlyoutShowTeamNames ? Visibility.Visible : Visibility.Collapsed;
@@ -230,7 +251,7 @@ internal sealed class ClassificationRow
             ? ColoredPositionBrushes[standing.Position - 1]
             : NeutralPositionBrush;
 
-        var name = string.IsNullOrWhiteSpace(standing.Name) ? standing.Code : standing.Name;
+        var name = ChampionshipDisplay.FlyoutDriverName(championship, standing);
         _driverName.Text = name;
         _driverName.ToolTip = name;
         _driver.ToolTip = string.IsNullOrWhiteSpace(standing.Name) ? null : standing.Name;
@@ -258,7 +279,8 @@ internal sealed class ClassificationRow
                 bestLap ? null : standing.CurrentMiniSectors);
         }
         if (display.FlyoutShowSplitTimes) _splits.Update(standing.StageSplits);
-        if (display.FlyoutShowTyre) UpdateTyre(standing.Tyre);
+        if (display.FlyoutShowTyre) UpdateTyres(standing, championship);
+        if (display.FlyoutShowEnergy) _energy.Update(standing.VirtualEnergyPercent);
 
         if (display.FlyoutShowCategoryOrLap)
             SetValue(_category, format.CategoryInsteadOfLap
@@ -295,17 +317,60 @@ internal sealed class ClassificationRow
         }
     }
 
-    private void UpdateTyre(string? tyre)
+    private void UpdateTyres(CompetitorStanding standing, Championship championship)
+    {
+        var showAges = championship == Championship.WorldEnduranceChampionship;
+        _tyreAges.Element.Visibility = showAges ? Visibility.Visible : Visibility.Collapsed;
+        if (showAges)
+        {
+            _tyreBadge.Visibility = Visibility.Collapsed;
+            _tyreAges.Update(standing.CurrentTyres);
+        }
+        else UpdateTyre(standing.Tyre, standing.TyreAge);
+    }
+
+    private void UpdateTyre(string? tyre, int? age)
     {
         var normalized = tyre?.Trim().ToUpperInvariant();
         // A feed that sends no compound, or sends its own "UNKNOWN", has nothing to put in a badge.
-        if (string.IsNullOrEmpty(normalized) || normalized == "UNKNOWN")
-        {
-            _tyreText.Text = "";
-            _tyreBadge.Visibility = Visibility.Collapsed;
-            return;
-        }
-        var (background, foreground) = normalized switch
+        if (string.IsNullOrEmpty(normalized) || normalized == "UNKNOWN") normalized = "";
+        var (background, foreground) = TyreStyle(normalized);
+        var hasCompound = normalized.Length > 0;
+        var hasAge = age is not null;
+        _tyreAgeText.Text = hasAge ? age!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+        _tyreAgeText.Foreground = background;
+        _tyreAgeText.Visibility = hasAge ? Visibility.Visible : Visibility.Collapsed;
+        _tyreText.Text = CompoundLetter(normalized);
+        _tyreText.Foreground = foreground;
+        _tyreBadge.Background = background;
+        _tyreBadge.Visibility = hasCompound ? Visibility.Visible : Visibility.Collapsed;
+        _tyrePanel.Visibility = hasCompound || hasAge ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Single-letter compound badge; supersoft is no longer a distinct compound.</summary>
+    private static string CompoundLetter(string normalized) => normalized switch
+    {
+        "SOFT" or "O" or "S" => "S",
+        "MEDIUM" or "P" or "M" => "M",
+        "HARD" or "H" => "H",
+        "INTERMEDIATE" or "I" => "I",
+        "WET" or "W" => "W",
+        _ => ""
+    };
+
+    /// <summary>Compound colour, shared with the per-wheel WEC age grid.</summary>
+    internal static SolidColorBrush? TyreBrush(string? tyre) => tyre?.Trim().ToUpperInvariant() switch
+    {
+        "SOFT" or "S" or "O" => TyreBrushes.Soft,
+        "MEDIUM" or "M" or "P" => TyreBrushes.Medium,
+        "HARD" or "H" => TyreBrushes.Hard,
+        "INTERMEDIATE" or "I" => TyreBrushes.Intermediate,
+        "WET" or "W" => TyreBrushes.Wet,
+        _ => null
+    };
+
+    private static (SolidColorBrush Background, SolidColorBrush Foreground) TyreStyle(string normalized) =>
+        normalized switch
         {
             "SOFT" or "S" or "O" => (TyreBrushes.Soft, Brushes.White),
             "MEDIUM" or "M" or "P" => (TyreBrushes.Medium, TyreDarkText),
@@ -314,11 +379,6 @@ internal sealed class ClassificationRow
             "WET" or "W" => (TyreBrushes.Wet, Brushes.White),
             _ => (TyreBrushes.Unknown, (SolidColorBrush)Brushes.White)
         };
-        _tyreText.Text = normalized;
-        _tyreText.Foreground = foreground;
-        _tyreBadge.Background = background;
-        _tyreBadge.Visibility = Visibility.Visible;
-    }
 
     private void UpdateStatus(CompetitorStanding standing)
     {

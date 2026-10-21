@@ -8,12 +8,16 @@ namespace RaceDock.Core;
 
 internal static partial class GriiipTiming
 {
+    private sealed record EntryTelemetry(GriiipSectorTiming? Sectors,
+        IReadOnlyDictionary<long, CarTyres> Tyres, IReadOnlyDictionary<long, double?> Energy);
+
     public static TimingSnapshot BuildSnapshot(
         JsonObject session,
         JsonObject bootstrap,
         DateTimeOffset now,
         ConnectionState connection,
-        GriiipSeries series)
+        GriiipSeries series,
+        GriiipSectorTiming? sectorTiming = null)
     {
         var info = bootstrap["sessionInfo"] as JsonObject ?? [];
         var participants = ByPid(bootstrap["participants"] as JsonArray);
@@ -24,7 +28,8 @@ internal static partial class GriiipTiming
         var locations = ByPid(bootstrap["carLocations"] as JsonArray);
         var laps = LatestLapsByPid(lapValues);
         var fastestPid = FastestPid(bestLaps);
-        var standings = BuildStandings(series, participants, ranks, gaps, statuses, locations, bestLaps, laps, fastestPid);
+        var telemetry = ReadTelemetry(series, bootstrap, bestLaps, sectorTiming);
+        var standings = BuildStandings(series, participants, ranks, gaps, statuses, locations, bestLaps, laps, fastestPid, telemetry);
         var currentLap = standings.Select(value => value.Lap).DefaultIfEmpty(0).Max();
         return new(
             MeetingName(series, info, session),
@@ -41,6 +46,16 @@ internal static partial class GriiipTiming
             series.Championship);
     }
 
+    private static EntryTelemetry ReadTelemetry(GriiipSeries series, JsonObject bootstrap,
+        IReadOnlyDictionary<long, JsonObject> bestLaps, GriiipSectorTiming? sectors)
+    {
+        if (series.Championship != Championship.WorldEnduranceChampionship)
+            return new(null, new Dictionary<long, CarTyres>(), new Dictionary<long, double?>());
+        sectors ??= new GriiipSectorTiming();
+        sectors.Update(bootstrap, bestLaps);
+        return new(sectors, WecTyreTiming.Read(bootstrap["tires"]), WecEnergyTiming.Read(bootstrap["carsEnergyTanks"]));
+    }
+
     private static List<CompetitorStanding> BuildStandings(
         GriiipSeries series,
         Dictionary<long, JsonObject> participants,
@@ -50,13 +65,20 @@ internal static partial class GriiipTiming
         Dictionary<long, JsonObject> locations,
         Dictionary<long, JsonObject> bestLaps,
         Dictionary<long, JsonObject> laps,
-        long? fastestPid)
+        long? fastestPid,
+        EntryTelemetry telemetry)
     {
         List<CompetitorStanding> standings = [];
         foreach (var (pid, rank) in ranks)
         {
             if (CreateStanding(series, pid, rank, participants, gaps, statuses, locations, bestLaps, laps, fastestPid) is { } standing)
-                standings.Add(standing);
+                standings.Add(standing with
+                {
+                    CurrentSectors = telemetry.Sectors?.Current(pid),
+                    BestLapSectors = telemetry.Sectors?.Best(pid),
+                    CurrentTyres = telemetry.Tyres.GetValueOrDefault(pid),
+                    VirtualEnergyPercent = telemetry.Energy.GetValueOrDefault(pid)
+                });
         }
         return [.. standings.OrderBy(value => value.Position).ThenBy(value => value.DriverId, StringComparer.Ordinal)];
     }
@@ -92,7 +114,10 @@ internal static partial class GriiipTiming
             IsRetired(status), status.Contains("Stopped", StringComparison.OrdinalIgnoreCase), fastestPid == pid,
             timing.BestLap, StatusLabel(status), null,
             NullIfEmpty(JsonSupport.String(participant["classId"])),
-            AlkamelTiming.ManufacturerFromVehicle(JsonSupport.String(participant["manufacturer"])), timing.LastLap);
+            AlkamelTiming.ManufacturerFromVehicle(JsonSupport.String(participant["manufacturer"])), timing.LastLap)
+        {
+            CarNumber = JsonSupport.String(participant["carNumber"]) ?? JsonSupport.String(rank["carNumber"])
+        };
     }
 
     private static int Position(JsonObject rank) =>

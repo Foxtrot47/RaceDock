@@ -38,6 +38,7 @@ public sealed class ClassificationFlyout : Window
     private Grid _sectorHeader = null!;
     private Grid _splitHeader = null!;
     private ScrollingTextBlock _tyreHeader = null!;
+    private ScrollingTextBlock _energyHeader = null!;
     private ScrollingTextBlock _categoryHeader = null!;
     private ScrollingTextBlock _statusHeader = null!;
     private readonly DispatcherTimer _closeTimer;
@@ -50,6 +51,12 @@ public sealed class ClassificationFlyout : Window
     private double _driverColumnWidth = MinimumDriverColumn;
     private readonly TranslateTransform _slide = new();
     private readonly Border _panel;
+    private readonly Border _body = new();
+    private readonly FlyoutOverlayControls _overlayControls = new();
+    private readonly FlyoutOverlayControls _scheduleOverlayControls = new();
+    private bool _allowClose;
+    public bool IsPinned { get; private set; }
+    public event Action? PinChanged;
     private bool _blurred;
     private int _driverSignature;
     private int _visibleRowCount;
@@ -140,17 +147,25 @@ public sealed class ClassificationFlyout : Window
         layout.Children.Add(scroll);
 
         _classification = layout;
-        root.Child = layout;
+        _body.Child = layout;
+        root.Child = _body;
         Content = root;
+        _schedule.AddHeaderControl(_scheduleOverlayControls.Element);
+        _scheduleOverlayControls.AttachDragHandle(_schedule.Header);
+        _overlayControls.PinChanged += SetPinned;
+        _scheduleOverlayControls.PinChanged += SetPinned;
+        _overlayControls.DragRequested += DragOverlay;
+        _scheduleOverlayControls.DragRequested += DragOverlay;
 
         _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
         _closeTimer.Tick += (_, _) =>
         {
             _closeTimer.Stop();
+            if (IsPinned) return;
             var motionVersion = ++_motionVersion;
             SurfaceMotion.PlayClose(this, _slide, () =>
             {
-                if (motionVersion != _motionVersion) return;
+                if (IsPinned || motionVersion != _motionVersion) return;
                 if (!IsMouseOver) Hide();
                 else CancelClose();
             }, fade: !_blurred);
@@ -233,7 +248,7 @@ public sealed class ClassificationFlyout : Window
     public void ShowSchedule(IReadOnlyList<UpcomingSession> sessions, DateTimeOffset now)
     {
         _snapshot = null;
-        if (!ReferenceEquals(_panel.Child, _schedule.Element)) _panel.Child = _schedule.Element;
+        if (!ReferenceEquals(_body.Child, _schedule.Element)) _body.Child = _schedule.Element;
         Width = ScheduleView.Width;
         _schedule.Update(sessions, now, TimeZoneInfo.Local);
     }
@@ -242,7 +257,7 @@ public sealed class ClassificationFlyout : Window
     {
         _snapshot = snapshot;
         // Timing takes the flyout back from the schedule as soon as a session reports in.
-        _panel.Child = _classification;
+        _body.Child = _classification;
         // A closed flyout is redrawn when it opens, so keeping it current while hidden is pure cost.
         if (!IsVisible) return;
         _display = _settings.DisplayFor(snapshot.Championship);
@@ -316,7 +331,7 @@ public sealed class ClassificationFlyout : Window
         var signature = new HashCode();
         foreach (var standing in snapshot.Competitors)
         {
-            signature.Add(standing.Name);
+            signature.Add(ChampionshipDisplay.FlyoutDriverName(snapshot.Championship, standing));
             signature.Add(standing.Team);
         }
         signature.Add(_display.FlyoutShowTeamNames);
@@ -331,7 +346,7 @@ public sealed class ClassificationFlyout : Window
         double widest = 0;
         foreach (var standing in snapshot.Competitors)
         {
-            var name = string.IsNullOrWhiteSpace(standing.Name) ? standing.Code : standing.Name;
+            var name = ChampionshipDisplay.FlyoutDriverName(snapshot.Championship, standing);
             // The fastest-lap dot sits beside the name, so it has to be reserved or it would clip the text.
             widest = Math.Max(widest, Measure(name, nameFace, 11.5, dpi) + FastestMarkerWidth);
             if (_display.FlyoutShowTeamNames)
@@ -357,6 +372,7 @@ public sealed class ClassificationFlyout : Window
         _sectorHeader.Visibility = _display.FlyoutShowSectorTimes ? Visibility.Visible : Visibility.Collapsed;
         _splitHeader.Visibility = _display.FlyoutShowSplitTimes ? Visibility.Visible : Visibility.Collapsed;
         _tyreHeader.Visibility = _display.FlyoutShowTyre ? Visibility.Visible : Visibility.Collapsed;
+        _energyHeader.Visibility = _display.FlyoutShowEnergy ? Visibility.Visible : Visibility.Collapsed;
         _categoryHeader.Visibility = _display.FlyoutShowCategoryOrLap ? Visibility.Visible : Visibility.Collapsed;
         _statusHeader.Visibility = _display.FlyoutShowStatus ? Visibility.Visible : Visibility.Collapsed;
         ApplyHeaderOrder();
@@ -372,20 +388,62 @@ public sealed class ClassificationFlyout : Window
     {
         CancelClose();
         Show();
-        SurfaceMotion.PlayOpen(this, _slide, fade: !_blurred);
+        if (!IsPinned) SurfaceMotion.PlayOpen(this, _slide, fade: !_blurred);
+    }
+
+    private void SetPinned(bool pinned)
+    {
+        if (IsPinned == pinned) return;
+        // Change the anchoring mode before cancelling motion: cancellation also fires SlideTo.
+        IsPinned = pinned;
+        CancelClose();
+        _overlayControls.SetPinned(pinned);
+        _scheduleOverlayControls.SetPinned(pinned);
+        PinChanged?.Invoke();
+        if (!pinned && !IsMouseOver) ScheduleClose();
+    }
+
+    private void DragOverlay()
+    {
+        if (IsPinned && System.Windows.Input.Mouse.LeftButton == System.Windows.Input.MouseButtonState.Pressed)
+            DragMove();
+    }
+
+    private void Dismiss()
+    {
+        CancelClose();
+        Hide();
+        SetPinned(false);
+    }
+
+    public void ClosePermanently()
+    {
+        _allowClose = true;
+        Close();
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_allowClose)
+        {
+            e.Cancel = true;
+            Dismiss();
+        }
+        base.OnClosing(e);
     }
 
     public void ScheduleClose()
     {
         // Closing a flyout that is not open would animate a hidden window, and the motion drives the
         // native repositioning that makes it visible again.
-        if (!IsVisible) return;
+        if (!IsVisible || IsPinned) return;
         _closeTimer.Stop();
         _closeTimer.Start();
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        _closeTimer.Stop();
         ApplicationThemeManager.Changed -= OnApplicationThemeChanged;
         base.OnClosed(e);
     }
@@ -429,7 +487,8 @@ public sealed class ClassificationFlyout : Window
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent };
+        _overlayControls.AttachDragHandle(copy);
         _title.FontSize = 15;
         _title.FontWeight = FontWeights.SemiBold;
         _title.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextFillColorPrimaryBrush");
@@ -443,7 +502,7 @@ public sealed class ClassificationFlyout : Window
         _badges = new StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Top
         };
         ConfigureBadge(_trackBadge, _trackText);
         _connectionGlyph.FontSize = 15;
@@ -451,6 +510,7 @@ public sealed class ClassificationFlyout : Window
         _trackBadge.Margin = new Thickness(0, 0, 6, 0);
         _badges.Children.Add(_trackBadge);
         _badges.Children.Add(_connectionGlyph);
+        _badges.Children.Add(_overlayControls.Element);
         Grid.SetColumn(_badges, 1);
         header.Children.Add(_badges);
         return header;
@@ -470,9 +530,10 @@ public sealed class ClassificationFlyout : Window
         _splitHeader = new Grid();
         Grid.SetColumn(_splitHeader, 6);
         header.Children.Add(_splitHeader);
-        _tyreHeader = AddHeaderLabel(header, "TYRE", 7, TextAlignment.Center);
+        _tyreHeader = AddHeaderLabel(header, "TIRES", 7, TextAlignment.Center);
         _categoryHeader = AddHeaderLabel(header, "LAP", 8, TextAlignment.Center);
         _statusHeader = AddHeaderLabel(header, "STATUS", 9, TextAlignment.Center);
+        _energyHeader = AddHeaderLabel(header, "ENERGY", 10, TextAlignment.Center);
         return header;
     }
 
@@ -531,7 +592,7 @@ public sealed class ClassificationFlyout : Window
     private Grid CreateColumns()
     {
         var grid = new Grid();
-        for (var index = 0; index < 10; index++) grid.ColumnDefinitions.Add(new ColumnDefinition());
+        for (var index = 0; index < 2 + ChampionshipDisplaySettings.DefaultColumnOrder.Count; index++) grid.ColumnDefinitions.Add(new ColumnDefinition());
         ApplyColumnWidths(grid);
         return grid;
     }
@@ -570,6 +631,7 @@ public sealed class ClassificationFlyout : Window
         FlyoutColumn.LapTime => _display.FlyoutShowLapTime,
         FlyoutColumn.Sectors => _display.FlyoutShowSectorTimes,
         FlyoutColumn.Splits => _display.FlyoutShowSplitTimes,
+        FlyoutColumn.Energy => _display.FlyoutShowEnergy,
         FlyoutColumn.Tyre => _display.FlyoutShowTyre,
         FlyoutColumn.Category => _display.FlyoutShowCategoryOrLap,
         _ => _display.FlyoutShowStatus
@@ -580,6 +642,7 @@ public sealed class ClassificationFlyout : Window
         FlyoutColumn.Gap or FlyoutColumn.Interval or FlyoutColumn.LapTime => 78,
         FlyoutColumn.Sectors => 210,
         FlyoutColumn.Splits => Math.Max(70, (_snapshot?.StageSplitPoints.Count ?? 0) * 70),
+        FlyoutColumn.Energy => 72,
         FlyoutColumn.Tyre => 60,
         FlyoutColumn.Category => 58,
         _ => 64
@@ -592,6 +655,7 @@ public sealed class ClassificationFlyout : Window
         FlyoutColumn.LapTime => _lapTimeHeader,
         FlyoutColumn.Sectors => _sectorHeader,
         FlyoutColumn.Splits => _splitHeader,
+        FlyoutColumn.Energy => _energyHeader,
         FlyoutColumn.Tyre => _tyreHeader,
         FlyoutColumn.Category => _categoryHeader,
         _ => _statusHeader

@@ -1,0 +1,271 @@
+{
+  "source": "D:\\Projects\\HAR\\feed-dump-20261016-131702\\gtwc.ndjson",
+  "timestamp": "2026-10-16T07:49:23.6199408+00:00",
+  "timing": {
+    "UnitId": "97f2586b-b6ad-44ce-949e-16ceeecefd75",
+    "UntInfo": {
+      "ChequeredFlag": false,
+      "TrackFlag": 1,
+      "StartRealTime": "16.10.2026 08:45:00.000",
+      "RemainingTime": "1:25:32",
+      "SectorFlags": [
+        1,
+        1,
+        1
+      ],
+      "ShowSectorFlags": false
+    },
+    "Results": {
+      "e5c4cb6e-d2c0-4601-977c-345d7c630b22": {
+        "CompetitorId": "e5c4cb6e-d2c0-4601-977c-345d7c630b22",
+        "ListIndex": 0,
+        "ListIndexClass": 0,
+        "MainResult": {
+          "BestTime": {
+            "Time": "1:44.714",
+            "TimeState": 2,
+            "Intermediates": [
+              {
+                "Time": "33.402",
+                "TimeState": 1,
+                "SpeedState": 0
+              },
+              {
+                "Time": "33.262",
+                "Speed": 118,
+                "TimeState": 1,
+                "SpeedState": 1
+              },
+              {
+                "Time": "38.050",
+                "Speed": 238,
+                "TimeState": 2,
+                "SpeedState": 1
+              }
+            ],
+            "LapNumber": 2
+          },
+          "LastLap": {
+            "Time": "1:44.714",
+            "TimeState": 2,
+            "Intermediates": [
+              {
+                "Time": "33.402",
+                "TimeState": 1,
+                "SpeedState": 0
+              },
+              {
+                "Time": "33.262",
+                "Speed": 118,
+                "TimeState": 1,
+                "SpeedState": 1
+              },
+              {
+                "Time": "38.050",
+                "Speed": 238,
+                "TimeState": 2,
+                "SpeedState": 1
+              }
+            ],
+            "LapNumber": 2
+          },
+          "Rank": 1,
+          "RankingTime": "1:44.714",
+          "RankingLap": 2,
+          "ClassRank": 1,
+          "TotalTime": "4:20.585",
+          "TotalLapCount": 2,
+          "Status": 2,
+          "SectBasedPcntPos": 0.12369392762476039,
+          "EstRank": 1,
+          "NumResultOverrides": 0
+        }
+      },
+      "700a20f0-d7e5-426b-b52f-62a930065c9e": {
+        "CompetitorId": "700a20f0-d7e5-426b-b52f-62a930065c9e",
+        "ListIndex": 1,
+        "ListIndexClass": 1,
+        "MainResult": {
+          "BestTime": {
+            "Time": "1:44.723",
+            "TimeState": 1,
+            "Intermediates": [
+              {
+                "Time": "33.499",
+                "Speed": 200,
+                "TimeState": 1,
+                "SpeedState": 1
+              },
+              {
+                "Time": "33.172",
+                "Speed": 124,
+                "TimeState": 1,
+                "SpeedState": 0
+              },
+              {
+                "Time": "38.052",
+                "Speed": 241,
+                "TimeState": 1,
+                "SpeedState": 1
+              }
+            ],
+            "LapNumber": 2
+          },
+          "LastLap": {
+            "TimeState": 0,
+            "Intermediates": [
+              {
+                "Time": "32.324",
+                "Speed": 188,
+                "TimeState": 1,
+                "SpeedState": 0
+              },
+              {
+                "TimeState": 0,
+                "SpeedState": 0
+              },
+              {
+                "TimeState": 0,
+                "SpeedState": 0
+              }
+            ],
+            "LapNumber": 3
+          },
+          "ClassBehind": "0.009",
+          "ClassDiff": "0.009",
+          "Rank": 2,
+          "RankingTime": "1:44.723",
+          "RankingLap": 2,
+          "ClassRank": 2,
+          "TotalTime": "3:53.798",
+          "TotalLapCount": 2,
+          "Behind": "0.009",
+          "Diff": "0.009",
+          "Status": 2,
+          "SectBasedPcntPos": 0.8661097293408702,
+          "EstRank": 1,
+          "NumResultOverrides": 0
+        }
+      }
+    }
+  },
+  "detail": {
+    "UnitId": "97f2586b-b6ad-44ce-949e-16ceeecefd75",
+    "Classes": {
+      "49c7a161-cc72-4599-9c12-e8494fe74ab5": {
+        "Id": "49c7a161-cc72-4599-9c12-e8494fe74ab5",
+        "ListIndex": 0,
+        "Name": "Bronze Cup",
+        "ShortName": "Bronze"
+      },
+      "20feb7db-5911-4eb8-aa37-011af5d75c93": {
+        "Id": "20feb7db-5911-4eb8-aa37-011af5d75c93",
+        "ListIndex": 1,
+        "Name": "Gold Cup",
+        "ShortName": "Gold"
+      },
+      "17cffa09-28fc-4a9f-8636-565e9aad7387": {
+        "Id": "17cffa09-28fc-4a9f-8636-565e9aad7387",
+        "ListIndex": 2,
+        "Name": "Pro Cup",
+        "ShortName": "Pro"
+      },
+      "ed16fcaa-16a4-4237-ab18-23411fc414b7": {
+        "Id": "ed16fcaa-16a4-4237-ab18-23411fc414b7",
+        "ListIndex": 3,
+        "Name": "Silver Cup",
+        "ShortName": "Silver"
+      }
+    },
+    "IntermediateDefinitions": [
+      {
+        "Name": "S1"
+      },
+      {
+        "Name": "S2"
+      },
+      {
+        "Name": "S3"
+      }
+    ],
+    "IntermediateDefinitionsCount": 3,
+    "Competitors": {
+      "e5c4cb6e-d2c0-4601-977c-345d7c630b22": {
+        "Id": "e5c4cb6e-d2c0-4601-977c-345d7c630b22",
+        "Bib": "10",
+        "ClassId": "20feb7db-5911-4eb8-aa37-011af5d75c93",
+        "TeamName": "Boutsen VDS",
+        "ManufacturerName": "Porsche",
+        "CurrentDriverId": "289d6bce-4b48-4e0b-8b80-ee75206824e5",
+        "InPitLane": false,
+        "Drivers": {
+          "289d6bce-4b48-4e0b-8b80-ee75206824e5": {
+            "Id": "289d6bce-4b48-4e0b-8b80-ee75206824e5",
+            "ListIndex": 1,
+            "FirstName": "Gilles",
+            "LastName": "Magnus",
+            "ShortName": "MAG",
+            "CountryCode": "BEL",
+            "LicenseTypeName": "Gold"
+          },
+          "d2cbaa2b-175c-4824-8d17-de530f59f471": {
+            "Id": "d2cbaa2b-175c-4824-8d17-de530f59f471",
+            "ListIndex": 2,
+            "FirstName": "Robin",
+            "LastName": "Knutsson",
+            "ShortName": "KNU",
+            "CountryCode": "SWE",
+            "LicenseTypeName": "Silver"
+          },
+          "5f46808a-f009-4394-a5ed-8a8be8c4289c": {
+            "Id": "5f46808a-f009-4394-a5ed-8a8be8c4289c",
+            "ListIndex": 3,
+            "FirstName": "Alessandro",
+            "LastName": "Ghiretti",
+            "ShortName": "GHI",
+            "CountryCode": "FRA",
+            "LicenseTypeName": "Gold"
+          }
+        }
+      },
+      "700a20f0-d7e5-426b-b52f-62a930065c9e": {
+        "Id": "700a20f0-d7e5-426b-b52f-62a930065c9e",
+        "Bib": "24",
+        "ClassId": "20feb7db-5911-4eb8-aa37-011af5d75c93",
+        "TeamName": "Steller Motorsport",
+        "ManufacturerName": "Chevrolet",
+        "CurrentDriverId": "8f138f1c-13f0-4f29-b2b2-4d367e2861e7",
+        "InPitLane": false,
+        "Drivers": {
+          "e6781db4-9387-4166-9dc0-fd5c02b67ca7": {
+            "Id": "e6781db4-9387-4166-9dc0-fd5c02b67ca7",
+            "ListIndex": 1,
+            "FirstName": "Mikkel",
+            "LastName": "Mac",
+            "ShortName": "MAC",
+            "CountryCode": "DEN",
+            "LicenseTypeName": "Gold"
+          },
+          "ed399e6e-fd5e-4655-807d-7740c32e5b29": {
+            "Id": "ed399e6e-fd5e-4655-807d-7740c32e5b29",
+            "ListIndex": 2,
+            "FirstName": "Kasper H.",
+            "LastName": "Jensen",
+            "ShortName": "JEN",
+            "CountryCode": "DEN",
+            "LicenseTypeName": "Silver"
+          },
+          "8f138f1c-13f0-4f29-b2b2-4d367e2861e7": {
+            "Id": "8f138f1c-13f0-4f29-b2b2-4d367e2861e7",
+            "ListIndex": 3,
+            "FirstName": "Dennis",
+            "LastName": "Lind",
+            "ShortName": "LIN",
+            "CountryCode": "DEN",
+            "LicenseTypeName": "Gold"
+          }
+        }
+      }
+    }
+  }
+}

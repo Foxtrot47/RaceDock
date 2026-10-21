@@ -165,14 +165,17 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
             standings.Add(new(pair.Key, position, JsonSupport.String(meta?["Tla"]) ?? pair.Key,
                 JsonSupport.String(meta?["FullName"]) ?? "", JsonSupport.String(meta?["TeamName"]) ?? "",
                 JsonSupport.TimingValue(line["GapToLeader"]),
-                JsonSupport.TimingValue(line["IntervalToPositionAhead"]), LatestCompound(appLines?[pair.Key] as JsonObject),
+                JsonSupport.TimingValue(line["IntervalToPositionAhead"]), LatestStint(appLines?[pair.Key] as JsonObject)?["Compound"]?.ToString(),
                 JsonSupport.Int(line["NumberOfLaps"]) ?? 0, JsonSupport.Bool(line["InPit"]),
                 JsonSupport.Bool(line["Retired"]), JsonSupport.Bool(line["Stopped"]), pair.Key == _fastestDriver,
                 ResultTime: bestLap,
                 LastLapTime: JsonSupport.TimingValue(line["LastLapTime"]),
                 CurrentSectors: currentSectors,
                 BestLapSectors: _bestLapSectors.GetValueOrDefault(pair.Key),
-                CurrentMiniSectors: ParseMiniSectors(line["Sectors"])));
+                CurrentMiniSectors: ParseMiniSectors(line["Sectors"]))
+            {
+                TyreAge = TyreAge(LatestStint(appLines?[pair.Key] as JsonObject))
+            });
         }
         standings = [.. standings.Where(x => x.Position > 0 && x.Position < int.MaxValue).OrderBy(x => x.Position)];
         NormalizeStandings(standings, bestLaps, useBestLapDeltas);
@@ -358,12 +361,19 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
 
     private void Publish(TimingSnapshot snapshot) { Current = snapshot; SnapshotChanged?.Invoke(snapshot); }
     private string DriverCode(string key) => JsonSupport.String(_topics.GetValueOrDefault("DriverList")?[key]?["Tla"]) ?? key;
-    private static string? LatestCompound(JsonObject? driver) => driver?["Stints"] switch
+    private static JsonObject? LatestStint(JsonObject? driver) => driver?["Stints"] switch
     {
-        JsonArray array => array.OfType<JsonObject>().LastOrDefault()?["Compound"]?.ToString(),
-        JsonObject obj => obj.OrderBy(x => int.TryParse(x.Key, out var i) ? i : -1).LastOrDefault().Value?["Compound"]?.ToString(),
+        JsonArray array => array.OfType<JsonObject>().LastOrDefault(),
+        JsonObject obj => obj.OrderBy(x => int.TryParse(x.Key, out var i) ? i : -1).LastOrDefault().Value as JsonObject,
         _ => null
     };
+
+    /// <summary>Age on the current stint; StartLaps offsets reused tyres that were not changed.</summary>
+    private static int? TyreAge(JsonObject? stint)
+    {
+        var total = JsonSupport.Int(stint?["TotalLaps"]);
+        return total is null ? null : Math.Max(0, total.Value - (JsonSupport.Int(stint?["StartLaps"]) ?? 0));
+    }
     private static bool IsLeaderLabel(string? value) => value?.Trim().ToUpperInvariant() is "LEAD" or "LEADER";
     private static string FormatLapDelta(double seconds) => $"+{Math.Max(0, seconds).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)}";
     private static double? ParseLapSeconds(string text)

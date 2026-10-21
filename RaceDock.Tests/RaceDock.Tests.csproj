@@ -6,5 +6,5 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="..\RaceDock.Core\RaceDock.Core.csproj" /></ItemGroup>
-  <ItemGroup><Content Include="Fixtures\Wrc\*.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+  <ItemGroup><Content Include="Fixtures\Wrc\*.json;Fixtures\Sectors\*.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>

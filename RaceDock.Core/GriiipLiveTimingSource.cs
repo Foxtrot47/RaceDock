@@ -94,6 +94,7 @@ public abstract class GriiipLiveTimingSource : ILiveTimingSource
     private readonly IAsyncDelay _delay;
     private readonly IAlertArbiter _alerts;
     private readonly GriiipPollingOptions _options;
+    private readonly GriiipSectorTiming _sectorTiming = new();
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private CancellationTokenSource? _runCts;
     private Task? _worker;
@@ -181,7 +182,7 @@ public abstract class GriiipLiveTimingSource : ILiveTimingSource
             _sessionId = sessionId;
         }
         var bootstrap = await _api.GetBootstrapAsync(sessionId, cancellationToken);
-        var snapshot = GriiipTiming.BuildSnapshot(session, bootstrap, _clock.UtcNow, ConnectionState.Connected, _series);
+        var snapshot = GriiipTiming.BuildSnapshot(session, bootstrap, _clock.UtcNow, ConnectionState.Connected, _series, _sectorTiming);
         SetConnection(ConnectionState.Connected);
         ProcessAlerts(snapshot);
         PublishDelta(bootstrap);
@@ -202,13 +203,18 @@ public abstract class GriiipLiveTimingSource : ILiveTimingSource
     internal static TimeSpan NextIdleDelay(JsonArray sessions, GriiipSeries series, DateTimeOffset now,
         GriiipPollingOptions options)
     {
-        var next = sessions.OfType<JsonObject>()
+        var windows = sessions.OfType<JsonObject>()
             .Where(session => !JsonSupport.Bool(session["hideFromUsers"]) &&
                 string.Equals(JsonSupport.String(session["series"]?["name"]), series.ProviderName, StringComparison.OrdinalIgnoreCase))
-            .Select(session => ParseDate(session["startTime"]))
-            .Where(start => start > now)
-            .OrderBy(start => start)
-            .FirstOrDefault();
+            .Select(session => (Start: ParseDate(session["startTime"]), End: ParseDate(session["endTime"])))
+            .Where(window => window.Start != default)
+            .ToList();
+        // isRunning can lag behind the scheduled start. Keep discovering throughout the published window rather
+        // than sleeping until tomorrow's session; without an end time, use the lead interval as a bounded grace.
+        if (windows.Any(window => window.Start <= now &&
+            now < (window.End > window.Start ? window.End : window.Start + options.PreSessionLead)))
+            return options.NearSessionInterval;
+        var next = windows.Select(window => window.Start).Where(start => start > now).OrderBy(start => start).FirstOrDefault();
         if (next == default) return options.ScheduleRefreshInterval;
         var untilLead = next - now - options.PreSessionLead;
         if (untilLead <= TimeSpan.Zero) return options.NearSessionInterval;
@@ -246,6 +252,7 @@ public abstract class GriiipLiveTimingSource : ILiveTimingSource
 
     private void ResetSession()
     {
+        _sectorTiming.Reset();
         _sessionId = null;
         _sessionStarted = false;
         _observedEnded = null;

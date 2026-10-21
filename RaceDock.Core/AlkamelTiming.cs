@@ -71,7 +71,10 @@ internal static class AlkamelTiming
                 statusLabel,
                 null,
                 JsonSupport.String(row["class"]) ?? JsonSupport.String(entry["class"]),
-                ManufacturerFromVehicle(JsonSupport.String(entry["vehicle"]))), timing));
+                ManufacturerFromVehicle(JsonSupport.String(entry["vehicle"])))
+            {
+                CarNumber = timing.RaceNumber
+            }, timing));
         }
 
         parsed = parsed.OrderBy(value => value.Standing.Position).ThenBy(value => value.Standing.DriverId, StringComparer.Ordinal).ToList();
