@@ -112,6 +112,8 @@ Plasma package:
   - Config page: championships, rotation, retention, competitor counts, idle/animations, restore defaults.
 - `RaceDock.Plasma/package/contents/ui/ConfigColumns.qml`
   - Config page: per-championship column order and visibility.
+- `RaceDock.Plasma/package/contents/ui/ConfigDeveloper.qml`
+  - Config page: start the test scenario, return to live timing, refresh the calendar.
 - `RaceDock.Plasma/package/contents/config/config.qml`
   - `ConfigModel` that lists the General, Columns, and Developer pages.
 - `RaceDock.Plasma/package/contents/config/main.xml`
@@ -121,6 +123,11 @@ Plasma package:
 - `RaceDock.Plasma/tests/Screenshots.qml`
   - `qmltestrunner` harness that grabs each surface to PNG (`grabToImage`) for layout review without a
     Plasma session. Run it from the folder that should receive the images.
+- `RaceDock.Plasma/tests/Startup.qml`
+  - `qmltestrunner` harness for a client that starts before the sidecar exists; the shell starts the
+    service after the first failed polls.
+- `RaceDock.Plasma/tests/Reconnect.qml`
+  - `qmltestrunner` harness for a sidecar that stops and restarts while the client polls.
 
 Packaging and CI:
 
@@ -146,10 +153,13 @@ Packaging and CI:
 - Added Escape-to-close, accessible names for pin/close/compact, configure buttons in both flyout hosts, and WEC wheel cells with tooltips.
 - Hardened `RaceDockSession`: coalesced `StateChanged` dispatch outside the source-switch semaphore, fallback-source cleanup, idempotent disposal, hide-championship snapshot clearing, and error payloads for commands after shutdown.
 - Made `--print-state` wait for the first non-hidden snapshot instead of sleeping for a fixed delay.
-- Added the settings UI: `config.qml`, `ConfigGeneral.qml`, `ConfigColumns.qml`, and `SettingsCatalog.qml`; `resetSettings` restores Core defaults.
+- Added the settings UI: `config.qml`, `ConfigGeneral.qml`, `ConfigColumns.qml`, `ConfigDeveloper.qml`, and
+  `SettingsCatalog.qml`; `resetSettings` restores Core defaults.
 - Added packaging: `scripts/install-linux.sh`, `scripts/uninstall-linux.sh`, `scripts/linux/racedock-service`, D-Bus activation, and an optional systemd user unit.
 - Verified install → wrapper → `--print-state`, D-Bus activation, `kpackagetool6 --install`, and the generated activation file in a throwaway XDG prefix.
-- Verified the QML client and both config pages against a running sidecar with `qmltestrunner`: live state, settings round-trip, pause, column reorder, and defaults reset all pass.
+- Verified the QML client and all three config pages against a running sidecar with `qmltestrunner`: live
+  state, settings round-trip, pause, column reorder, defaults reset, and the developer page's calendar
+  refresh all pass.
 - Added the Linux CI workflow (`.github/workflows/linux.yml`) and a Linux README section.
 - Validated archive replay through the service with a synthetic F1 `.ndjson` dump: classification, gaps,
   tyre ages, sectors/mini-sectors, yellow → clear → chequered transitions, and scenario ↔ archive switching.
@@ -173,6 +183,9 @@ Packaging and CI:
   `FlagChip` component used by both context layouts.
 - Captured the single-row strip offscreen with the scenario service and the real F1 replay, with and
   without a yellow flag, plus a WEC-only idle single-row strip.
+- Added `Startup.qml` and `Reconnect.qml` harnesses: the QML client survives a service that starts after
+  it (the first polls report an outage) and recovers when the sidecar stops and is replaced, with
+  `connected`, `lastError`, and both snapshots returning to live without a restart.
 
 ### In progress
 
@@ -184,7 +197,8 @@ Packaging and CI:
 - Visual verification was blocked because the WSLg Plasma session was locked and later exited. Screenshot tooling (`spectacle`, ImageMagick `import`) could not capture the session. Restart WSLg/Plasma and verify on a real display before calling the UI done.
 - The pinned `PlasmaCore.Dialog` path is implemented but has not been visually tested: initial placement, drag/move (`startSystemMove`), `DialogWindow` flags, `hideOnWindowDeactivate`, and sizing need confirmation.
 - Panel width/height behavior in horizontal vs vertical panels and on multi-monitor setups is unverified.
-- The applet reconnecting after the sidecar exits/restarts is handled as an error state in the client but has not been watched on a real panel.
+- The applet reconnecting after the sidecar exits/restarts is covered by the `Startup.qml` and
+  `Reconnect.qml` client harnesses, but it has not been watched on a real panel.
 - Live stale/offline transitions (a feed dropping mid-session) have not been observed; the 12 s health
   timeout is only covered by unit-level behavior.
 - `qmltestrunner` here runs from extracted binaries in `/tmp`; the CI job only lints QML and validates the package, because the QML harness needs the Plasma D-Bus QML module and a session bus.
@@ -241,7 +255,8 @@ Packaging and CI:
 - [x] Add a column configuration page (`ConfigColumns.qml`) with per-championship order and visibility.
 - [x] Load the complete settings JSON from `GetSettings`, mutate a copy, and send the complete object through `ApplySettings`.
 - [x] Add a recoverable "Restore defaults" path (`resetSettings` command).
-- [ ] Add a "Test scenario / return to live" developer action, ideally hidden behind a settings or debug control.
+- [x] Add a "Test scenario / return to live" developer action, ideally hidden behind a settings or debug control.
+  It lives on the **Developer** page (`ConfigDeveloper.qml`), together with a calendar refresh.
 - [x] Wire the flyout's configure button to `Plasmoid.internalAction("configure").trigger()`.
 
 ### Phase 4 — Plasma UI completion
@@ -314,8 +329,10 @@ Packaging and CI:
 - [x] Exercise a live on-track session with F1 enabled and confirm classification, tyres, sectors, and
   live settings changes. Feed startup and the idle schedule are verified for all feeds.
 - [ ] Confirm rotation and stale/offline handling with several live feeds at once.
-- [ ] Confirm the applet recovers when the sidecar starts after Plasma.
-- [ ] Confirm the applet does not crash when the sidecar exits mid-session.
+- [x] Confirm the applet recovers when the sidecar starts after Plasma (`RaceDock.Plasma/tests/Startup.qml`).
+  This covers the polling client; watching it in a real panel is still part of the visual verification.
+- [x] Confirm the applet does not crash when the sidecar exits mid-session
+  (`RaceDock.Plasma/tests/Reconnect.qml` stops and replaces the sidecar under a polling client).
 
 ### Phase 7 — macOS reuse (later)
 
@@ -402,6 +419,34 @@ dbus-run-session -- bash -lc '
 With the extracted tools, prepend `PATH=/tmp/qmltools2/usr/lib/qt6/bin:$PATH`,
 `LD_LIBRARY_PATH=/tmp/qmllibs2/usr/lib/x86_64-linux-gnu:/tmp/qmltestlib/usr/lib/x86_64-linux-gnu:/tmp/qmllibs/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu`,
 and `QML_IMPORT_PATH=/tmp/qmlmods/usr/lib/x86_64-linux-gnu/qt6/qml`.
+
+The lifecycle harnesses need the shell to start or replace the sidecar while the client polls, so they
+have their own orchestration. `Startup.qml` expects no service at launch and connects to the one started
+five seconds later; `Reconnect.qml` expects an outage and a replacement:
+
+```bash
+dbus-run-session -- bash -lc '
+  QT_QPA_PLATFORM=offscreen qmltestrunner -input RaceDock.Plasma/tests/Startup.qml &
+  runner=$!
+  sleep 5
+  dotnet RaceDock.Linux/bin/Debug/net10.0/racedock-service.dll --scenario --paused &
+  pid=$!
+  wait $runner; kill $pid 2>/dev/null
+'
+
+dbus-run-session -- bash -lc '
+  dotnet RaceDock.Linux/bin/Debug/net10.0/racedock-service.dll --scenario --paused &
+  pid=$!
+  sleep 3
+  QT_QPA_PLATFORM=offscreen qmltestrunner -input RaceDock.Plasma/tests/Reconnect.qml &
+  runner=$!
+  sleep 4; kill $pid 2>/dev/null; wait $pid 2>/dev/null
+  sleep 5
+  dotnet RaceDock.Linux/bin/Debug/net10.0/racedock-service.dll --scenario --paused &
+  pid=$!
+  wait $runner; kill $pid 2>/dev/null
+'
+```
 
 Grab the surfaces as PNGs for layout review. Run it from the folder that should receive them, and
 point it at a scenario, an archive, or a live service depending on what you want to see:
