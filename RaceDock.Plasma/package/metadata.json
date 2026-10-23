@@ -6,7 +6,7 @@
                 "Name": "Foxtrot47"
             }
         ],
-        "Category": "Application Launchers",
+        "Category": "Online Services",
         "Description": "Live motorsport timing in the KDE Plasma panel.",
         "EnabledByDefault": true,
         "Icon": "racedock",
