@@ -156,6 +156,10 @@ TestCase {
         tryVerify(function() { return answered; }, 3000);
         wait(1800);
         grab(panelFrame, "panel-yellow.png");
+        // The flyout header carries the same track condition as a badge.
+        client.refreshFlyout();
+        wait(900);
+        grab(flyoutFrame, "flyout-yellow.png");
 
         answered = false;
         client.command("trigger", "redflag", result => { answered = true; });

@@ -183,6 +183,8 @@ Packaging and CI:
   `FlagChip` component used by both context layouts.
 - Captured the single-row strip offscreen with the scenario service and the real F1 replay, with and
   without a yellow flag, plus a WEC-only idle single-row strip.
+- Captured the flyout with a yellow track condition, confirming the header badge renders from
+  `trackLabel`/`trackColor` exactly like the Windows badge (and stays hidden when the track is clear).
 - Added `Startup.qml` and `Reconnect.qml` harnesses: the QML client survives a service that starts after
   it (the first polls report an outage) and recovers when the sidecar stops and is replaced, with
   `connected`, `lastError`, and both snapshots returning to live without a restart.
@@ -464,10 +466,11 @@ dbus-run-session -- bash -lc '
 ```
 
 It writes `panel.png`, `panel-yellow.png`, `panel-redflag.png`, `panel-single-row.png`,
-`panel-single-row-yellow.png`, `flyout.png`, `flyout-sectors.png`, `flyout-scrolled.png` (only for a
-source with a long classification), `config-general.png`, `config-columns.png`, and
-`config-developer.png`. The offscreen platform has no Breeze style, so colours come from Kirigami's
-fallback theme; these captures check layout and content, not the exact Plasma palette.
+`panel-single-row-yellow.png`, `flyout.png`, `flyout-yellow.png`, `flyout-sectors.png`,
+`flyout-scrolled.png` (only for a source with a long classification), `config-general.png`,
+`config-columns.png`, and `config-developer.png`. The offscreen platform has no Breeze style, so
+colours come from Kirigami's fallback theme; these captures check layout and content, not the exact
+Plasma palette.
 
 Install from the checkout:
 
