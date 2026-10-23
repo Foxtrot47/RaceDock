@@ -15,12 +15,20 @@ MouseArea {
     readonly property bool live: state.mode === "live"
     readonly property bool idle: state.mode === "idle"
     readonly property var display: state.display || ({})
+    /// Mirrors the Windows taskbar's single-row mode: the position card folds into the driver line and
+    /// the event and progress share one line, so the whole strip stays one line tall.
+    readonly property bool singleRow: display.singleRow === true
+    /// The idle strip grows to fit "event detail" side by side in single-row mode, like the Windows view.
+    readonly property real idleWidth: singleRow
+        ? Math.min(520, Math.max(248, 70 + idleEventInline.implicitWidth + idleDetailInline.implicitWidth))
+        : 248
 
     signal toggleRequested()
 
     implicitWidth: state.mode === "hidden" ? 0
-        : idle ? 248
-        : Math.min(570, 110 + Math.max(1, display.competitorCount || 5) * 72 + 12)
+        : idle ? idleWidth
+        : Math.min(singleRow ? 620 : 570,
+            (singleRow ? 160 : 110) + Math.max(1, display.competitorCount || 5) * (singleRow ? 78 : 72) + 12)
     implicitHeight: Kirigami.Units.gridUnit * 2
 
     Layout.minimumWidth: implicitWidth
@@ -64,7 +72,7 @@ MouseArea {
         visible: widget.live
 
         Item {
-            Layout.preferredWidth: 100
+            Layout.preferredWidth: widget.singleRow ? 150 : 100
             Layout.fillHeight: true
 
             Rectangle {
@@ -84,6 +92,7 @@ MouseArea {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
+                visible: !widget.singleRow
 
                 Text {
                     Layout.fillWidth: true
@@ -108,23 +117,33 @@ MouseArea {
                         maximumLineCount: 1
                     }
 
-                    Rectangle {
-                        visible: !!widget.state.flag
-                        implicitWidth: Math.max(8, flagLabel.implicitWidth + 6)
-                        implicitHeight: 11
-                        radius: 3
-                        color: widget.state.flag ? widget.state.flag.color : "transparent"
-
-                        Text {
-                            id: flagLabel
-                            anchors.centerIn: parent
-                            text: widget.state.flag ? widget.state.flag.label : ""
-                            color: widget.state.flag && widget.state.flag.kind === "chequered" ? "#111111" : "#FFFFFF"
-                            font.pixelSize: 6
-                            font.bold: true
-                            maximumLineCount: 1
-                        }
+                    FlagChip {
+                        flag: widget.state.flag
                     }
+                }
+            }
+
+            RowLayout {
+                anchors.left: parent.left
+                anchors.leftMargin: 7
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 3
+                visible: widget.singleRow
+
+                Text {
+                    Layout.fillWidth: true
+                    text: (widget.state.event || widget.state.championshipShort || "RaceDock")
+                        + (widget.state.progress ? " · " + widget.state.progress : "")
+                    color: Kirigami.Theme.textColor
+                    font.pixelSize: 10
+                    font.bold: true
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                }
+
+                FlagChip {
+                    flag: widget.state.flag
                 }
             }
         }
@@ -137,8 +156,22 @@ MouseArea {
                 required property int index
                 readonly property var competitor: widget.state.competitors && index < widget.state.competitors.length
                     ? widget.state.competitors[index] : null
+                /// PIT/RET/STOP/LEAD otherwise the interval, so both layouts show the same short state.
+                readonly property string detailText: {
+                    if (!competitor)
+                        return "";
+                    if (competitor.retired)
+                        return "RET";
+                    if (competitor.stopped)
+                        return "STOP";
+                    if (competitor.inPit)
+                        return "PIT";
+                    if (competitor.isLeader)
+                        return "LEAD";
+                    return competitor.interval || "—";
+                }
 
-                Layout.preferredWidth: 68
+                Layout.preferredWidth: widget.singleRow ? 74 : 68
                 Layout.fillHeight: true
 
                 Rectangle {
@@ -166,7 +199,7 @@ MouseArea {
                     anchors.fill: parent
                     anchors.margins: 4
                     spacing: 0
-                    visible: !!cell.competitor
+                    visible: !widget.singleRow && !!cell.competitor
 
                     RowLayout {
                         Layout.fillWidth: true
@@ -193,22 +226,57 @@ MouseArea {
 
                     Text {
                         Layout.fillWidth: true
-                        text: {
-                            if (!cell.competitor)
-                                return "";
-                            if (cell.competitor.retired)
-                                return "RET";
-                            if (cell.competitor.stopped)
-                                return "STOP";
-                            if (cell.competitor.inPit)
-                                return "PIT";
-                            if (cell.competitor.isLeader)
-                                return "LEAD";
-                            return cell.competitor.interval || "—";
-                        }
+                        text: cell.detailText
                         color: "#FFFFFF"
                         opacity: 0.82
                         font.pixelSize: 8
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
+                }
+
+                Item {
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    visible: widget.singleRow && !!cell.competitor
+
+                    Text {
+                        id: inlinePosition
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: cell.competitor ? cell.competitor.positionLabel : ""
+                        color: "#FFFFFF"
+                        opacity: 0.78
+                        font.pixelSize: 9
+                        font.bold: true
+                    }
+
+                    Text {
+                        id: inlineDetail
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        // Keep a three-letter code intact; a long interval gives way instead, still
+                        // showing its scale. "+12.345" fits, "+1:02.345" truncates.
+                        width: Math.min(implicitWidth,
+                            Math.max(0, parent.width - inlinePosition.width - 6 - 24))
+                        text: cell.detailText
+                        color: "#FFFFFF"
+                        opacity: 0.82
+                        font.pixelSize: 8
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
+
+                    Text {
+                        anchors.left: inlinePosition.right
+                        anchors.leftMargin: 3
+                        anchors.right: inlineDetail.left
+                        anchors.rightMargin: 3
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: cell.competitor ? cell.competitor.code : ""
+                        color: "#FFFFFF"
+                        font.pixelSize: 10
+                        font.bold: true
                         elide: Text.ElideRight
                         maximumLineCount: 1
                     }
@@ -242,6 +310,7 @@ MouseArea {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 0
+            visible: !widget.singleRow
 
             Text {
                 Layout.fillWidth: true
@@ -261,6 +330,58 @@ MouseArea {
                 elide: Text.ElideRight
                 maximumLineCount: 1
             }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+            visible: widget.singleRow
+
+            Text {
+                id: idleEventInline
+                Layout.fillWidth: true
+                text: widget.state.idle ? widget.state.idle.headline : ""
+                color: Kirigami.Theme.textColor
+                font.pixelSize: 10
+                font.bold: true
+                elide: Text.ElideRight
+                maximumLineCount: 1
+            }
+
+            Text {
+                id: idleDetailInline
+                Layout.fillWidth: true
+                // Windows drops the separator in the single line so the two segments do not read as
+                // one run of dots next to the headline's own " · ".
+                text: widget.state.idle && widget.state.idle.detail
+                    ? widget.state.idle.detail.replace(" · ", " ") : ""
+                color: Kirigami.Theme.disabledTextColor
+                font.pixelSize: 9
+                elide: Text.ElideRight
+                maximumLineCount: 1
+            }
+        }
+    }
+
+    /// The track-condition chip, shared by the single-row and two-row context lines.
+    component FlagChip: Rectangle {
+        // A `flag` of null means the track condition is clear, so the chip takes no space.
+        property var flag
+
+        visible: !!flag
+        implicitWidth: Math.max(8, chipLabel.implicitWidth + 6)
+        implicitHeight: 11
+        radius: 3
+        color: flag ? flag.color : "transparent"
+
+        Text {
+            id: chipLabel
+            anchors.centerIn: parent
+            text: parent.flag ? parent.flag.label : ""
+            color: parent.flag && parent.flag.kind === "chequered" ? "#111111" : "#FFFFFF"
+            font.pixelSize: 6
+            font.bold: true
+            maximumLineCount: 1
         }
     }
 }

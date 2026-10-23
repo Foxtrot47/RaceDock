@@ -113,11 +113,14 @@ Plasma package:
 - `RaceDock.Plasma/package/contents/ui/ConfigColumns.qml`
   - Config page: per-championship column order and visibility.
 - `RaceDock.Plasma/package/contents/config/config.qml`
-  - `ConfigModel` that lists the two pages.
+  - `ConfigModel` that lists the General, Columns, and Developer pages.
 - `RaceDock.Plasma/package/contents/config/main.xml`
   - Placeholder config group so the Configure action exists; it is not the settings source.
 - `RaceDock.Plasma/tests/Test.qml`
   - `qmltestrunner` integration harness. It lives outside `contents/`, so packaging does not ship it.
+- `RaceDock.Plasma/tests/Screenshots.qml`
+  - `qmltestrunner` harness that grabs each surface to PNG (`grabToImage`) for layout review without a
+    Plasma session. Run it from the folder that should receive the images.
 
 Packaging and CI:
 
@@ -159,10 +162,22 @@ Packaging and CI:
   sectors/mini-sectors, tyre ages, pit cars, countdown progress, archive reload, and archive → live switching.
 - Replayed a recorded WEC fixture through `--archive` and confirmed the energy column renders
   (`83%` good → `15%` low red) along with WEC wheel ages.
+- Added `RaceDock.Plasma/tests/Screenshots.qml` and reviewed every surface as a PNG with the offscreen
+  platform: live/idle/flags on the panel strip, live/schedule/sector/energy flyouts, and the three
+  config pages. This verifies layout, column alignment, colour coding, and content, but not panel
+  integration or the pinned dialog.
+- Implemented the Windows single-row panel mode in `CompactWidget.qml` (`display.singleRow`): the
+  position card folds into the driver line as `position code interval`, the event line becomes
+  `event · progress`, the context block widens 100 → 150, and the idle strip puts headline and detail
+  side by side and sizes itself (`idleWidth`, clamped 248–520). The flag chip is now a shared inline
+  `FlagChip` component used by both context layouts.
+- Captured the single-row strip offscreen with the scenario service and the real F1 replay, with and
+  without a yellow flag, plus a WEC-only idle single-row strip.
 
 ### In progress
 
-- Visual verification of the compact strip, anchored flyout, and pinned dialog under Wayland.
+- Visual verification of the applet inside a real Plasma panel and the pinned `PlasmaCore.Dialog` host.
+  Component-level rendering has been reviewed offscreen.
 
 ### Blocked / unverified
 
@@ -238,6 +253,9 @@ Packaging and CI:
   - pit/retired/stopped labels
   - yellow/red/SC/VSC/chequered flags
   - idle headline/countdown and hidden mode
+  All of these render correctly offscreen (`Screenshots.qml`); what remains is seeing the strip laid out by
+  a real horizontal panel, where the available width is decided by plasmashell rather than by
+  `Layout.preferredWidth`.
 - [ ] Verify `FlyoutPanel` in the anchored popup:
   - column order and visibility
   - sector and split renderers
@@ -246,6 +264,7 @@ Packaging and CI:
   - empty/offline state
   - schedule mode
   - scroll behavior with 20–40 rows
+  The same caveat: the content and column alignment are verified offscreen, the popup host is not.
 - [ ] Verify the pinned `PlasmaCore.Dialog`:
   - pin from anchored -> close popup -> show floating window
   - close/unpin -> hide floating window
@@ -384,6 +403,24 @@ With the extracted tools, prepend `PATH=/tmp/qmltools2/usr/lib/qt6/bin:$PATH`,
 `LD_LIBRARY_PATH=/tmp/qmllibs2/usr/lib/x86_64-linux-gnu:/tmp/qmltestlib/usr/lib/x86_64-linux-gnu:/tmp/qmllibs/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu`,
 and `QML_IMPORT_PATH=/tmp/qmlmods/usr/lib/x86_64-linux-gnu/qt6/qml`.
 
+Grab the surfaces as PNGs for layout review. Run it from the folder that should receive them, and
+point it at a scenario, an archive, or a live service depending on what you want to see:
+
+```bash
+mkdir -p /tmp/racedock-shots && cd /tmp/racedock-shots
+dbus-run-session -- bash -lc '
+  dotnet "$OLDPWD/RaceDock.Linux/bin/Debug/net10.0/racedock-service.dll" --scenario --paused &
+  sleep 3
+  QT_QPA_PLATFORM=offscreen qmltestrunner -input "$OLDPWD/RaceDock.Plasma/tests/Screenshots.qml"
+'
+```
+
+It writes `panel.png`, `panel-yellow.png`, `panel-redflag.png`, `panel-single-row.png`,
+`panel-single-row-yellow.png`, `flyout.png`, `flyout-sectors.png`, `config-general.png`,
+`config-columns.png`, and `config-developer.png`. The offscreen platform has no Breeze style, so
+colours come from Kirigami's fallback theme; these captures check layout and content, not the exact
+Plasma palette.
+
 Install from the checkout:
 
 ```bash
@@ -425,7 +462,13 @@ kpackagetool6 --type Plasma/Applet --upgrade RaceDock.Plasma/package
 - **Polling is intentional:** do not block on the absence of D-Bus signals in QML. Keep the 1s compact
   poll and the 750ms flyout poll unless the transport changes. Set `pollWidget: false` for config pages.
 - **Panel width is user-visible:** `CompactWidget` exposes `Layout.preferredWidth` derived from
-  `display.competitorCount`; changing it requires re-checking panel layout and overflow.
+  `display.competitorCount`; changing it requires re-checking panel layout and overflow. Single-row
+  mode reserves 50 px more for the context block (100 → 150) and 6 px more per cell (68 → 74), caps at
+  620, and keeps a 24 px floor for the driver code so `HAM` survives beside a long interval, mirroring
+  the Windows taskbar. Re-check both display modes when the width formula changes.
+- **Single-row is a Core setting, not a QML choice:** `CompactWidget` reads `display.singleRow`
+  (serialized from `UserSettings.UseSingleRowTaskbar`). Do not read `plasmoid.configuration` for it, and
+  keep the cell detail text in one place (`detailText`) so the two layouts cannot drift.
 - **Pinned window on Wayland:** compositor placement rules differ from X11. Do not assume `x`/`y` work;
   verify `startSystemMove` and initial placement separately.
 - **`ConfigModel` is not a QML file:** Plasma registers `org.kde.plasma.configuration` inside

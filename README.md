@@ -74,8 +74,8 @@ to also install a systemd user unit, or `--no-applet` for the sidecar only.
 `scripts/uninstall-linux.sh` removes it again; add `--purge` to delete settings and logs as well.
 
 - **General** in the applet's configuration covers championships, rotation speed, competitor counts,
-  idle behaviour, and restoring defaults. **Columns** reorders and hides flyout columns per
-  championship. Changes are sent to the running service immediately.
+  single-row panel mode, idle behaviour, and restoring defaults. **Columns** reorders and hides flyout
+  columns per championship. Changes are sent to the running service immediately.
 - Settings and logs live in `~/.local/share/RaceDock` (`Logs/app.ndjson`, one JSON object per line). The
   sidecar starts on demand through D-Bus, so there is nothing to launch by hand.
 - The Linux front end is new. Live timing, archive replay, and the deterministic scenario all run
