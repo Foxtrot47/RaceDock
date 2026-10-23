@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Foxtrot47"
+            }
+        ],
+        "Category": "Application Launchers",
+        "Description": "Live motorsport timing in the KDE Plasma panel.",
+        "EnabledByDefault": true,
+        "Icon": "racedock",
+        "Id": "org.foxtrot47.racedock",
+        "License": "GPL-3.0-or-later",
+        "Name": "RaceDock",
+        "Version": "1.5.0",
+        "Website": "https://github.com/Foxtrot47/RaceDock"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

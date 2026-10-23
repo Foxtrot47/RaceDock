@@ -1,0 +1,51 @@
+#!/bin/sh
+# RaceDock sidecar launcher.
+#
+# Installed to ~/.local/bin/racedock-service by scripts/install-linux.sh. It resolves the .NET runtime
+# for a framework-dependent install and forwards every argument to the published service unchanged.
+set -eu
+
+app_dir="${RACEDOCK_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/racedock}"
+
+find_dotnet_root() {
+    if [ -n "${DOTNET_ROOT:-}" ] && [ -x "$DOTNET_ROOT/dotnet" ]; then
+        printf '%s\n' "$DOTNET_ROOT"
+        return 0
+    fi
+    for candidate in "$HOME/.dotnet" /usr/share/dotnet /usr/lib/dotnet /usr/local/share/dotnet /opt/dotnet; do
+        if [ -x "$candidate/dotnet" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if [ -x "$app_dir/racedock-service" ]; then
+    launcher="$app_dir/racedock-service"
+elif [ -f "$app_dir/racedock-service.dll" ]; then
+    launcher=""
+else
+    echo "RaceDock service is not installed in $app_dir." >&2
+    echo "Run scripts/install-linux.sh from the RaceDock checkout." >&2
+    exit 1
+fi
+
+if dotnet_root="$(find_dotnet_root)"; then
+    DOTNET_ROOT="$dotnet_root"
+    export DOTNET_ROOT
+elif [ -z "$launcher" ]; then
+    echo "RaceDock needs the .NET 10 runtime; set DOTNET_ROOT to its install folder." >&2
+    exit 1
+fi
+
+if [ -n "$launcher" ]; then
+    exec "$launcher" "$@"
+fi
+
+if command -v dotnet >/dev/null 2>&1; then
+    exec dotnet "$app_dir/racedock-service.dll" "$@"
+fi
+
+echo "RaceDock needs the .NET 10 runtime; set DOTNET_ROOT to its install folder." >&2
+exit 1

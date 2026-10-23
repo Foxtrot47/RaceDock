@@ -126,7 +126,24 @@ var tests = new (string Name, Action Run)[]
     ("WRC stage settles when a WRC1 crew retires on the road", WrcRetiredWrc1CrewSettlesStage),
     ("WRC completed to running reopens the stage", WrcCompletedToRunningReopens),
     ("WRC poll failure recovers with confirmation delay", WrcFailureRecoveryConfirmation),
-    ("WRC production handler has bounded connection lifetime", WrcHandlerBounds)
+    ("WRC production handler has bounded connection lifetime", WrcHandlerBounds),
+    ("panel cells carry leader gaps and placeholder intervals", PresentationTests.WidgetGapAndIntervalCells),
+    ("panel and flyout position colours stop at the points", PresentationTests.PositionColorsFollowPodiumAndPoints),
+    ("sector and mini-sector colours follow timing states", PresentationTests.SectorAndMiniSectorColors),
+    ("tyre compounds and WEC wheel ages render independently", PresentationTests.TyreCompoundsAndWecWheelAges),
+    ("rally split values keep their provider slots", PresentationTests.RallySplitsFollowProviderIdentity),
+    ("energy thresholds map to good warning and low", PresentationTests.EnergyThresholds),
+    ("alerts and taskbar flags map to their colours", PresentationTests.AlertAndFlagMapping),
+    ("idle widget and schedule flyout word the next session", PresentationTests.ScheduleWordingAndCountdowns),
+    ("the front-end JSON contract is camel case and clamps", PresentationTests.JsonContractIsCamelCaseWithStringEnums),
+    ("the scenario session publishes live state and runs commands", SessionTests.ScenarioSessionPublishesLiveStateAndCommands),
+    ("a schedule refresh fills the idle widget and flyout", SessionTests.ScheduleRefreshFeedsTheIdleState),
+    ("applying settings leaves a replay source alone", SessionTests.ApplyingSettingsKeepsTheReplaySource),
+    ("resetting settings restores and persists the defaults", SessionTests.ResetSettingsRestoresDefaults),
+    ("an archive replay steps through classification and flags", SessionTests.ArchiveReplayStepsThroughClassificationAndFlags),
+    ("a failed archive load keeps the current source", SessionTests.ArchiveLoadFailureKeepsTheCurrentSource),
+    ("state-change subscribers never block a source switch", SessionTests.StateChangedSubscribersRunOutsideTheSourceSwitch),
+    ("commands after shutdown report an error instead of throwing", SessionTests.CommandsAfterShutdownReturnErrorsInsteadOfThrowing)
 };
 var failures = 0;
 foreach (var test in tests)

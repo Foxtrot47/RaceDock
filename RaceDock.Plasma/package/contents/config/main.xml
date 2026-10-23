@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    RaceDock keeps its settings in the sidecar (~/.local/share/RaceDock/settings.json), because the
+    Windows app and the Linux service share the same UserSettings document. This file only gives the
+    applet a configuration group so Plasma offers the Configure action; the pages in contents/config
+    talk to the service over D-Bus and never read these values.
+-->
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+                          http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+    <kcfgfile name=""/>
+    <group name="General">
+        <entry name="settingsVersion" type="Int">
+            <default>0</default>
+        </entry>
+    </group>
+</kcfg>

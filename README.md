@@ -49,6 +49,42 @@ For a portable installation:
 3. Extract it to a folder you plan to keep.
 4. Run `RaceDock.exe`.
 
+## Linux (KDE Plasma 6)
+
+RaceDock also has a Plasma 6 front end: a compact panel strip and a classification flyout, backed by a
+headless .NET sidecar that reuses the same `RaceDock.Core` library as the Windows app.
+
+Requirements:
+
+- KDE Plasma 6 on a Wayland or X11 session.
+- The .NET 10 SDK to build, or the .NET 10 runtime for an already-published copy.
+- `kpackagetool6` from your distribution's Plasma packages.
+
+From a checkout:
+
+```bash
+scripts/install-linux.sh
+```
+
+The script publishes `RaceDock.Linux`, installs it under `~/.local/share/racedock`, adds a wrapper at
+`~/.local/bin/racedock-service`, registers D-Bus activation, and installs the applet with
+`kpackagetool6`. Add **RaceDock** from *Add Widgets* if it is not on the panel yet. Pass `--systemd`
+to also install a systemd user unit, or `--no-applet` for the sidecar only.
+
+`scripts/uninstall-linux.sh` removes it again; add `--purge` to delete settings and logs as well.
+
+- **General** in the applet's configuration covers championships, rotation speed, competitor counts,
+  idle behaviour, and restoring defaults. **Columns** reorders and hides flyout columns per
+  championship. Changes are sent to the running service immediately.
+- Settings and logs live in `~/.local/share/RaceDock` (`Logs/app.ndjson`, one JSON object per line). The
+  sidecar starts on demand through D-Bus, so there is nothing to launch by hand.
+- The Linux front end is new. Live timing, archive replay, and the deterministic scenario all run
+  through the shared session layer, but the pinned floating flyout and multi-monitor layouts are still
+  being verified. The panel strip targets a horizontal panel; vertical panels are not supported yet.
+
+The Windows app is unaffected: `RaceDock.Core` stays toolkit-neutral and has no Linux-only
+dependencies, so both front ends consume the same feed, settings, and presentation code.
+
 ## Using it
 
 RaceDock sits in the notification area. Double-click its icon, or pick **Settings** from its menu.

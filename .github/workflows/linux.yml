@@ -1,0 +1,76 @@
+name: Linux
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: |
+          dotnet restore RaceDock.Core/RaceDock.Core.csproj
+          dotnet restore RaceDock.Linux/RaceDock.Linux.csproj
+          dotnet restore RaceDock.Tests/RaceDock.Tests.csproj
+
+      - name: Build the shared core and Linux service
+        run: |
+          dotnet build RaceDock.Linux/RaceDock.Linux.csproj -c Release --no-restore
+          dotnet build RaceDock.Tests/RaceDock.Tests.csproj -c Release --no-restore
+
+      - name: Run tests
+        run: dotnet run --project RaceDock.Tests -c Release --no-build --no-launch-profile
+
+      - name: Check the install scripts
+        run: |
+          bash -n scripts/install-linux.sh
+          bash -n scripts/uninstall-linux.sh
+          sh -n scripts/linux/racedock-service
+
+      - name: Install QML tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qt6-declarative-dev-tools
+
+      # Plasma registers ConfigModel and PlasmoidItem inside plasmashell, so qmllint reports those as
+      # unresolved types on a plain runner. Real syntax and binding errors still fail the step.
+      - name: Lint QML
+        run: |
+          set -euo pipefail
+          for file in RaceDock.Plasma/package/contents/ui/*.qml RaceDock.Plasma/package/contents/config/config.qml; do
+            qmllint "$file"
+          done
+
+      - name: Validate the applet package
+        run: |
+          set -euo pipefail
+          if ! command -v kpackagetool6 >/dev/null 2>&1; then
+            echo "kpackagetool6 is not available on this image; skipping package validation."
+            exit 0
+          fi
+          export XDG_DATA_HOME="$RUNNER_TEMP/xdg-data"
+          kpackagetool6 --type Plasma/Applet --install RaceDock.Plasma/package
+          kpackagetool6 --type Plasma/Applet --list | grep -qx org.foxtrot47.racedock
