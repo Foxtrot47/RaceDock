@@ -138,7 +138,7 @@ Packaging and CI:
 - Full suite is green on Linux: **139/139** (122 original + 9 presentation + 8 session tests).
 - Created the D-Bus sidecar and verified every method (`Ping`, `GetWidgetState`, `GetFlyoutState`, `GetSettings`, `ApplySettings`, `Command`) on an isolated session bus.
 - Added shared presentation DTOs, presentation builder, and headless `RaceDockSession`.
-- Added service CLI: `--scenario`, `--archive`, `--settings`, `--log-folder`, `--timezone`, `--paused`, `--print-state`, `--print-delay`.
+- Added service CLI: `--scenario`, `--archive`, `--settings`, `--log-folder`, `--dump-feed`, `--timezone`, `--paused`, `--print-state`, `--print-delay`.
 - Implemented the Plasma UI: `main.qml`, `RaceDockClient.qml`, `CompactWidget.qml`, `FlyoutPanel.qml`, `ClassificationRow.qml`, `ScheduleView.qml`.
 - Added Escape-to-close, accessible names for pin/close/compact, configure buttons in both flyout hosts, and WEC wheel cells with tooltips.
 - Hardened `RaceDockSession`: coalesced `StateChanged` dispatch outside the source-switch semaphore, fallback-source cleanup, idempotent disposal, hide-championship snapshot clearing, and error payloads for commands after shutdown.
@@ -152,12 +152,17 @@ Packaging and CI:
   tyre ages, sectors/mini-sectors, yellow → clear → chequered transitions, and scenario ↔ archive switching.
 - Confirmed the live service connects the enabled feeds (F1, GTWC, WEC, WRC) and fills the idle
   widget/flyout from the published schedule (US GP Practice 1 was the next session).
+- Watched a live F1 on-track session through the service during US GP Practice 1: classification,
+  intervals, lap-time mode, tyre compounds/ages, sector and mini-sector data, and the session countdown
+  all rendered, and sector columns could be enabled live through `ApplySettings`.
+- Recorded a real F1 feed dump with `--dump-feed` and replayed it through `--archive`: 20 rows with
+  sectors/mini-sectors, tyre ages, pit cars, countdown progress, archive reload, and archive → live switching.
+- Replayed a recorded WEC fixture through `--archive` and confirmed the energy column renders
+  (`83%` good → `15%` low red) along with WEC wheel ages.
 
 ### In progress
 
 - Visual verification of the compact strip, anchored flyout, and pinned dialog under Wayland.
-- Live timing classification through the Linux service: the feeds connect and the schedule populates, but
-  no on-track session has been observed yet (only idle/schedule state).
 
 ### Blocked / unverified
 
@@ -165,6 +170,8 @@ Packaging and CI:
 - The pinned `PlasmaCore.Dialog` path is implemented but has not been visually tested: initial placement, drag/move (`startSystemMove`), `DialogWindow` flags, `hideOnWindowDeactivate`, and sizing need confirmation.
 - Panel width/height behavior in horizontal vs vertical panels and on multi-monitor setups is unverified.
 - The applet reconnecting after the sidecar exits/restarts is handled as an error state in the client but has not been watched on a real panel.
+- Live stale/offline transitions (a feed dropping mid-session) have not been observed; the 12 s health
+  timeout is only covered by unit-level behavior.
 - `qmltestrunner` here runs from extracted binaries in `/tmp`; the CI job only lints QML and validates the package, because the QML harness needs the Plasma D-Bus QML module and a session bus.
 
 ## Implementation plan
@@ -281,10 +288,13 @@ Packaging and CI:
   - config pages load and apply
   (resume/speed/restart are covered by Core session tests)
 - [x] Replay an archive through the service and verify classification, sectors, tyres, and flag transitions
-  (synthetic F1 dump; a real captured dump is still worth replaying once one is available).
-- [ ] Replay a real captured F1/GTWC/WEC `.ndjson` and confirm WEC energy rendering through `--archive`.
-- [ ] Exercise a live on-track session with F1/WEC/WRC enabled and confirm rotation and stale/offline handling.
-  Feed startup and the idle schedule are already verified.
+  (synthetic F1 dump).
+- [x] Replay a real captured F1 `.ndjson` through `--archive` and confirm WEC energy rendering
+  (real F1 capture from Practice 1; WEC energy via the recorded Barcelona fixture, since no WEC session
+  was on track during the capture window).
+- [x] Exercise a live on-track session with F1 enabled and confirm classification, tyres, sectors, and
+  live settings changes. Feed startup and the idle schedule are verified for all feeds.
+- [ ] Confirm rotation and stale/offline handling with several live feeds at once.
 - [ ] Confirm the applet recovers when the sidecar starts after Plasma.
 - [ ] Confirm the applet does not crash when the sidecar exits mid-session.
 
@@ -324,6 +334,16 @@ Deterministic snapshot without D-Bus:
 ```bash
 dotnet RaceDock.Linux/bin/Debug/net10.0/racedock-service.dll \
   --scenario --print-state --print-delay 2
+```
+
+Capture live payloads, then replay them:
+
+```bash
+dotnet RaceDock.Linux/bin/Debug/net10.0/racedock-service.dll \
+  --dump-feed /tmp/opencode/dumps --log-folder /tmp/opencode/logs
+# Ctrl-C or SIGTERM to stop; the folder is printed at startup and in app.ndjson.
+dotnet RaceDock.Linux/bin/Debug/net10.0/racedock-service.dll \
+  --archive /tmp/opencode/dumps/feed-dump-*/formula1.ndjson --print-state --print-delay 5
 ```
 
 D-Bus smoke test in an isolated bus:
@@ -391,6 +411,11 @@ kpackagetool6 --type Plasma/Applet --upgrade RaceDock.Plasma/package
   the session's alerts stay empty during replay. Track-condition flags still render from the snapshot,
   and the presentation builder treats a `SessionLifecycle.Ended` snapshot as CHEQUERED, but
   fastest-lap/race-control alerts do not appear until a source feeds the session arbiter.
+- **Feed dumps are only replayable if the feed sent a session bootstrap:** F1 always sends a full
+  initial snapshot when the websocket connects, so an F1 capture replays from wherever it started.
+  GTWC and WEC only send timing while a session is live, so a `--dump-feed` capture taken between
+  sessions contains schedule/discovery payloads and the replay loader rejects it with
+  "no usable timing bootstraps".
 - **Commands render their pending snapshot:** `CommandAsync` drains `_pending` before `BuildState`, so a
   `step` or `trigger` is visible to the next poll instead of waiting for the 250 ms render loop.
 - **Settings JSON is destructive if partial:** `ApplySettings` deserializes a full `UserSettings`. Always

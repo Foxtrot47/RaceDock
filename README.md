@@ -82,6 +82,18 @@ to also install a systemd user unit, or `--no-applet` for the sidecar only.
   through the shared session layer, but the pinned floating flyout and multi-monitor layouts are still
   being verified. The panel strip targets a horizontal panel; vertical panels are not supported yet.
 
+The sidecar can also be run by hand for diagnostics:
+
+```bash
+racedock-service --print-state                 # one widget + flyout JSON snapshot, then exit
+racedock-service --archive race.ndjson         # replay a captured feed dump
+racedock-service --dump-feed ~/RaceDock/dumps  # record every live feed payload for later replay
+```
+
+`--dump-feed` writes one `<feed>.ndjson` per source into a timestamped folder, and
+`--archive` replays any of those files (or a `.zip` timing archive) through the same presentation path
+the applet polls.
+
 The Windows app is unaffected: `RaceDock.Core` stays toolkit-neutral and has no Linux-only
 dependencies, so both front ends consume the same feed, settings, and presentation code.
 

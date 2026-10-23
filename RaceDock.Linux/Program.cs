@@ -23,6 +23,14 @@ internal static class Program
             return 2;
         }
 
+        // Feed dumps are ambient and auto-flush, but a clean shutdown should still close the writers
+        // so a capture on disk is complete even for the print-state path.
+        try { return await RunAsync(options); }
+        finally { FeedDump.Stop(); }
+    }
+
+    private static async Task<int> RunAsync(ServiceOptions options)
+    {
         if (options.ShowHelp)
         {
             Console.WriteLine(ServiceOptions.HelpText);
@@ -38,6 +46,12 @@ internal static class Program
         {
             Directory.CreateDirectory(options.LogFolder);
             AppLog.UseFolder(options.LogFolder);
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.DumpFeedFolder))
+        {
+            Directory.CreateDirectory(options.DumpFeedFolder);
+            AppLog.Info("Feed", $"Feed dump folder: {FeedDump.Start(options.DumpFeedFolder)}");
         }
 
         var timeZone = TimeZoneInfo.Local;
@@ -101,7 +115,8 @@ internal static class Program
 
         Console.WriteLine(
             $"RaceDock service listening on {RaceDockMethodHandler.ServiceName} " +
-            $"({connection.UniqueName}); settings {settingsStore.Path}; log folder {AppLog.Folder}.");
+            $"({connection.UniqueName}); settings {settingsStore.Path}; log folder {AppLog.Folder}" +
+            (FeedDump.Folder is { } dump ? $"; feed dump {dump}." : "."));
 
         var disconnected = connection.DisconnectedAsync();
         await Task.WhenAny(disconnected, Task.Delay(Timeout.Infinite, lifetime.Token));
@@ -141,6 +156,7 @@ internal static class Program
         string? ArchivePath,
         string? SettingsPath,
         string? LogFolder,
+        string? DumpFeedFolder,
         string? TimeZoneId,
         bool ResumePlayback,
         bool PrintState,
@@ -155,6 +171,7 @@ internal static class Program
               --archive <path>        Replay a recorded .ndjson feed or a .zip timing archive.
               --settings <path>       Use a specific settings.json instead of the XDG data path.
               --log-folder <path>     Write app.ndjson logs to a specific folder.
+              --dump-feed <folder>    Record every feed payload into a timestamped .ndjson dump.
               --timezone <id>         Use an IANA time zone for the schedule (default: system local).
               --paused                Do not automatically start a scenario or archive replay.
               --print-state           Print one widget and flyout snapshot to stdout, then exit.
@@ -169,6 +186,7 @@ internal static class Program
             string? archive = null;
             string? settings = null;
             string? logs = null;
+            string? dumps = null;
             string? timezone = null;
             var resume = true;
             var print = false;
@@ -192,6 +210,9 @@ internal static class Program
                         break;
                     case "--log-folder":
                         logs = RequireValue(args, ref index, "--log-folder");
+                        break;
+                    case "--dump-feed":
+                        dumps = RequireValue(args, ref index, "--dump-feed");
                         break;
                     case "--timezone":
                     case "--time-zone":
@@ -222,7 +243,7 @@ internal static class Program
             }
 
             return new ServiceOptions(
-                scenario, archive, settings, logs, timezone, resume, print, delay, help, version);
+                scenario, archive, settings, logs, dumps, timezone, resume, print, delay, help, version);
         }
 
         private static string RequireValue(string[] args, ref int index, string option)
