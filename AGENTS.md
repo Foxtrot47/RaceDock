@@ -309,7 +309,7 @@ Packaging and CI:
 - [x] Add CI for:
   - `dotnet build` on Linux
   - `dotnet test` on Linux
-  - QML syntax/lint checks
+  - QML syntax/lint checks (package UI and the `tests/` harnesses)
   - package validation with `kpackagetool6`
   (`.github/workflows/linux.yml`)
 

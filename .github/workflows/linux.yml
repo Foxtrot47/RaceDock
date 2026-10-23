@@ -56,11 +56,14 @@ jobs:
           sudo apt-get install -y --no-install-recommends qt6-declarative-dev-tools
 
       # Plasma registers ConfigModel and PlasmoidItem inside plasmashell, so qmllint reports those as
-      # unresolved types on a plain runner. Real syntax and binding errors still fail the step.
+      # unresolved types on a plain runner. Real syntax and binding errors still fail the step. The
+      # The qmltestrunner harnesses are linted too, even though only a Plasma session can run them.
       - name: Lint QML
         run: |
           set -euo pipefail
-          for file in RaceDock.Plasma/package/contents/ui/*.qml RaceDock.Plasma/package/contents/config/config.qml; do
+          for file in RaceDock.Plasma/package/contents/ui/*.qml \
+            RaceDock.Plasma/package/contents/config/config.qml \
+            RaceDock.Plasma/tests/*.qml; do
             qmllint "$file"
           done
 
