@@ -42,6 +42,7 @@ public sealed class RaceDockSession : IAsyncDisposable
     private readonly SemaphoreSlim _sourceSwitch = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly object _stateGate = new();
+    private readonly object _renderGate = new();
     private readonly Dictionary<Championship, TimingSnapshot> _latestSnapshots = [];
     private ILiveTimingSource? _source;
     private TimingSnapshot? _pending;
@@ -452,18 +453,23 @@ public sealed class RaceDockSession : IAsyncDisposable
 
     private void RenderSnapshot(TimingSnapshot snapshot)
     {
-        if (_disposed) return;
-        if (snapshot.Championship != Championship.Unknown && !_settings.IsChampionshipVisible(snapshot.Championship)) return;
-        UpdateTimingStatuses(snapshot);
-        if (snapshot.Lifecycle == SessionLifecycle.OffSession || (snapshot.Lifecycle == SessionLifecycle.Ended && Archive is null))
+        // Commands can render a pending snapshot outside the render loop, so serialize the two
+        // renderers; otherwise an older snapshot could overwrite a newer one.
+        lock (_renderGate)
         {
-            _currentSnapshot = null;
+            if (_disposed) return;
+            if (snapshot.Championship != Championship.Unknown && !_settings.IsChampionshipVisible(snapshot.Championship)) return;
+            UpdateTimingStatuses(snapshot);
+            if (snapshot.Lifecycle == SessionLifecycle.OffSession || (snapshot.Lifecycle == SessionLifecycle.Ended && Archive is null))
+            {
+                _currentSnapshot = null;
+                BuildState();
+                _ = RefreshScheduleAsyncIfIdle();
+                return;
+            }
+            _currentSnapshot = snapshot;
             BuildState();
-            _ = RefreshScheduleAsyncIfIdle();
-            return;
         }
-        _currentSnapshot = snapshot;
-        BuildState();
     }
 
     private void UpdateTimingStatuses(TimingSnapshot snapshot)
