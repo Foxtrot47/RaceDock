@@ -228,7 +228,8 @@ Packaging and CI:
 
 ### Phase 2 — Finish Linux D-Bus service
 
-- [ ] Add a `GetStatus`/version/capabilities method if the front end needs it.
+- [ ] Add a `GetStatus`/version/capabilities method if the front end needs it. Not needed so far: the
+  footer already shows the connection state and view mode, and version drift is not surfaced in the UI.
 - [x] Decided not to emit a `Changed(s topic)` signal for now; polling remains the Plasma path and other clients can poll too.
 - [x] Add a proper service wrapper script (`racedock-service`) that resolves the .NET runtime and passes fixed arguments.
 - [x] Add D-Bus activation file:
@@ -236,7 +237,8 @@ Packaging and CI:
 - [x] Add optional systemd user unit with `Restart=on-failure` (`--systemd`).
 - [x] Make `--print-state` reliable for CI (waits for the first non-hidden snapshot, bounded by `--print-delay`).
 - [x] Ensure logging goes to `~/.local/share/RaceDock/Logs/app.ndjson` by default (`AppPaths.Root`) and never blocks startup.
-- [ ] Test service restart while the applet is polling. The client should reconnect without restarting Plasma.
+- [x] Test service restart while the applet is polling. The client reconnects without restarting Plasma
+  (`RaceDock.Plasma/tests/Reconnect.qml`).
 
 ### Phase 3 — Settings and configuration UI
 
@@ -279,7 +281,8 @@ Packaging and CI:
   - empty/offline state
   - schedule mode
   - scroll behavior with 20–40 rows
-  The same caveat: the content and column alignment are verified offscreen, the popup host is not.
+  The same caveat: the content, column alignment, and scrolling through a 20-row classification are
+  verified offscreen; the popup host is not.
 - [ ] Verify the pinned `PlasmaCore.Dialog`:
   - pin from anchored -> close popup -> show floating window
   - close/unpin -> hide floating window
@@ -461,10 +464,10 @@ dbus-run-session -- bash -lc '
 ```
 
 It writes `panel.png`, `panel-yellow.png`, `panel-redflag.png`, `panel-single-row.png`,
-`panel-single-row-yellow.png`, `flyout.png`, `flyout-sectors.png`, `config-general.png`,
-`config-columns.png`, and `config-developer.png`. The offscreen platform has no Breeze style, so
-colours come from Kirigami's fallback theme; these captures check layout and content, not the exact
-Plasma palette.
+`panel-single-row-yellow.png`, `flyout.png`, `flyout-sectors.png`, `flyout-scrolled.png` (only for a
+source with a long classification), `config-general.png`, `config-columns.png`, and
+`config-developer.png`. The offscreen platform has no Breeze style, so colours come from Kirigami's
+fallback theme; these captures check layout and content, not the exact Plasma palette.
 
 Install from the checkout:
 

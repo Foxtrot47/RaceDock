@@ -197,4 +197,17 @@ TestCase {
         grab(columnsFrame, "config-columns.png");
         grab(developerFrame, "config-developer.png");
     }
+
+    function test_render_scrolled_classification() {
+        if (client.flyoutState.mode !== "live")
+            return;
+
+        // Only a full classification has anything to scroll; the scenario and schedule views do not.
+        if ((client.flyoutState.rows || []).length < 12)
+            return;
+
+        mouseWheel(flyout, flyout.width / 2, flyout.height / 2, 0, -600);
+        wait(500);
+        grab(flyoutFrame, "flyout-scrolled.png");
+    }
 }
