@@ -34,6 +34,7 @@ var tests = new (string Name, Action Run)[]
     ("Timing71 columns resolve by abbreviation and description", TimingArchiveAbbreviatedColumns),
     ("active feeds rotate at the display interval", FeedRotation),
     ("completed classifications remain visible for the configured interval", CompletedClassificationRetention),
+    ("off-session feeds clear retained live classifications", OffSessionClearsRetention),
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
     ("WRC season discovery excludes ERC and finds the next rally", WrcSeasonDiscovery),
     ("WRC provider keeps event rally and itinerary ids distinct", WrcProviderIdentifiers),
@@ -840,6 +841,21 @@ static void CompletedClassificationRetention()
     source.DisposeAsync().AsTask().GetAwaiter().GetResult();
 }
 
+static void OffSessionClearsRetention()
+{
+    var clock = new FakeClock();
+    var feed = new FakeTimingSource(Snapshot("Xfinity"));
+    var source = new CompositeLiveTimingSource([() => feed], clock, TimeSpan.FromMilliseconds(20), TimeSpan.FromMinutes(5));
+    List<TimingSnapshot> snapshots = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+    feed.Publish(TimingSnapshot.Hidden(clock.UtcNow));
+    Thread.Sleep(30);
+    Equal(SessionLifecycle.OffSession, snapshots[^1].Lifecycle);
+
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
 
 static void WrcCategoryEligibility()
 {

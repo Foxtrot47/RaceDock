@@ -67,7 +67,7 @@ public sealed class CompositeLiveTimingSource(
         TimingSnapshot? selected = null;
         lock (_gate)
         {
-            if (snapshot.Lifecycle != SessionLifecycle.Live && _snapshots.TryGetValue(source, out var previous) &&
+            if (snapshot.Lifecycle == SessionLifecycle.Ended && _snapshots.TryGetValue(source, out var previous) &&
                 previous.Lifecycle == SessionLifecycle.Live)
             {
                 _retainedUntil.TryAdd(source, clock.UtcNow + _completedSessionRetention);
