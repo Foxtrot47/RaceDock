@@ -134,6 +134,7 @@ public sealed class TaskbarWindow : Window
 
     /// <summary>Whether a classification currently owns the widget, which the countdown must not displace.</summary>
     public bool ShowingSnapshot => _snapshot is not null && IsVisible;
+    public bool IsClosed { get; private set; }
 
     public void ApplySettings(UserSettings settings)
     {
@@ -355,5 +356,11 @@ public sealed class TaskbarWindow : Window
         base.OnClosing(e);
     }
 
-    protected override void OnClosed(EventArgs e) { _reattach.Stop(); _flyout.ClosePermanently(); base.OnClosed(e); }
+    protected override void OnClosed(EventArgs e)
+    {
+        IsClosed = true;
+        _reattach.Stop();
+        _flyout.ClosePermanently();
+        base.OnClosed(e);
+    }
 }

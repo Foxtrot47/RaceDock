@@ -271,7 +271,8 @@ public sealed class AppController : IAsyncDisposable
     /// <summary>A closed WPF window cannot be shown again; later updates must create a new widget.</summary>
     private TaskbarWindow EnsureTaskbar()
     {
-        if (_taskbar is not null) return _taskbar;
+        if (_taskbar is { IsClosed: false } existing) return existing;
+        _taskbar = null;
         var taskbar = new TaskbarWindow(_settings);
         taskbar.Closed += (_, _) =>
         {
@@ -288,7 +289,9 @@ public sealed class AppController : IAsyncDisposable
     private void UpdateIdleWidget()
     {
         // A snapshot on the widget outranks the calendar, including a completed session still being retained.
-        if (_disposed || TestMode || _taskbar is { ShowingSnapshot: true }) return;
+        if (_disposed || TestMode) return;
+        if (_taskbar?.IsClosed == true) _taskbar = null;
+        if (_taskbar is { ShowingSnapshot: true }) return;
         var now = _clock.UtcNow;
         var upcoming = NextSessionDisplay.Schedule(_upcoming, now);
         _taskbar?.UpdateOverlaySchedule(upcoming, now);
