@@ -7,5 +7,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="RaceDock" />
     <InternalsVisibleTo Include="RaceDock.Tests" />
+    <InternalsVisibleTo Include="RaceDock.Recorder" />
   </ItemGroup>
 </Project>

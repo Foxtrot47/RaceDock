@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="RaceDock.Core/RaceDock.Core.csproj" />
+  <Project Path="RaceDock.Recorder/RaceDock.Recorder.csproj" />
   <Project Path="RaceDock/RaceDock.csproj" />
   <Project Path="RaceDock.Tests/RaceDock.Tests.csproj" />
 </Solution>
