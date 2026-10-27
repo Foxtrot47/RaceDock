@@ -220,6 +220,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private bool _enableFormulaE;
     private bool _enableDtm;
     private bool _enableIndyCar;
+    private bool _enableNascarCup;
+    private bool _enableNascarXfinity;
+    private bool _enableNascarTrucks;
     private bool _autoStartOnWindowsBoot;
     private bool _showNextSessionWhenIdle;
     private bool _interfaceAnimations;
@@ -259,6 +262,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             Status(Championship.FormulaE, "Formula E", "formulae.png", "All-electric street racing"),
             Status(Championship.Dtm, "DTM", "dtm.png", "German GT3 touring car series"),
             Status(Championship.IndyCar, "INDYCAR", "indycar.png", "North American open-wheel racing"),
+            Status(Championship.NascarCup, "NASCAR Cup", "nascar.png", "NASCAR Cup Series stock car racing"),
+            Status(Championship.NascarXfinity, "NASCAR Xfinity", "nascar.png", "NASCAR Xfinity Series stock car racing"),
+            Status(Championship.NascarTrucks, "NASCAR Trucks", "nascar.png", "NASCAR CRAFTSMAN Truck Series racing"),
             Status(Championship.MotoGp, "MotoGP", "motogp.png", "Premier class motorcycle racing"),
             Status(Championship.Moto2, "Moto2", "moto2-sidebar.png", "Intermediate Grand Prix motorcycle class"),
             Status(Championship.Moto3, "Moto3", "moto3-sidebar.png", "Entry Grand Prix motorcycle class"),
@@ -312,6 +318,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     public bool EnableFormulaE { get => _enableFormulaE; set => SetStream(Championship.FormulaE, ref _enableFormulaE, value); }
     public bool EnableDtm { get => _enableDtm; set => SetStream(Championship.Dtm, ref _enableDtm, value); }
     public bool EnableIndyCar { get => _enableIndyCar; set => SetStream(Championship.IndyCar, ref _enableIndyCar, value); }
+    public bool EnableNascarCup { get => _enableNascarCup; set => SetStream(Championship.NascarCup, ref _enableNascarCup, value); }
+    public bool EnableNascarXfinity { get => _enableNascarXfinity; set => SetStream(Championship.NascarXfinity, ref _enableNascarXfinity, value); }
+    public bool EnableNascarTrucks { get => _enableNascarTrucks; set => SetStream(Championship.NascarTrucks, ref _enableNascarTrucks, value); }
     public bool AutoStartOnWindowsBoot { get => _autoStartOnWindowsBoot; set => Set(ref _autoStartOnWindowsBoot, value); }
     public bool ShowNextSessionWhenIdle { get => _showNextSessionWhenIdle; set => Set(ref _showNextSessionWhenIdle, value); }
     public bool InterfaceAnimations { get => _interfaceAnimations; set => Set(ref _interfaceAnimations, value); }
@@ -367,6 +376,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         Championship.FormulaE => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/formulae-full.png",
         Championship.Dtm => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/dtm-wide.png",
         Championship.IndyCar => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/indycar-wide.png",
+        Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/nascar-wide.png",
         _ => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f1.png"
     };
 
@@ -389,6 +399,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             Championship.FormulaE => EnableFormulaE,
             Championship.Dtm => EnableDtm,
             Championship.IndyCar => EnableIndyCar,
+            Championship.NascarCup => EnableNascarCup,
+            Championship.NascarXfinity => EnableNascarXfinity,
+            Championship.NascarTrucks => EnableNascarTrucks,
             _ => false
         };
         set => SetChampionshipEnabled(SelectedChampionship, value);
@@ -413,6 +426,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             case Championship.FormulaE: EnableFormulaE = value; break;
             case Championship.Dtm: EnableDtm = value; break;
             case Championship.IndyCar: EnableIndyCar = value; break;
+            case Championship.NascarCup: EnableNascarCup = value; break;
+            case Championship.NascarXfinity: EnableNascarXfinity = value; break;
+            case Championship.NascarTrucks: EnableNascarTrucks = value; break;
         }
     }
 
@@ -519,7 +535,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
 
     public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 ||
         EnableMoto3 || EnableGtWorldChallengeEurope || EnableWec || EnableElms || EnableMichelinLeMansCup || EnableWrc ||
-        EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar;
+        EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar || EnableNascarCup || EnableNascarXfinity || EnableNascarTrucks;
 
     public void Load(UserSettings settings)
     {
@@ -542,6 +558,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         EnableFormulaE = normalized.EnableFormulaE;
         EnableDtm = normalized.EnableDtm;
         EnableIndyCar = normalized.EnableIndyCar;
+        EnableNascarCup = normalized.EnableNascarCup;
+        EnableNascarXfinity = normalized.EnableNascarXfinity;
+        EnableNascarTrucks = normalized.EnableNascarTrucks;
         AutoStartOnWindowsBoot = normalized.AutoStartOnWindowsBoot;
         ShowNextSessionWhenIdle = normalized.ShowNextSessionWhenIdle;
         InterfaceAnimations = normalized.InterfaceAnimations;
@@ -613,6 +632,9 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             EnableFormulaE = EnableFormulaE,
             EnableDtm = EnableDtm,
             EnableIndyCar = EnableIndyCar,
+            EnableNascarCup = EnableNascarCup,
+            EnableNascarXfinity = EnableNascarXfinity,
+            EnableNascarTrucks = EnableNascarTrucks,
             HiddenChampionships = [.. ChampionshipStatuses.Where(status => !status.IsVisible).Select(status => status.Championship)],
             RotationSeconds = RotationSeconds,
             CompletedSessionRetentionMinutes = CompletedSessionRetentionMinutes,
@@ -698,11 +720,14 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
                 Championship.FormulaE => 4,
                 Championship.Imsa => 5,
                 Championship.IndyCar => 6,
-                Championship.GtWorldChallengeEurope => 7,
-                Championship.Dtm => 8,
-                Championship.EuropeanLeMansSeries => 9,
-                Championship.MichelinLeMansCup => 10,
-                _ => 11
+                Championship.NascarCup => 7,
+                Championship.NascarXfinity => 8,
+                Championship.NascarTrucks => 9,
+                Championship.GtWorldChallengeEurope => 10,
+                Championship.Dtm => 11,
+                Championship.EuropeanLeMansSeries => 12,
+                Championship.MichelinLeMansCup => 13,
+                _ => 14
             })
             .ToList();
         // Timing updates arrive several times a second, so only rebuild the cards when the set itself changes.

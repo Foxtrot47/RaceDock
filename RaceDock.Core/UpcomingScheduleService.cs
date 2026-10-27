@@ -143,6 +143,38 @@ internal sealed class WrcCalendar(WrcApiClient client) : IChampionshipCalendar
     }
 }
 
+/// <summary>
+/// Each NASCAR series schedule is published one season at a time, so the next season is read once the current
+/// one has no race left. A season the provider has not released yet answers without a race list.
+/// </summary>
+internal sealed class NascarCalendar(INascarScheduleClient client, NascarSeries series) : IChampionshipCalendar
+{
+    public IReadOnlyList<Championship> Championships { get; } = [series.Championship];
+
+    public async Task<IReadOnlyList<UpcomingSession>> GetUpcomingAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var sessions = await NextEventSessionsAsync(now, cancellationToken);
+        return sessions.Count > 0 ? [sessions[0]] : [];
+    }
+
+    public Task<IReadOnlyList<UpcomingSession>> GetEventScheduleAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
+        NextEventSessionsAsync(now, cancellationToken);
+
+    private async Task<IReadOnlyList<UpcomingSession>> NextEventSessionsAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        foreach (var year in new[] { now.Year, now.Year + 1 })
+        {
+            var races = await client.GetRaceListAsync(series.SeriesId, year, cancellationToken);
+            if (ChampionshipCalendars.NextNascar(races, now, series.Championship) is null) continue;
+            var raceId = ChampionshipCalendars.NextNascarRaceId(races, now, series.Championship);
+            var feed = await client.GetWeekendFeedAsync(year, series.SeriesId, raceId, cancellationToken);
+            var sessions = ChampionshipCalendars.NascarEvent(races, feed, now, series.Championship);
+            if (sessions.Count > 0) return sessions;
+        }
+        return [];
+    }
+}
+
 public sealed class MotoGpScheduleClient(HttpClient? httpClient = null) : IDisposable
 {
     private readonly HttpClient _http = httpClient ?? new HttpClient { BaseAddress = new Uri("https://api.pulselive.motogp.com/motogp/v1/") };
@@ -158,6 +190,93 @@ public sealed class MotoGpScheduleClient(HttpClient? httpClient = null) : IDispo
     {
         if (_ownsHttp) _http.Dispose();
     }
+}
+
+/// <summary>
+/// The published NASCAR schedule, one series and season per static path: no identifier has to be discovered
+/// first, and a season without a released list answers with an error status instead of a payload.
+/// </summary>
+internal interface INascarScheduleClient : IDisposable
+{
+    Task<JsonArray?> GetRaceListAsync(int seriesId, int year, CancellationToken cancellationToken);
+
+    Task<JsonObject?> GetWeekendFeedAsync(int year, int seriesId, int? raceId, CancellationToken cancellationToken) =>
+        Task.FromResult<JsonObject?>(null);
+}
+
+public sealed class NascarScheduleClient(HttpClient? httpClient = null) : INascarScheduleClient
+{
+    private readonly HttpClient _http = httpClient ?? new HttpClient { BaseAddress = new Uri("https://cf.nascar.com/") };
+
+    public async Task<JsonArray?> GetRaceListAsync(int seriesId, int year, CancellationToken cancellationToken)
+    {
+        using var response = await _http.GetAsync($"cacher/{year}/{seriesId}/race_list_basic.json", cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+        var text = await response.Content.ReadAsStringAsync(cancellationToken);
+        return JsonNode.Parse(text) as JsonArray;
+    }
+
+    public async Task<JsonObject?> GetWeekendFeedAsync(int year, int seriesId, int? raceId, CancellationToken cancellationToken)
+    {
+        if (raceId is not > 0) return null;
+        using var response = await _http.GetAsync($"cacher/{year}/{seriesId}/{raceId}/weekend-feed.json", cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+        var text = await response.Content.ReadAsStringAsync(cancellationToken);
+        return JsonNode.Parse(text) as JsonObject;
+    }
+
+    public void Dispose() => _http.Dispose();
+}
+
+/// <summary>
+/// Shares NASCAR schedule reads across the three series calendars and across the upcoming and event-schedule
+/// queries, which would otherwise each request the same race lists and weekend feeds. An answer, including a
+/// season the provider has not released, is reused for <c>lifetime</c>; a failed or cancelled request is not
+/// kept, so the next refresh retries it. Callers only read the returned nodes, and the schedule service runs one
+/// refresh at a time, so a cached node is never read concurrently.
+/// </summary>
+internal sealed class CachedNascarScheduleClient(INascarScheduleClient inner, IClock clock, TimeSpan lifetime)
+    : INascarScheduleClient
+{
+    private readonly Lock _gate = new();
+    private readonly Dictionary<string, (Task<JsonNode?> Request, DateTimeOffset At)> _entries = [];
+
+    public Task<JsonArray?> GetRaceListAsync(int seriesId, int year, CancellationToken cancellationToken) =>
+        GetAsync($"races/{year}/{seriesId}", () => inner.GetRaceListAsync(seriesId, year, cancellationToken));
+
+    public Task<JsonObject?> GetWeekendFeedAsync(int year, int seriesId, int? raceId, CancellationToken cancellationToken) =>
+        raceId is not > 0
+            ? Task.FromResult<JsonObject?>(null)
+            : GetAsync($"weekend/{year}/{seriesId}/{raceId}", () => inner.GetWeekendFeedAsync(year, seriesId, raceId, cancellationToken));
+
+    private async Task<T?> GetAsync<T>(string key, Func<Task<T?>> load) where T : JsonNode
+    {
+        Task<JsonNode?> request;
+        lock (_gate)
+        {
+            if (!_entries.TryGetValue(key, out var entry) || clock.UtcNow - entry.At >= lifetime ||
+                entry.Request.IsFaulted || entry.Request.IsCanceled)
+            {
+                entry = (Widen(load), clock.UtcNow);
+                _entries[key] = entry;
+            }
+            request = entry.Request;
+        }
+        try
+        {
+            return (T?)await request;
+        }
+        catch
+        {
+            lock (_gate)
+                if (_entries.TryGetValue(key, out var entry) && entry.Request == request) _entries.Remove(key);
+            throw;
+        }
+    }
+
+    private static async Task<JsonNode?> Widen<T>(Func<Task<T?>> load) where T : JsonNode => await load();
+
+    public void Dispose() => inner.Dispose();
 }
 
 /// <summary>
@@ -191,7 +310,8 @@ public sealed class UpcomingScheduleService : IDisposable
         var michelinLeMansCup = new GriiipApiClient(GriiipSeries.MichelinLeMansCup);
         var gtwc = new GtwcApiClient();
         var wrc = new WrcApiClient();
-        _owned = [f1, motogp, dtm, wec, elms, michelinLeMansCup, gtwc, wrc];
+        var nascar = new CachedNascarScheduleClient(new NascarScheduleClient(), _clock, TimeSpan.FromMinutes(30));
+        _owned = [f1, motogp, dtm, wec, elms, michelinLeMansCup, gtwc, wrc, nascar];
         _calendars =
         [
             new Formula1Calendar(f1),
@@ -202,6 +322,9 @@ public sealed class UpcomingScheduleService : IDisposable
             new GriiipCalendar(elms, GriiipSeries.Elms),
             new GriiipCalendar(michelinLeMansCup, GriiipSeries.MichelinLeMansCup),
             new GtWorldChallengeCalendar(gtwc),
+            new NascarCalendar(nascar, NascarSeries.Cup),
+            new NascarCalendar(nascar, NascarSeries.Xfinity),
+            new NascarCalendar(nascar, NascarSeries.Trucks),
         ];
     }
 

@@ -31,7 +31,8 @@ internal static class ManufacturerLogo
 
     public static bool TryCreateForStanding(CompetitorStanding standing, Championship championship, double size, out Border logo)
     {
-        if (championship is Championship.FormulaE or Championship.IndyCar)
+        if (championship is Championship.FormulaE or Championship.IndyCar or
+            Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks)
         {
             if (TryCreate(standing.Team, size, out logo)) return true;
             return TryCreate(standing.Manufacturer, size, out logo);

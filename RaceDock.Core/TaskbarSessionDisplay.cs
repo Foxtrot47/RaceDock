@@ -45,6 +45,9 @@ public static partial class TaskbarSessionDisplay
     {
         if (IsRally(snapshot)) return snapshot.Session;
         var label = Label(snapshot);
+        // The Cup feed publishes no session countdown, so a timed session reports its code alone rather
+        // than a placeholder clock.
+        if (label.UsesClock && IsNascar(snapshot.Championship)) return label.Code;
         return UsesClock(snapshot, label)
             ? $"{label.Code} {RemainingTime(snapshot.TimeRemaining)}"
             : LapProgress(snapshot, label.Code);
@@ -71,14 +74,23 @@ public static partial class TaskbarSessionDisplay
 
     private static bool IsLapBased(Championship championship) => championship is
         Championship.Formula1 or Championship.Formula2 or Championship.Formula3 or
-        Championship.MotoGp or Championship.Moto2 or Championship.Moto3 or Championship.IndyCar;
+        Championship.MotoGp or Championship.Moto2 or Championship.Moto3 or Championship.IndyCar or
+        Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks;
+
+    private static bool IsNascar(Championship championship) => championship is
+        Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks;
 
     private static string LapProgress(TimingSnapshot snapshot, string code)
     {
         var lap = Math.Max(0, snapshot.CurrentLap);
-        if (snapshot.TotalLaps is > 0) return $"{code} {lap}/{snapshot.TotalLaps}";
-        return lap > 0 ? $"{code} {lap}" : code;
+        var progress = snapshot.TotalLaps is > 0 ? $"{code} {lap}/{snapshot.TotalLaps}"
+            : lap > 0 ? $"{code} {lap}" : code;
+        return StageSuffix(snapshot) is { } stage ? $"{progress} · {stage}" : progress;
     }
+
+    /// <summary>The stage being run as a short suffix, absent whenever the feed publishes no stage.</summary>
+    private static string? StageSuffix(TimingSnapshot snapshot) =>
+        snapshot.StageNumber is > 0 and var number ? $"S{number}" : null;
 
     private static SessionLabel Label(TimingSnapshot snapshot)
     {

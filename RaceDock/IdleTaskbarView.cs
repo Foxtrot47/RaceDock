@@ -80,7 +80,7 @@ internal sealed class IdleTaskbarView
         if (_logoChampionship != session.Championship)
         {
             _logoChampionship = session.Championship;
-            _logo.Child = ChampionshipLogo.Create(session.Championship, _logo.Width, _logo.Height);
+            _logo.Child = ChampionshipLogo.CreateTaskbar(session.Championship, _logo.Width, _logo.Height);
         }
         var eventName = ChampionshipDisplay.ShortEventName(session.Championship, session.EventName);
         var detail = NextSessionDisplay.Detail(session, now, timeZone);

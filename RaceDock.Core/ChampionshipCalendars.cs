@@ -289,6 +289,139 @@ public static class ChampionshipCalendars
                 { StartDate = eventDate }];
     }
 
+    /// <summary>
+    /// NASCAR publishes one race-list entry per event. The selected event can be Cup, Xfinity, or Trucks;
+    /// session rows are added separately from the weekend feed when that feed has been published.
+    /// </summary>
+    public static UpcomingSession? NextNascarCup(JsonArray? races, DateTimeOffset now) =>
+        NextNascar(races, now, Championship.NascarCup);
+
+    public static UpcomingSession? NextNascarXfinity(JsonArray? races, DateTimeOffset now) =>
+        NextNascar(races, now, Championship.NascarXfinity);
+
+    public static UpcomingSession? NextNascarTrucks(JsonArray? races, DateTimeOffset now) =>
+        NextNascar(races, now, Championship.NascarTrucks);
+
+    internal static UpcomingSession? NextNascar(JsonArray? races, DateTimeOffset now, Championship championship) =>
+        NascarRaces(races, now, championship).Select(race => race.Session).FirstOrDefault();
+
+    /// <summary>
+    /// The provider id of the race <see cref="NextNascar"/> selects. Race names repeat within a season (two
+    /// Duels, two "Cook Out 400" rounds), so the weekend feed must be found by id rather than by name.
+    /// </summary>
+    internal static int? NextNascarRaceId(JsonArray? races, DateTimeOffset now, Championship championship) =>
+        NascarRaces(races, now, championship).Select(race => race.Id).FirstOrDefault();
+
+    public static IReadOnlyList<UpcomingSession> NascarCupEvent(JsonArray? races, DateTimeOffset now) =>
+        NascarEvent(races, null, now, Championship.NascarCup);
+
+    internal static IReadOnlyList<UpcomingSession> NascarEvent(
+        JsonArray? races, JsonObject? weekendFeed, DateTimeOffset now, Championship championship)
+    {
+        var race = NextNascar(races, now, championship);
+        if (race is null) return [];
+        var sessions = NascarWeekendSessions(weekendFeed, race, now, championship).ToList();
+        return sessions.Count > 0 ? sessions : [race];
+    }
+
+    private static IEnumerable<(UpcomingSession Session, int? Id)> NascarRaces(
+        JsonArray? races, DateTimeOffset now, Championship championship) =>
+        (races?.OfType<JsonObject>() ?? [])
+            .Select(race => (Session: NascarRace(race, championship), Id: JsonSupport.Int(race["race_id"])))
+            .Where(race => race.Session is not null && NascarSelectionEnd(race.Session) > now)
+            .Select(race => (race.Session!, race.Id))
+            .OrderBy(race => race.Item1.StartUtc);
+
+    /// <summary>
+    /// The race start from the published <c>schedule[]</c> (UTC) when present. Otherwise the race list's
+    /// <c>date_scheduled</c>/<c>race_date</c>, which are US Eastern wall-clock times; a midnight value there
+    /// names a date whose time is not out yet. A UTC schedule start at midnight is a real time (8 pm EDT).
+    /// </summary>
+    private static UpcomingSession? NascarRace(JsonObject race, Championship championship)
+    {
+        if (JsonSupport.String(race["race_name"])?.Trim() is not { Length: > 0 } name) return null;
+        var venue = JsonSupport.String(race["track_name"]);
+        if (NascarRunStart(race, 3) is { } scheduled) return new UpcomingSession(championship, name, null, scheduled, venue);
+        if ((NascarLocalTimestamp(race["date_scheduled"]) ?? NascarLocalTimestamp(race["race_date"])) is not { } local) return null;
+        return local.TimeOfDay == TimeSpan.Zero
+            ? new UpcomingSession(championship, name, null,
+                new DateTimeOffset(local.Date, TimeSpan.Zero), venue) { StartDate = DateOnly.FromDateTime(local) }
+            : new UpcomingSession(championship, name, null, EasternToUtc(local), venue);
+    }
+
+    private static DateTimeOffset? NascarRunStart(JsonObject race, int runType) =>
+        (race["schedule"] as JsonArray)?.OfType<JsonObject>()
+            .Where(item => JsonSupport.Int(item["run_type"]) == runType)
+            .Select(item => NascarTimestamp(item["start_time_utc"]))
+            .Where(start => start is not null)
+            .OrderBy(start => start)
+            .FirstOrDefault();
+
+    private static IEnumerable<UpcomingSession> NascarWeekendSessions(
+        JsonObject? weekendFeed, UpcomingSession race, DateTimeOffset now, Championship championship) =>
+        (weekendFeed?["weekend_race"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault()?["schedule"] is not JsonArray schedule
+            ? []
+            : schedule.OfType<JsonObject>()
+                .Select(item => (
+                    Name: JsonSupport.String(item["event_name"]),
+                    Type: JsonSupport.Int(item["run_type"]),
+                    Start: NascarTimestamp(item["start_time_utc"])))
+                .Where(item => item.Type is 1 or 2 or 3 && item.Start > now)
+                .OrderBy(item => item.Start)
+                .Select(item => new UpcomingSession(
+                    championship,
+                    race.EventName,
+                    item.Type == 3 ? null : NascarSessionName(item.Name),
+                    item.Start!.Value,
+                    race.Venue));
+
+    private static string NascarSessionName(string? name) =>
+        string.IsNullOrWhiteSpace(name) ? "Session" : name.Trim();
+
+    /// <summary>
+    /// A <c>*_utc</c> timestamp published without an offset. The provider stamps <c>1900-01-01</c> on a date it
+    /// has not released.
+    /// </summary>
+    private static DateTimeOffset? NascarTimestamp(JsonNode? value) =>
+        DateTimeOffset.TryParse(JsonSupport.String(value), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed) &&
+        parsed.Year > 1900
+            ? parsed
+            : null;
+
+    /// <summary>A race-list wall-clock time without an offset, kept unconverted.</summary>
+    private static DateTime? NascarLocalTimestamp(JsonNode? value) =>
+        DateTime.TryParse(JsonSupport.String(value), CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) &&
+        parsed.Year > 1900
+            ? DateTime.SpecifyKind(parsed, DateTimeKind.Unspecified)
+            : null;
+
+    private static readonly TimeZoneInfo UsEastern = FindEasternTimeZone();
+
+    private static TimeZoneInfo FindEasternTimeZone()
+    {
+        foreach (var id in new[] { "America/New_York", "Eastern Standard Time" })
+            if (TimeZoneInfo.TryFindSystemTimeZoneById(id, out var zone)) return zone;
+        // Without time-zone data the standard offset is the closest stable approximation.
+        return TimeZoneInfo.CreateCustomTimeZone("US Eastern", TimeSpan.FromHours(-5), "US Eastern", "US Eastern");
+    }
+
+    internal static DateTimeOffset EasternToUtc(DateTime local)
+    {
+        // A clock time skipped by the spring-forward change does not exist; the hour after it is meant.
+        if (UsEastern.IsInvalidTime(local)) local = local.AddHours(1);
+        return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(local, UsEastern), TimeSpan.Zero);
+    }
+
+    /// <summary>
+    /// A dated race stays selected for its whole published day, so the countdown does not move on to the
+    /// following round on the morning of the race. <see cref="UpcomingSession.IsAhead"/> then keeps the
+    /// entry visible until the date has passed in the reader's zone.
+    /// </summary>
+    private static DateTimeOffset NascarSelectionEnd(UpcomingSession session) =>
+        session.StartDate is { } date
+            ? new DateTimeOffset(date.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
+            : session.StartUtc;
+
     /// <summary>Plain-language lead time such as "in 3 days", used next to the exact start time.</summary>
     public static string DescribeTimeUntil(DateTimeOffset start, DateTimeOffset now)
     {

@@ -134,6 +134,18 @@ public static class EventNameShortener
         ("RALLY CROATIA", "Rally Croatia")
     ];
 
+    /// <summary>
+    /// Cup race names are long sponsor titles ("YellaWood 500", "EchoPark Automotive Grand Prix"). Only the
+    /// rounds whose sponsor name hides the venue are mapped; the rest keep their published name.
+    /// </summary>
+    private static readonly (string Marker, string Name)[] NascarAliases =
+    [
+        ("ECHOPARK AUTOMOTIVE GRAND PRIX", "COTA 400"),
+        ("FOOD CITY 500", "Bristol 500"),
+        ("BANK OF AMERICA ROVAL 400", "Charlotte Roval 400"),
+        ("YELLAWOOD 500", "Talladega 500"),
+    ];
+
     private static readonly (string Marker, string Name)[] IndyCarAliases =
     [
         ("GRAND PRIX OF ST. PETERSBURG", "St. Petersburg Grand Prix"),
@@ -178,6 +190,7 @@ public static class EventNameShortener
             Championship.FormulaE => Match(value, FormulaEAliases) ?? value,
             Championship.WorldRallyChampionship => Match(value, RallyAliases) ?? value,
             Championship.IndyCar => Match(value, IndyCarAliases) ?? value,
+            Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks => Match(value, NascarAliases) ?? value,
             Championship.Imsa => Match(value, ImsaAliases) ?? value,
             Championship.GtWorldChallengeEurope => ShortenGtWorldChallenge(value),
             Championship.WorldEnduranceChampionship => StripPrefix(value, "FIA WEC - "),

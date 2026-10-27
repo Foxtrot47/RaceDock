@@ -10,10 +10,20 @@ using Control = System.Windows.Controls.Control;
 namespace RaceDock.App;
 
 /// <summary>Which optional values a classification row shows for the current championship.</summary>
-internal readonly record struct ClassificationRowFormat(bool Rally, bool Endurance, LapTimeMode LapTimeMode)
+internal readonly record struct ClassificationRowFormat(bool Rally, bool Endurance, LapTimeMode LapTimeMode, bool Playoff = false)
 {
     /// <summary>True when the last column carries a class instead of a lap number.</summary>
     public bool CategoryInsteadOfLap => Rally || Endurance;
+
+    /// <summary>
+    /// The class-or-lap value: a class for rally and sportscar entries, playoff eligibility for a series whose
+    /// feed publishes it, and the completed lap count for everything else. A value the feed does not carry
+    /// stays absent rather than becoming a zero.
+    /// </summary>
+    public string CategoryOrLap(Championship championship, CompetitorStanding standing) =>
+        CategoryInsteadOfLap ? ChampionshipDisplay.CompactCategory(championship, standing.Category) :
+        Playoff ? standing.IsPlayoffEligible == true ? "PO" : "—" :
+        standing.Lap.ToString();
 
     /// <summary>
     /// The lap time this session is judged on. Rally stages report their stage time, which arrives as the
@@ -283,9 +293,7 @@ internal sealed class ClassificationRow
         if (display.FlyoutShowEnergy) _energy.Update(standing.VirtualEnergyPercent);
 
         if (display.FlyoutShowCategoryOrLap)
-            SetValue(_category, format.CategoryInsteadOfLap
-                ? ChampionshipDisplay.CompactCategory(championship, standing.Category)
-                : standing.Lap.ToString());
+            SetValue(_category, format.CategoryOrLap(championship, standing));
 
         if (display.FlyoutShowStatus) UpdateStatus(standing);
 
@@ -389,6 +397,8 @@ internal sealed class ClassificationRow
             { InPit: true } => ("PIT", StatusBrushes.Information),
             { StatusLabel: "RUN" } => ("RUN", StatusBrushes.Information),
             { StatusLabel: "OUT" } => ("OUT", StatusBrushes.Information),
+            // DVP is NASCAR's damaged-vehicle policy: the car is behind the wall for repairs, not running.
+            { StatusLabel: "DVP" } => ("DVP", StatusBrushes.Critical),
             { StatusLabel: "FIN" } => ("FIN", StatusBrushes.Success),
             { StatusLabel: "N/S" } => ("N/S", StatusBrushes.Neutral),
             { StatusLabel: "N/C" } => ("N/C", StatusBrushes.Neutral),

@@ -1,0 +1,141 @@
+{
+  "lap_number": 45,
+  "elapsed_time": 2418.512,
+  "flag_state": 1,
+  "laps_in_race": 200,
+  "laps_to_go": 155,
+  "run_name": "DAYTONA 500",
+  "series_id": 1,
+  "track_name": "Daytona International Speedway",
+  "run_type": 3,
+  "stage": { "stage_num": 1, "finish_at_lap": 65, "laps_in_stage": 65 },
+  "time_of_day_os": "2026-10-22T14:32:05.244000-04:00",
+  "vehicles": [
+    {
+      "running_position": 1,
+      "vehicle_number": "5",
+      "vehicle_manufacturer": "Chv",
+      "driver": {
+        "full_name": "Kyle Larson",
+        "first_name": "Kyle",
+        "last_name": "Larson",
+        "is_in_chase": true
+      },
+      "laps_completed": 45,
+      "best_lap_time": 46.312,
+      "last_lap_time": 46.588,
+      "best_lap_speed": 194.103,
+      "delta": 0,
+      "starting_position": 4,
+      "status": 1,
+      "is_on_track": true,
+      "is_on_dvp": false,
+      "sponsor_name": "HendrickCars.com"
+    },
+    {
+      "running_position": 2,
+      "vehicle_number": "9",
+      "vehicle_manufacturer": "Frd",
+      "driver": {
+        "full_name": "Chase Elliott",
+        "first_name": "Chase",
+        "last_name": "Elliott",
+        "is_in_chase": true
+      },
+      "laps_completed": 45,
+      "best_lap_time": 46.4,
+      "last_lap_time": 46.512,
+      "best_lap_speed": 193.735,
+      "delta": 1.842,
+      "starting_position": 1,
+      "status": 1,
+      "is_on_track": true,
+      "is_on_dvp": false,
+      "sponsor_name": "NAPA Auto Parts"
+    },
+    {
+      "running_position": 3,
+      "vehicle_number": "11",
+      "vehicle_manufacturer": "Tyt",
+      "driver": {
+        "full_name": "Denny Hamlin",
+        "first_name": "Denny",
+        "last_name": "Hamlin",
+        "is_in_chase": true
+      },
+      "laps_completed": 45,
+      "best_lap_time": 46.351,
+      "last_lap_time": 46.64,
+      "best_lap_speed": 194.003,
+      "delta": 2.105,
+      "starting_position": 8,
+      "status": 1,
+      "is_on_track": true,
+      "is_on_dvp": false,
+      "sponsor_name": "FedEx"
+    },
+    {
+      "running_position": 4,
+      "vehicle_number": "24",
+      "vehicle_manufacturer": "Chv",
+      "driver": {
+        "full_name": "William Byron",
+        "first_name": "William",
+        "last_name": "Byron",
+        "is_in_chase": false
+      },
+      "laps_completed": 45,
+      "best_lap_time": 46.505,
+      "last_lap_time": 47.118,
+      "best_lap_speed": 193.297,
+      "delta": 3.019,
+      "starting_position": 12,
+      "status": 1,
+      "is_on_track": true,
+      "is_on_dvp": true,
+      "sponsor_name": "Axalta"
+    },
+    {
+      "running_position": 5,
+      "vehicle_number": "20",
+      "vehicle_manufacturer": "Tyt",
+      "driver": {
+        "full_name": "Christopher Bell",
+        "first_name": "Christopher",
+        "last_name": "Bell",
+        "is_in_chase": true
+      },
+      "laps_completed": 44,
+      "best_lap_time": 46.689,
+      "last_lap_time": 46.702,
+      "best_lap_speed": 192.533,
+      "delta": 4.377,
+      "starting_position": 2,
+      "status": 1,
+      "is_on_track": true,
+      "is_on_dvp": false,
+      "sponsor_name": "Interstate Batteries"
+    },
+    {
+      "running_position": 6,
+      "vehicle_number": "48",
+      "vehicle_manufacturer": "Chv",
+      "driver": {
+        "full_name": "Alex Bowman",
+        "first_name": "Alex",
+        "last_name": "Bowman",
+        "is_in_chase": false
+      },
+      "laps_completed": 41,
+      "best_lap_time": 46.981,
+      "last_lap_time": 0,
+      "best_lap_speed": 191.071,
+      "delta": 5.204,
+      "starting_position": 9,
+      "status": 0,
+      "is_on_track": false,
+      "is_on_dvp": false,
+      "sponsor_name": "Ally"
+    }
+  ]
+}

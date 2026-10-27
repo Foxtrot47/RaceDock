@@ -266,11 +266,12 @@ public sealed class ClassificationFlyout : Window
         UpdateSplitHeader(snapshot.StageSplitPoints);
         ApplyDisplay();
         _title.Text = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : ChampionshipDisplay.FullEvent(snapshot);
+        if (snapshot.StageNumber is > 0 and var stage) _title.Text += $" · Stage {stage}";
         var rally = IsRallySnapshot(snapshot);
         var endurance = IsEnduranceSnapshot(snapshot);
         var lapTimeMode = ChampionshipDisplay.LapTimeModeFor(snapshot);
         _lapTimeHeader.Text = rally ? "TIME" : lapTimeMode == LapTimeMode.LastLap ? "LAST" : "BEST";
-        _categoryHeader.Text = rally || endurance ? "CLASS" : "LAP";
+        _categoryHeader.Text = rally || endurance ? "CLASS" : PlayoffFormat(snapshot) ? "PO" : "LAP";
         _sessionDetails.Text = string.Join("  ·  ", new[]
         {
             snapshot.Session,
@@ -281,7 +282,7 @@ public sealed class ClassificationFlyout : Window
         UpdateConnectionBadge(snapshot.ConnectionState);
         UpdateTrackBadge(snapshot.TrackCondition);
 
-        UpdateRows(snapshot, new ClassificationRowFormat(rally, endurance, lapTimeMode));
+        UpdateRows(snapshot, new ClassificationRowFormat(rally, endurance, lapTimeMode, PlayoffFormat(snapshot)));
     }
 
     /// <summary>Redraws the classification by reusing the realized rows instead of rebuilding the visual tree.</summary>
@@ -460,16 +461,20 @@ public sealed class ClassificationFlyout : Window
         Championship.GtWorldChallengeEurope or Championship.WorldEnduranceChampionship
             or Championship.EuropeanLeMansSeries or Championship.MichelinLeMansCup or Championship.Imsa;
 
+    /// <summary>
+    /// Only the Cup feed publishes playoff eligibility, so the class-or-lap column reports it there and
+    /// keeps reporting a class or lap count everywhere else.
+    /// </summary>
+    private static bool PlayoffFormat(TimingSnapshot snapshot) => snapshot.Championship is
+        Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks;
+
     private static string SessionProgress(TimingSnapshot snapshot)
     {
         if (IsRallySnapshot(snapshot)) return snapshot.Session;
         if (!string.IsNullOrWhiteSpace(snapshot.TimeRemaining))
         {
             var endurance = IsEnduranceSnapshot(snapshot);
-            var timedSession = endurance ||
-                snapshot.Session.Contains("Practice", StringComparison.OrdinalIgnoreCase) ||
-                snapshot.Session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase);
-            if (timedSession)
+            if (IsTimedSession(snapshot))
             {
                 if (endurance && snapshot.CurrentLap > 0)
                     return $"Lap {snapshot.CurrentLap} · {snapshot.TimeRemaining} remaining";
@@ -478,8 +483,17 @@ public sealed class ClassificationFlyout : Window
             if (snapshot.TotalLaps is null && snapshot.CurrentLap > 0)
                 return $"Lap {snapshot.CurrentLap} · {snapshot.TimeRemaining} remaining";
         }
-        return $"Lap {snapshot.CurrentLap}/{snapshot.TotalLaps?.ToString() ?? "—"}";
+        if (snapshot.TotalLaps is > 0) return $"Lap {snapshot.CurrentLap}/{snapshot.TotalLaps}";
+        // A timed session without a lap target or a countdown (NASCAR practice and qualifying publish neither)
+        // has no progress value to report here, so the line carries the session and circuit alone.
+        if (IsTimedSession(snapshot) || snapshot.CurrentLap <= 0) return "";
+        return $"Lap {snapshot.CurrentLap}";
     }
+
+    private static bool IsTimedSession(TimingSnapshot snapshot) =>
+        IsEnduranceSnapshot(snapshot) ||
+        snapshot.Session.Contains("Practice", StringComparison.OrdinalIgnoreCase) ||
+        snapshot.Session.Contains("Qualifying", StringComparison.OrdinalIgnoreCase);
 
     private Grid CreateSessionHeader()
     {

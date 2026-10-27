@@ -84,6 +84,9 @@ public static class ChampionshipDisplay
         Championship.FormulaE => "FE",
         Championship.Dtm => "DTM",
         Championship.IndyCar => "INDYCAR",
+        Championship.NascarCup => "NASCAR Cup",
+        Championship.NascarXfinity => "NASCAR Xfinity",
+        Championship.NascarTrucks => "NASCAR Trucks",
         _ => ""
     };
 
@@ -104,6 +107,9 @@ public static class ChampionshipDisplay
         Championship.FormulaE => "Formula E",
         Championship.Dtm => "DTM",
         Championship.IndyCar => "NTT INDYCAR SERIES",
+        Championship.NascarCup => "NASCAR Cup Series",
+        Championship.NascarXfinity => "NASCAR Xfinity Series",
+        Championship.NascarTrucks => "NASCAR CRAFTSMAN Truck Series",
         _ => ""
     };
 

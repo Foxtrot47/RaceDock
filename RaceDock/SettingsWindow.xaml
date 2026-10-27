@@ -117,6 +117,21 @@
                         <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/indycar.png" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="NASCAR Cup" Tag="Championship:NascarCup" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/nascar.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="NASCAR Xfinity" Tag="Championship:NascarXfinity" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/nascar.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="NASCAR Trucks" Tag="Championship:NascarTrucks" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/nascar.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
                 <ui:NavigationViewItem Content="GT World Challenge" Tag="Championship:GtWorldChallengeEurope" Click="NavigationItem_Click">
                     <ui:NavigationViewItem.Icon>
                         <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/gtwc.png" />

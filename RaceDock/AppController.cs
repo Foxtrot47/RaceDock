@@ -24,6 +24,7 @@ public sealed class AppController : IAsyncDisposable
     private SettingsWindow? _settingsWindow;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly UpcomingScheduleService _schedule = new();
+    private readonly NascarFeed _nascarFeed;
     private readonly DispatcherTimer _idleTimer;
     private IReadOnlyList<UpcomingSession> _upcoming = [];
     private bool _scheduleRefreshRunning;
@@ -41,6 +42,7 @@ public sealed class AppController : IAsyncDisposable
     public AppController(Dispatcher dispatcher)
     {
         _dispatcher = dispatcher; _alerts = new(_clock); _processor = new(_clock, _alerts);
+        _nascarFeed = new(_clock);
         _settingsStore = new(legacyPath: WindowsStartupRegistration.LegacySettingsPath);
         _settings = _settingsStore.Load();
         try { WindowsStartupRegistration.Apply(_settings.AutoStartOnWindowsBoot); }
@@ -128,6 +130,9 @@ public sealed class AppController : IAsyncDisposable
         new(Championship.FormulaE, "Formula E", owner => new FormulaELiveTimingSource(owner._clock, owner._alerts)),
         new(Championship.Dtm, "DTM", owner => new DtmLiveTimingSource(owner._clock, owner._alerts)),
         new(Championship.IndyCar, "INDYCAR", owner => new IndyCarLiveTimingSource(owner._clock, owner._alerts)),
+        new(Championship.NascarCup, "NASCAR Cup", owner => new NascarLiveTimingSource(owner._nascarFeed, NascarSeries.Cup, owner._clock, owner._alerts)),
+        new(Championship.NascarXfinity, "NASCAR Xfinity", owner => new NascarLiveTimingSource(owner._nascarFeed, NascarSeries.Xfinity, owner._clock, owner._alerts)),
+        new(Championship.NascarTrucks, "NASCAR Trucks", owner => new NascarLiveTimingSource(owner._nascarFeed, NascarSeries.Trucks, owner._clock, owner._alerts)),
     ];
 
     private IEnumerable<LiveFeed> EnabledFeeds()
@@ -424,6 +429,7 @@ public sealed class AppController : IAsyncDisposable
         _taskbar?.Close();
         _settingsWindow?.ClosePermanently();
         _schedule.Dispose();
+        _nascarFeed.Dispose();
         _sourceSwitch.Dispose();
         _lifetime.Dispose();
     }

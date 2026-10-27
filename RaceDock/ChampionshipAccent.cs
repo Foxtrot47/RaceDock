@@ -25,6 +25,9 @@ internal static class ChampionshipAccent
         [Championship.Imsa] = Frozen(0x22, 0x58, 0x9C),
         [Championship.Dtm] = Frozen(0x75, 0x5B, 0x00),
         [Championship.IndyCar] = Frozen(0xA4, 0x36, 0x21),
+        [Championship.NascarCup] = Frozen(0x1F, 0x3B, 0x73),
+        [Championship.NascarXfinity] = Frozen(0xC4, 0x2F, 0x2F),
+        [Championship.NascarTrucks] = Frozen(0xD0, 0x8A, 0x1A),
     };
 
     public static Brush For(Championship championship) =>

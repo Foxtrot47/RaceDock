@@ -106,6 +106,29 @@ var tests = new (string Name, Action Run)[]
     ("INDYCAR source publishes captured practice timing", IndyCarSourceLifecycle),
     ("INDYCAR source stays hidden while the feed is cold", IndyCarColdFeedLifecycle),
     ("INDYCAR source rejects stale active data", IndyCarStaleFeedLifecycle),
+    ("NASCAR Cup race maps field timing and stages", NascarCupRaceTiming),
+    ("NASCAR Cup practice and qualifying publish no lap count or clock", NascarCupTimedSessionTiming),
+    ("NASCAR Cup flags and lifecycle reject what the feed cannot prove", NascarCupFlagsAndLifecycle),
+    ("NASCAR Cup calendar selects the next published race", NascarCupCalendarSelection),
+    ("NASCAR weekend feed adds published practice and qualifying", NascarWeekendCalendarSessions),
+    ("NASCAR Cup settings stay hidden until chosen", NascarCupSettings),
+    ("NASCAR Cup source publishes live timing", NascarCupSourceLifecycle),
+    ("NASCAR Cup source hides empty and stale feeds", NascarCupSourceHiddenAndStaleFeeds),
+    ("NASCAR feed identifies its series", NascarSeriesIdentifiers),
+    ("NASCAR feed serves every subscriber from one request", NascarFeedServesEverySubscriberFromOneRequest),
+    ("NASCAR feed sleeps to the lead of the next race", NascarFeedSleepsToTheNextRaceLead),
+    ("NASCAR feed polls a date-only round through its whole day", NascarFeedPollsDateOnlyRacesAllDay),
+    ("NASCAR feed stops requesting without subscribers", NascarFeedStopsRequestingWithoutSubscribers),
+    ("NASCAR feed isolates a failing source and a failed request", NascarFeedIsolatesFailures),
+    ("NASCAR feed idle delay follows the next published window", NascarFeedIdleDelay),
+    ("NASCAR race-list times are US Eastern and races are identified by id", NascarRaceListTimesAndIdentity),
+    ("NASCAR calendar fetches the weekend of the selected race id", NascarCalendarWeekendByRaceId),
+    ("NASCAR feed fetches the weekend of the selected race id", NascarFeedWeekendByRaceId),
+    ("NASCAR pre-session flag waits for green before starting", NascarPreSessionWaitsForGreen),
+    ("NASCAR feed wakes from an idle sleep for a newly enabled series", NascarFeedWakesForNewSeries),
+    ("NASCAR recorded race and qualifying transitions map lifecycle flags and stages", NascarRecordedTransitions),
+    ("NASCAR recorded race replays one start and one chequered alert", NascarRecordedRaceAlerts),
+    ("NASCAR schedule reads are shared, expire, and never cache a failure", NascarScheduleCache),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
     ("MotoGP lite payload maps Moto3 timing", MotoGpLitePayload),
     ("MotoGP source filters categories and publishes lifecycle", MotoGpSourceLifecycle),
@@ -806,7 +829,7 @@ static void CompletedClassificationRetention()
     source.SnapshotReceived += snapshots.Add;
     source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
 
-    feed.Publish(TimingSnapshot.Hidden(clock.UtcNow));
+    feed.Publish(Snapshot("British Grand Prix", SessionLifecycle.Ended));
     clock.Advance(TimeSpan.FromMinutes(5));
     Thread.Sleep(30);
     Equal("British Grand Prix", snapshots[^1].Meeting);
@@ -816,6 +839,7 @@ static void CompletedClassificationRetention()
 
     source.DisposeAsync().AsTask().GetAwaiter().GetResult();
 }
+
 
 static void WrcCategoryEligibility()
 {
@@ -1217,6 +1241,7 @@ static void F3QualifyingSnapshot()
     Equal(SessionLifecycle.Live, snapshot.Lifecycle);
     Equal("TST", snapshot.Competitors[0].Code);
 }
+
 
 static void MotoGpLitePayload()
 {
@@ -1733,7 +1758,7 @@ static void LegacySettingsImport()
         Equal(13, imported.RotationSeconds);
         False(imported.EnableWrc);
         True(File.Exists(targetPath));
-        True(File.ReadAllText(targetPath).Contains("\"Version\": 2", StringComparison.Ordinal));
+        True(File.ReadAllText(targetPath).Contains($"\"Version\": {UserSettingsStore.CurrentVersion}", StringComparison.Ordinal));
     }
     finally
     {
@@ -4156,6 +4181,903 @@ static void IndyCarStaleFeedLifecycle()
     Equal(TimeSpan.FromMinutes(1), delay.Duration);
 }
 
+static JsonObject NascarFixture(string name) => JsonNode.Parse(File.ReadAllText(
+    Path.Combine(AppContext.BaseDirectory, "Fixtures", "Nascar", name)))!.AsObject();
+
+static NascarFeedOptions TestNascarFeedOptions() => new(
+    TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(30), TimeSpan.FromHours(4), TimeSpan.FromHours(6), TimeSpan.FromSeconds(30));
+
+/// <summary>
+/// The published season list naming one race at the given time, in the shape the provider uses: the race list's own
+/// dates are US Eastern wall-clock times, and the UTC start comes from the race's <c>schedule[]</c>.
+/// </summary>
+static JsonArray NascarRaceList(DateTimeOffset start) => JsonNode.Parse($$"""
+    [ { "race_id": 5546, "race_name": "Daytona 500", "track_name": "Daytona International Speedway",
+        "date_scheduled": "1900-01-01T00:00:00", "race_date": "1900-01-01T00:00:00",
+        "schedule": [ { "run_type": 3, "start_time_utc": "{{start.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss")}}" } ] } ]
+    """)!.AsArray();
+
+static HttpClient NascarFeedHttpClient(NascarFakeHttp handler) =>
+    new(handler) { BaseAddress = new Uri("https://cf.nascar.com/") };
+
+static (
+    NascarLiveTimingSource Source,
+    List<TimingSnapshot> Snapshots,
+    List<ConnectionState> Connections,
+    List<FeedFailure> Failures) AttachNascarSource(NascarFeed feed, FakeClock clock, NascarSeries? series = null,
+    AlertArbiter? alerts = null)
+{
+    var source = new NascarLiveTimingSource(feed, series ?? NascarSeries.Cup, clock, alerts ?? new AlertArbiter(clock));
+    List<TimingSnapshot> snapshots = [];
+    List<ConnectionState> connections = [];
+    List<FeedFailure> failures = [];
+    source.SnapshotReceived += snapshots.Add;
+    source.ConnectionChanged += connections.Add;
+    source.Failed += failures.Add;
+    return (source, snapshots, connections, failures);
+}
+
+/// <summary>One tick of a feed whose race started ten minutes ago, against <paramref name="payload"/>.</summary>
+static (List<TimingSnapshot> Snapshots, List<ConnectionState> Connections, List<FeedFailure> Failures, TimeSpan? Delay)
+    RunNascarTick(JsonObject payload, FakeClock clock, bool failLiveFeed = false)
+{
+    var delay = new BlockingDelay();
+    var http = new NascarFakeHttp("live/feeds/live-feed.json", payload.ToJsonString()) { FailLiveFeed = failLiveFeed };
+    var schedule = new FakeNascarScheduleClient(NascarRaceList(clock.UtcNow.AddMinutes(-10)));
+    using var httpClient = NascarFeedHttpClient(http);
+    using var feed = new NascarFeed(clock, TestNascarFeedOptions(), delay, schedule, httpClient);
+    var rig = AttachNascarSource(feed, clock);
+    rig.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    if (!delay.WaitUntilCalled(TimeSpan.FromSeconds(2))) throw new Exception("The NASCAR feed never ticked.");
+    rig.Source.StopAsync().GetAwaiter().GetResult();
+    rig.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    return (rig.Snapshots, rig.Connections, rig.Failures, delay.Duration);
+}
+
+static void NascarCupRaceTiming()
+{
+    var snapshot = NascarTiming.BuildSnapshot(NascarFixture("cup-race.json"),
+        new DateTimeOffset(2026, 10, 22, 18, 35, 0, TimeSpan.Zero), ConnectionState.Connected);
+
+    Equal(Championship.NascarCup, snapshot.Championship);
+    Equal(SessionLifecycle.Live, snapshot.Lifecycle);
+    Equal("DAYTONA 500", snapshot.Meeting);
+    Equal("Race", snapshot.Session);
+    Equal("Daytona International Speedway", snapshot.Circuit);
+    Equal(45, snapshot.CurrentLap);
+    Equal(200, snapshot.TotalLaps);
+    Equal(null, snapshot.TimeRemaining);
+    Equal(TrackCondition.AllClear, snapshot.TrackCondition);
+    Equal(1, snapshot.StageNumber);
+    Equal(65, snapshot.StageFinishLap);
+    Equal(65, snapshot.StageLength);
+    Equal(6, snapshot.Competitors.Count);
+
+    var leader = snapshot.Competitors[0];
+    Equal("5", leader.CarNumber);
+    Equal("LAR", leader.Code);
+    Equal("Kyle Larson", leader.Name);
+    Equal("HendrickCars.com", leader.Team);
+    Equal("Chevrolet", leader.Manufacturer);
+    Equal("LEAD", leader.GapToLeader);
+    Equal(null, leader.IntervalToPositionAhead);
+    Equal(45, leader.Lap);
+    False(leader.InPit);
+    Equal("0:46.312", leader.ResultTime);
+    Equal("0:46.588", leader.LastLapTime);
+    Equal(true, leader.IsPlayoffEligible);
+    True(leader.IsOverallFastest);
+    Equal(null, leader.StatusLabel);
+
+    var second = snapshot.Competitors[1];
+    Equal("ELL", second.Code);
+    Equal("Ford", second.Manufacturer);
+    Equal("+1.842", second.GapToLeader);
+    Equal("+1.842", second.IntervalToPositionAhead);
+    Equal("0:46.400", second.ResultTime);
+    Equal(true, second.IsPlayoffEligible);
+    False(second.IsOverallFastest);
+
+    Equal("HAM", snapshot.Competitors[2].Code);
+    Equal("Toyota", snapshot.Competitors[2].Manufacturer);
+    Equal("+2.105", snapshot.Competitors[2].GapToLeader);
+    Equal("+0.263", snapshot.Competitors[2].IntervalToPositionAhead);
+    Equal("0:46.351", snapshot.Competitors[2].ResultTime);
+
+    // DVP parks a damaged car for repairs, so it is a status label rather than a pit stop.
+    var damaged = snapshot.Competitors[3];
+    Equal("DVP", damaged.StatusLabel);
+    False(damaged.InPit);
+    Equal(false, damaged.IsPlayoffEligible);
+
+    Equal(44, snapshot.Competitors[4].Lap);
+
+    // A car that has left the session keeps its position but reports no more lap times.
+    var outCar = snapshot.Competitors[5];
+    Equal("OUT", outCar.StatusLabel);
+    Equal(null, outCar.LastLapTime);
+    Equal("0:46.981", outCar.ResultTime);
+}
+
+static void NascarCupTimedSessionTiming()
+{
+    var now = new DateTimeOffset(2026, 10, 21, 21, 10, 0, TimeSpan.Zero);
+    var practice = NascarTiming.BuildSnapshot(NascarFixture("cup-practice.json"), now, ConnectionState.Connected);
+    Equal("Practice", practice.Session);
+    Equal(null, practice.TotalLaps);
+    Equal(null, practice.TimeRemaining);
+    // Practice publishes a placeholder stage, which is not a stage being run.
+    Equal(null, practice.StageNumber);
+    Equal(null, practice.StageFinishLap);
+    Equal(null, practice.StageLength);
+    Equal(2, practice.Competitors.Count);
+    Equal("Ryan Blaney", practice.Competitors[0].Name);
+    Equal("0:46.912", practice.Competitors[0].ResultTime);
+    True(practice.Competitors[0].IsOverallFastest);
+    Equal(null, practice.Competitors[1].ResultTime);
+    Equal(null, practice.Competitors[1].GapToLeader);
+
+    var qualifying = NascarTiming.BuildSnapshot(NascarFixture("cup-qualifying.json"), now, ConnectionState.Connected);
+    Equal("Qualifying", qualifying.Session);
+    Equal(null, qualifying.TotalLaps);
+    Equal(null, qualifying.TimeRemaining);
+    // Qualifying can still carry a bogus stage object; stages only apply to races.
+    qualifying = NascarTiming.BuildSnapshot(qualifyingPayloadWithStage(), now, ConnectionState.Connected);
+    Equal(null, qualifying.StageNumber);
+    Equal(null, qualifying.StageFinishLap);
+    Equal(null, qualifying.StageLength);
+    Equal("Joey Logano", qualifying.Competitors[0].Name);
+    Equal("0:47.204", qualifying.Competitors[0].ResultTime);
+    Equal("+0.147", qualifying.Competitors[1].GapToLeader);
+    Equal(null, qualifying.Competitors[2].ResultTime);
+}
+
+static JsonObject qualifyingPayloadWithStage()
+{
+    var payload = NascarFixture("cup-qualifying.json");
+    payload["stage"] = JsonNode.Parse("""{"stage_num":1,"finish_at_lap":25,"laps_in_stage":25}""");
+    return payload;
+}
+
+static void NascarCupFlagsAndLifecycle()
+{
+    // Only the green, yellow and red codes are mapped; everything else stays unproven.
+    Equal(TrackCondition.AllClear, NascarTiming.TrackState(1));
+    Equal(TrackCondition.AllClear, NascarTiming.TrackState(4));
+    Equal(TrackCondition.AllClear, NascarTiming.TrackState(5));
+    Equal(TrackCondition.FullCourseYellow, NascarTiming.TrackState(2));
+    Equal(TrackCondition.RedFlag, NascarTiming.TrackState(3));
+    Equal(TrackCondition.Unknown, NascarTiming.TrackState(0));
+    Equal(TrackCondition.Unknown, NascarTiming.TrackState(9));
+    Equal(TrackCondition.Unknown, NascarTiming.TrackState(null));
+
+    var now = new DateTimeOffset(2026, 10, 22, 18, 35, 0, TimeSpan.Zero);
+
+    // The endpoint keeps answering between sessions with an empty field.
+    var empty = NascarFixture("cup-race.json");
+    empty["vehicles"] = new JsonArray();
+    Equal(SessionLifecycle.OffSession, NascarTiming.BuildSnapshot(empty, now, ConnectionState.Connected).Lifecycle);
+
+    // Xfinity and Trucks share the endpoint, so only the Cup series id starts a session.
+    var otherSeries = NascarFixture("cup-race.json");
+    otherSeries["series_id"] = 2;
+    Equal(SessionLifecycle.OffSession, NascarTiming.BuildSnapshot(otherSeries, now, ConnectionState.Connected).Lifecycle);
+
+    var checkered = NascarFixture("cup-race.json");
+    checkered["flag_state"] = 5;
+    var ended = NascarTiming.BuildSnapshot(checkered, now, ConnectionState.Connected);
+    Equal(SessionLifecycle.Ended, ended.Lifecycle);
+    Equal(TrackCondition.AllClear, ended.TrackCondition);
+
+    // The chequered code is not always published; the last lap with nothing left to run ends it too.
+    var finalLap = NascarFixture("cup-race.json");
+    finalLap["laps_to_go"] = 0;
+    finalLap["lap_number"] = 200;
+    Equal(SessionLifecycle.Ended, NascarTiming.BuildSnapshot(finalLap, now, ConnectionState.Connected).Lifecycle);
+
+    // A practice run also carries laps_to_go 0, which only ends a race.
+    Equal(SessionLifecycle.Live, NascarTiming.BuildSnapshot(NascarFixture("cup-practice.json"), now,
+        ConnectionState.Connected).Lifecycle);
+
+    // Flag 8 was recorded an hour before green and between qualifying rounds: the field is listed but
+    // nothing is on track, so neither a race nor qualifying is live yet and no track state is claimed.
+    Equal(TrackCondition.Unknown, NascarTiming.TrackState(8));
+    var gridded = NascarFixture("cup-race.json");
+    gridded["flag_state"] = 8;
+    gridded["lap_number"] = 0;
+    var preRace = NascarTiming.BuildSnapshot(gridded, now, ConnectionState.Connected);
+    Equal(SessionLifecycle.PreSession, preRace.Lifecycle);
+    Equal(TrackCondition.Unknown, preRace.TrackCondition);
+    var betweenRounds = NascarFixture("cup-qualifying.json");
+    betweenRounds["flag_state"] = 8;
+    Equal(SessionLifecycle.PreSession, NascarTiming.BuildSnapshot(betweenRounds, now,
+        ConnectionState.Connected).Lifecycle);
+
+    // The live endpoint uses stopped (9) to terminate practice and qualifying too.
+    var stoppedQualifying = NascarFixture("cup-qualifying.json");
+    stoppedQualifying["flag_state"] = 9;
+    Equal(SessionLifecycle.Ended, NascarTiming.BuildSnapshot(stoppedQualifying, now,
+        ConnectionState.Connected).Lifecycle);
+}
+
+static JsonArray NascarCupRaceList() => JsonNode.Parse("""
+    [
+      { "race_name": "Daytona 500", "track_name": "Daytona International Speedway",
+        "date_scheduled": "2026-02-15T14:30:00", "race_date": "1900-01-01T00:00:00" },
+      { "race_name": "Auto Club 400", "track_name": "Auto Club Speedway",
+        "date_scheduled": "1900-01-01T00:00:00", "race_date": "1900-01-01T00:00:00" },
+      { "race_name": "Shriners Children's 500", "track_name": "Phoenix Raceway",
+        "date_scheduled": "2026-02-08T15:00:00", "race_date": "1900-01-01T00:00:00" },
+      { "race_name": "Pennzoil 400", "track_name": "Las Vegas Motor Speedway",
+        "date_scheduled": "2026-03-01T00:00:00", "race_date": "2026-03-01T00:00:00" },
+      { "race_name": "EchoPark Automotive Grand Prix", "track_name": "Circuit of the Americas",
+        "date_scheduled": "2026-03-08T15:30:00", "race_date": "1900-01-01T00:00:00" }
+    ]
+    """)!.AsArray();
+
+static void NascarCupCalendarSelection()
+{
+    var races = NascarCupRaceList();
+
+    // The released race carries a clock time; the 1900-01-01 sentinel names a date not out yet.
+    var daytona = ChampionshipCalendars.NextNascarCup(races, new DateTimeOffset(2026, 2, 10, 12, 0, 0, TimeSpan.Zero));
+    Equal(Championship.NascarCup, daytona!.Championship);
+    Equal("Daytona 500", daytona.EventName);
+    Equal(null, daytona.SessionName);
+    Equal("Daytona International Speedway", daytona.Venue);
+    // The race list's own dates are US Eastern wall-clock times: 14:30 EST is 19:30 UTC.
+    Equal(new DateTimeOffset(2026, 2, 15, 19, 30, 0, TimeSpan.Zero), daytona.StartUtc);
+    True(daytona.HasStartTime);
+    Equal(null, daytona.StartDate);
+
+    // A race published without a clock time names a day instead.
+    var lasVegas = ChampionshipCalendars.NextNascarCup(races, new DateTimeOffset(2026, 2, 20, 12, 0, 0, TimeSpan.Zero));
+    Equal("Pennzoil 400", lasVegas!.EventName);
+    False(lasVegas.HasStartTime);
+    Equal(new DateOnly(2026, 3, 1), lasVegas.StartDate);
+
+    // The dated race stays selected for its whole published day, then the following round takes over.
+    Equal("Pennzoil 400", ChampionshipCalendars.NextNascarCup(races,
+        new DateTimeOffset(2026, 3, 1, 22, 0, 0, TimeSpan.Zero))!.EventName);
+    var austin = ChampionshipCalendars.NextNascarCup(races, new DateTimeOffset(2026, 3, 2, 0, 0, 0, TimeSpan.Zero));
+    Equal("EchoPark Automotive Grand Prix", austin!.EventName);
+    True(austin.HasStartTime);
+
+    // With no race ahead there is nothing to count down to.
+    Equal(null, ChampionshipCalendars.NextNascarCup(races, new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero)));
+    Equal(null, ChampionshipCalendars.NextNascarCup(null, new DateTimeOffset(2026, 2, 10, 12, 0, 0, TimeSpan.Zero)));
+}
+
+static void NascarWeekendCalendarSessions()
+{
+    var races = JsonNode.Parse("""
+        [ { "race_id": 5631, "race_name": "YellaWood 500", "track_name": "Talladega Superspeedway",
+            "date_scheduled": "2026-10-24T16:00:00", "schedule": [
+              { "run_type": 3, "start_time_utc": "2026-10-25T18:00:00" } ] } ]
+        """)!.AsArray();
+    var weekend = JsonNode.Parse("""
+        { "weekend_race": [ { "schedule": [
+            { "event_name": "Garage Hours", "run_type": 0, "start_time_utc": "2026-10-24T15:00:00" },
+            { "event_name": "Qualifying (Impound)", "run_type": 2, "start_time_utc": "2026-10-24T17:00:00" },
+            { "event_name": "Race", "run_type": 3, "start_time_utc": "2026-10-25T18:00:00" }
+        ] } ] }
+        """)!.AsObject();
+
+    var sessions = ChampionshipCalendars.NascarEvent(
+        races, weekend, new DateTimeOffset(2026, 10, 24, 16, 15, 0, TimeSpan.Zero), Championship.NascarXfinity);
+    Equal(2, sessions.Count);
+    Equal(Championship.NascarXfinity, sessions[0].Championship);
+    Equal("Qualifying (Impound)", sessions[0].SessionName);
+    Equal(new DateTimeOffset(2026, 10, 24, 17, 0, 0, TimeSpan.Zero), sessions[0].StartUtc);
+    Equal(null, sessions[1].SessionName);
+    Equal(new DateTimeOffset(2026, 10, 25, 18, 0, 0, TimeSpan.Zero), sessions[1].StartUtc);
+}
+
+static void NascarCupSettings()
+{
+    Equal(16, (int)Championship.NascarCup);
+
+    var defaults = new UserSettings().Normalize();
+    False(defaults.EnableNascarCup);
+    False(defaults.IsChampionshipEnabled(Championship.NascarCup));
+    False(defaults.IsChampionshipVisible(Championship.NascarCup));
+
+    var directory = Path.Combine(Path.GetTempPath(), $"RaceDock.Tests.{Guid.NewGuid():N}");
+    var path = Path.Combine(directory, "settings.json");
+    try
+    {
+        var store = new UserSettingsStore(path);
+        // A file written before NASCAR existed must not start polling it behind the user's back.
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(path, """{"Version":2,"HiddenChampionships":[]}""");
+        var upgraded = store.Load();
+        Equal(UserSettingsStore.CurrentVersion, upgraded.Version);
+        False(upgraded.IsChampionshipVisible(Championship.NascarCup));
+        False(upgraded.EnableNascarCup);
+        False(upgraded.IsChampionshipVisible(Championship.NascarXfinity));
+        False(upgraded.IsChampionshipVisible(Championship.NascarTrucks));
+
+        // Once the user shows and enables it, the choice survives a reload.
+        store.Save(new UserSettings { EnableNascarCup = true, HiddenChampionships = [Championship.Dtm] });
+        var chosen = store.Load();
+        True(chosen.IsChampionshipVisible(Championship.NascarCup));
+        True(chosen.EnableNascarCup);
+        False(chosen.IsChampionshipVisible(Championship.Dtm));
+        Equal(UserSettingsStore.CurrentVersion, chosen.Version);
+    }
+    finally
+    {
+        if (Directory.Exists(directory)) Directory.Delete(directory, true);
+    }
+}
+
+static void NascarCupSourceLifecycle()
+{
+    var now = new DateTimeOffset(2026, 10, 22, 18, 33, 0, TimeSpan.Zero);
+    var clock = new FakeClock(now);
+    var delay = new BlockingDelay();
+    var alerts = new AlertArbiter(clock);
+    var http = new NascarFakeHttp("live/feeds/live-feed.json", NascarFixture("cup-race.json").ToJsonString());
+    var schedule = new FakeNascarScheduleClient(NascarRaceList(now.AddMinutes(-10)));
+    using var httpClient = NascarFeedHttpClient(http);
+    using var feed = new NascarFeed(clock, TestNascarFeedOptions(), delay, schedule, httpClient);
+    var rig = AttachNascarSource(feed, clock, alerts: alerts);
+    var deltas = 0;
+    rig.Source.DeltaReceived += _ => deltas++;
+
+    rig.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    // A second start is a no-op, so the shared feed is requested once per interval.
+    rig.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    rig.Source.StopAsync().GetAwaiter().GetResult();
+    rig.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    Equal(SessionLifecycle.Live, rig.Snapshots.Last().Lifecycle);
+    Equal(Championship.NascarCup, rig.Snapshots.Last().Championship);
+    Equal(TimeSpan.FromSeconds(2), delay.Duration);
+    Equal(1, http.LiveCalls);
+    Equal(1, deltas);
+    Equal(AlertKind.SessionStart, alerts.Current?.Kind);
+    Equal(0, rig.Failures.Count);
+    True(rig.Connections.Contains(ConnectionState.Connected));
+    Equal(ConnectionState.Disconnected, rig.Connections[^1]);
+}
+
+/// <summary>A season shaped like the 2026 list: repeated names, Duels without a schedule, Eastern dates.</summary>
+static JsonArray NascarRepeatedNameRaceList() => JsonNode.Parse("""
+    [ { "race_id": 5594, "race_name": "America 250 Florida Duel at DAYTONA", "track_name": "Daytona International Speedway",
+        "date_scheduled": "2026-02-12T19:00:00", "race_date": "2026-02-12T19:00:00" },
+      { "race_id": 5595, "race_name": "America 250 Florida Duel at DAYTONA", "track_name": "Daytona International Speedway",
+        "date_scheduled": "2026-02-12T20:45:00", "race_date": "2026-02-12T20:45:00" },
+      { "race_id": 5610, "race_name": "Cook Out 400", "track_name": "Richmond Raceway",
+        "date_scheduled": "2026-04-12T15:00:00",
+        "schedule": [ { "run_type": 3, "start_time_utc": "2026-04-12T19:00:00" } ] },
+      { "race_id": 5625, "race_name": "Cook Out 400", "track_name": "Richmond Raceway",
+        "date_scheduled": "2026-08-15T20:00:00",
+        "schedule": [ { "run_type": 3, "start_time_utc": "2026-08-16T00:00:00" } ] },
+      { "race_id": 5631, "race_name": "YellaWood 500", "track_name": "Talladega Superspeedway",
+        "date_scheduled": "2026-10-25T14:00:00", "race_date": "2026-10-25T14:00:00" } ]
+    """)!.AsArray();
+
+static void NascarRaceListTimesAndIdentity()
+{
+    var races = NascarRepeatedNameRaceList();
+
+    // The Duels publish no schedule[]; their Eastern times are converted, and 19:00 EST is midnight UTC, which
+    // is a real start time rather than a date-only round.
+    var firstDuel = ChampionshipCalendars.NextNascarCup(races, new DateTimeOffset(2026, 2, 12, 12, 0, 0, TimeSpan.Zero))!;
+    Equal(new DateTimeOffset(2026, 2, 13, 0, 0, 0, TimeSpan.Zero), firstDuel.StartUtc);
+    True(firstDuel.HasStartTime);
+    Equal<int?>(5594, ChampionshipCalendars.NextNascarRaceId(races,
+        new DateTimeOffset(2026, 2, 12, 12, 0, 0, TimeSpan.Zero), Championship.NascarCup));
+
+    // Once the first Duel has started, the second one with the same name is selected by its own id.
+    var afterFirst = new DateTimeOffset(2026, 2, 13, 0, 30, 0, TimeSpan.Zero);
+    var secondDuel = ChampionshipCalendars.NextNascarCup(races, afterFirst)!;
+    Equal("America 250 Florida Duel at DAYTONA", secondDuel.EventName);
+    Equal(new DateTimeOffset(2026, 2, 13, 1, 45, 0, TimeSpan.Zero), secondDuel.StartUtc);
+    Equal<int?>(5595, ChampionshipCalendars.NextNascarRaceId(races, afterFirst, Championship.NascarCup));
+
+    // The second "Cook Out 400" is selected by id, and its UTC schedule start at midnight stays a clock time.
+    var summer = new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero);
+    var secondCookOut = ChampionshipCalendars.NextNascarCup(races, summer)!;
+    Equal(new DateTimeOffset(2026, 8, 16, 0, 0, 0, TimeSpan.Zero), secondCookOut.StartUtc);
+    True(secondCookOut.HasStartTime);
+    Equal<int?>(5625, ChampionshipCalendars.NextNascarRaceId(races, summer, Championship.NascarCup));
+
+    // Daylight time: 14:00 EDT is 18:00 UTC, matching the provider's own schedule[] start for this race.
+    var talladega = ChampionshipCalendars.NextNascarCup(races, new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero))!;
+    Equal(new DateTimeOffset(2026, 10, 25, 18, 0, 0, TimeSpan.Zero), talladega.StartUtc);
+
+    // A clock time skipped by the spring-forward change resolves to the hour after it.
+    Equal(new DateTimeOffset(2026, 3, 8, 7, 30, 0, TimeSpan.Zero),
+        ChampionshipCalendars.EasternToUtc(new DateTime(2026, 3, 8, 2, 30, 0)));
+    Equal<int?>(null, ChampionshipCalendars.NextNascarRaceId(null, summer, Championship.NascarCup));
+}
+
+static JsonObject NascarWeekendFeed(string practiceName, DateTimeOffset practiceStart) => JsonNode.Parse($$"""
+    { "weekend_race": [ { "schedule": [
+        { "event_name": "{{practiceName}}", "run_type": 1,
+          "start_time_utc": "{{practiceStart.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss")}}" } ] } ] }
+    """)!.AsObject();
+
+static void NascarCalendarWeekendByRaceId()
+{
+    var schedule = new FakeNascarScheduleClient(NascarRepeatedNameRaceList());
+    schedule.Weekends[5610] = NascarWeekendFeed("Spring Practice", new DateTimeOffset(2026, 4, 11, 17, 0, 0, TimeSpan.Zero));
+    schedule.Weekends[5625] = NascarWeekendFeed("Summer Practice", new DateTimeOffset(2026, 8, 15, 17, 0, 0, TimeSpan.Zero));
+    var calendar = new NascarCalendar(schedule, NascarSeries.Cup);
+
+    var sessions = calendar.GetEventScheduleAsync(new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero),
+        CancellationToken.None).GetAwaiter().GetResult();
+
+    // The spring round shares the name, but the summer round's own weekend feed is the one read.
+    Equal((2026, 1, (int?)5625), schedule.WeekendRequests.Single());
+    Equal("Summer Practice", sessions.Single().SessionName);
+    Equal("Cook Out 400", sessions.Single().EventName);
+}
+
+static void NascarFeedWeekendByRaceId()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero));
+    var delay = new HeldDelay();
+    var http = new NascarFakeHttp("live/feeds/live-feed.json", "{}");
+    var schedule = new FakeNascarScheduleClient(NascarRepeatedNameRaceList());
+    using var httpClient = NascarFeedHttpClient(http);
+    using var feed = new NascarFeed(clock, TestNascarFeedOptions(), delay, schedule, httpClient);
+    var cup = AttachNascarSource(feed, clock);
+    cup.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(1, TimeSpan.FromSeconds(2)));
+
+    Equal((2026, 1, (int?)5625), schedule.WeekendRequests.Single());
+    Equal(0, http.LiveCalls);
+    cup.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
+static void NascarPreSessionWaitsForGreen()
+{
+    var now = new DateTimeOffset(2026, 10, 22, 18, 33, 0, TimeSpan.Zero);
+    var clock = new FakeClock(now);
+    var delay = new HeldDelay();
+    var alerts = new AlertArbiter(clock);
+    var gridded = NascarFixture("cup-race.json");
+    gridded["flag_state"] = 8;
+    gridded["lap_number"] = 0;
+    var http = new NascarFakeHttp("live/feeds/live-feed.json", gridded.ToJsonString());
+    var schedule = new FakeNascarScheduleClient(NascarRaceList(now.AddMinutes(20)));
+    using var httpClient = NascarFeedHttpClient(http);
+    using var feed = new NascarFeed(clock, TestNascarFeedOptions(), delay, schedule, httpClient);
+    var rig = AttachNascarSource(feed, clock, alerts: alerts);
+    rig.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(1, TimeSpan.FromSeconds(2)));
+
+    // The listed field before green is pre-session: no start alert and nothing for the composite to show.
+    Equal(1, http.LiveCalls);
+    Equal(SessionLifecycle.PreSession, rig.Snapshots.Last().Lifecycle);
+    Equal(null, alerts.Current);
+
+    // Green starts the session and announces it once.
+    http.Body = NascarFixture("cup-race.json").ToJsonString();
+    delay.Release();
+    True(delay.WaitUntilCalled(2, TimeSpan.FromSeconds(2)));
+    Equal(SessionLifecycle.Live, rig.Snapshots.Last().Lifecycle);
+    Equal(AlertKind.SessionStart, alerts.Current?.Kind);
+    rig.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
+/// <summary>
+/// Enabling a series while the feed sleeps toward another series' distant race must not wait out that sleep.
+/// </summary>
+static void NascarFeedWakesForNewSeries()
+{
+    var now = new DateTimeOffset(2026, 10, 22, 18, 33, 0, TimeSpan.Zero);
+    var clock = new FakeClock(now);
+    var delay = new HeldDelay();
+    var http = new NascarFakeHttp("live/feeds/live-feed.json", NascarFixture("cup-race.json").ToJsonString());
+    var schedule = new FakeNascarScheduleClient(null);
+    schedule.BySeries[NascarSeries.Trucks.SeriesId] = NascarRaceList(now.AddMinutes(10));
+    using var httpClient = NascarFeedHttpClient(http);
+    using var feed = new NascarFeed(clock, TestNascarFeedOptions(), delay, schedule, httpClient);
+    var cup = AttachNascarSource(feed, clock);
+    cup.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(1, TimeSpan.FromSeconds(2)));
+    // Cup has no race ahead, so the feed parks for a full schedule refresh.
+    Equal(TestNascarFeedOptions().ScheduleRefreshInterval, delay.Durations[0]);
+    Equal(0, http.LiveCalls);
+
+    // Trucks is enabled with a race ten minutes out: the sleep is cut short without being released.
+    var trucks = AttachNascarSource(feed, clock, NascarSeries.Trucks);
+    trucks.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(2, TimeSpan.FromSeconds(2)));
+    Equal(1, http.LiveCalls);
+    Equal(TestNascarFeedOptions().PollInterval, delay.Durations[1]);
+
+    // Trucks is disabled again: the feed returns to the long Cup sleep.
+    trucks.Source.StopAsync().GetAwaiter().GetResult();
+    delay.Release();
+    True(delay.WaitUntilCalled(3, TimeSpan.FromSeconds(2)));
+    Equal(TestNascarFeedOptions().ScheduleRefreshInterval, delay.Durations[2]);
+
+    // A settings change restarts every source; the restarted Trucks source interrupts that sleep too.
+    cup.Source.StopAsync().GetAwaiter().GetResult();
+    trucks.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    cup.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(4, TimeSpan.FromSeconds(2)));
+    Equal(2, http.LiveCalls);
+    Equal(TestNascarFeedOptions().PollInterval, delay.Durations[3]);
+    trucks.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    cup.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
+/// <summary>
+/// Payloads at each state change of the 24 Oct recording (vehicles trimmed to the leaders plus a lapped and a DVP
+/// car): the Xfinity race from the pre-race grid to the stop flag, and Cup pole qualifying across both rounds.
+/// </summary>
+static IReadOnlyList<(DateTimeOffset Captured, JsonObject Payload)> NascarRecordedSteps(string session) =>
+    NascarFixture("recorded-transitions.json")[session]!.AsArray()
+        .Select(entry => (DateTimeOffset.Parse(entry!["captured"]!.GetValue<string>(), System.Globalization.CultureInfo.InvariantCulture),
+            entry["payload"]!.AsObject()))
+        .ToList();
+
+static void NascarRecordedTransitions()
+{
+    var race = NascarRecordedSteps("race")
+        .Select(step => NascarTiming.BuildSnapshot(step.Payload, step.Captured, ConnectionState.Connected, NascarSeries.Xfinity))
+        .ToList();
+    Equal(13, race.Count);
+    Equal(Championship.NascarXfinity, race[0].Championship);
+    Equal("Race", race[0].Session);
+    Equal(94, race[0].TotalLaps);
+    // The grid an hour before green, every green and caution period, the final lap, then the stop flag.
+    Equal("PreSession,Live,Live,Live,Live,Live,Live,Live,Live,Live,Live,Ended,Ended",
+        string.Join(",", race.Select(snapshot => snapshot.Lifecycle)));
+    Equal("Unknown,AllClear,FullCourseYellow,AllClear,FullCourseYellow,AllClear,FullCourseYellow,AllClear,FullCourseYellow,AllClear,AllClear,AllClear,Unknown",
+        string.Join(",", race.Select(snapshot => snapshot.TrackCondition)));
+    // Stage 1 ends at lap 25 and stage 2 at lap 50; the provider moves the stage on with the caution.
+    Equal("1,1,2,2,3,3,3,3,3,3,3,3,3", string.Join(",", race.Select(snapshot => snapshot.StageNumber)));
+    Equal(94, race[^1].StageFinishLap);
+    Equal("RAC 94/94 · S3", TaskbarSessionDisplay.Progress(race[^2]));
+
+    // Lapped cars publish laps down as a negative delta, which is not a time gap and is not shown as one.
+    var lapped = race[2].Competitors.Single(competitor => competitor.Position == 38);
+    Equal(null, lapped.GapToLeader);
+    Equal("DVP", lapped.StatusLabel);
+    Equal("LEAD", race[2].Competitors[0].GapToLeader);
+    Equal("+0.055", race[2].Competitors[1].GapToLeader);
+    Equal("+0.081", race[2].Competitors[2].IntervalToPositionAhead);
+    True(race[2].Competitors.All(competitor => competitor.IsPlayoffEligible is not null));
+
+    var qualifying = NascarRecordedSteps("qualifying")
+        .Select(step => NascarTiming.BuildSnapshot(step.Payload, step.Captured, ConnectionState.Connected, NascarSeries.Cup))
+        .ToList();
+    // Round 1 stops, the final round waits on flag 8, runs, and stops.
+    Equal("Live,Ended,PreSession,Live,Ended", string.Join(",", qualifying.Select(snapshot => snapshot.Lifecycle)));
+    True(qualifying.All(snapshot => snapshot.Session == "Qualifying" && snapshot.Championship == Championship.NascarCup));
+    // Qualifying carries a placeholder stage and distance, neither of which is reported.
+    True(qualifying.All(snapshot => snapshot.StageNumber is null && snapshot.TotalLaps is null));
+    Equal("Q", TaskbarSessionDisplay.Progress(qualifying[0]));
+}
+
+static void NascarRecordedRaceAlerts()
+{
+    var steps = NascarRecordedSteps("race");
+    var clock = new FakeClock(steps[0].Captured);
+    var delay = new HeldDelay();
+    var alerts = new RecordingAlerts();
+    var http = new NascarFakeHttp("live/feeds/live-feed.json", steps[0].Payload.ToJsonString());
+    var schedule = new FakeNascarScheduleClient(null);
+    schedule.BySeries[NascarSeries.Xfinity.SeriesId] = NascarRaceList(new DateTimeOffset(2026, 10, 24, 19, 30, 0, TimeSpan.Zero));
+    using var httpClient = NascarFeedHttpClient(http);
+    using var feed = new NascarFeed(clock, TestNascarFeedOptions(), delay, schedule, httpClient);
+    var source = new NascarLiveTimingSource(feed, NascarSeries.Xfinity, clock, alerts);
+    List<TimingSnapshot> snapshots = [];
+    var deltas = 0;
+    source.SnapshotReceived += snapshots.Add;
+    source.DeltaReceived += _ => deltas++;
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(1, TimeSpan.FromSeconds(2)));
+    for (var index = 1; index < steps.Count; index++)
+    {
+        clock.Advance(steps[index].Captured - clock.UtcNow);
+        http.Body = steps[index].Payload.ToJsonString();
+        delay.Release();
+        True(delay.WaitUntilCalled(index + 1, TimeSpan.FromSeconds(2)));
+    }
+    // The provider re-serves the same assembly until it builds a new one: that repeat is not a new delta.
+    clock.Advance(TimeSpan.FromSeconds(10));
+    delay.Release();
+    True(delay.WaitUntilCalled(steps.Count + 1, TimeSpan.FromSeconds(2)));
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    Equal(steps.Count + 1, http.LiveCalls);
+    Equal(steps.Count, deltas);
+    Equal(SessionLifecycle.Ended, snapshots.Last(snapshot => snapshot.Competitors.Count > 0).Lifecycle);
+    // The start is announced at green, not on the pre-race grid, and the finish exactly once.
+    var start = alerts.Accepted.Single(alert => alert.Kind == AlertKind.SessionStart);
+    Equal("NASCAR Xfinity SESSION STARTED", start.Title);
+    Equal(0, start.Lap);
+    var chequered = alerts.Accepted.Single(alert => alert.Kind == AlertKind.Chequered);
+    Equal(94, chequered.Lap);
+    // Four cautions and their restarts; the white flag and the stop flag claim no new track state.
+    Equal(4, alerts.TrackConditions.Count(condition => condition == TrackCondition.FullCourseYellow));
+    Equal(5, alerts.TrackConditions.Count(condition => condition == TrackCondition.AllClear));
+}
+
+static void NascarScheduleCache()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero));
+    var schedule = new FakeNascarScheduleClient(NascarRepeatedNameRaceList());
+    schedule.Weekends[5625] = NascarWeekendFeed("Summer Practice", new DateTimeOffset(2026, 8, 15, 17, 0, 0, TimeSpan.Zero));
+    schedule.BySeries[NascarSeries.Trucks.SeriesId] = null;
+    using var cached = new CachedNascarScheduleClient(schedule, clock, TimeSpan.FromMinutes(30));
+    var cup = new NascarCalendar(cached, NascarSeries.Cup);
+    var now = clock.UtcNow;
+
+    // The upcoming and event-schedule queries read the race list and the weekend feed once between them.
+    Equal(1, cup.GetUpcomingAsync(now, CancellationToken.None).GetAwaiter().GetResult().Count);
+    Equal("Summer Practice", cup.GetEventScheduleAsync(now, CancellationToken.None).GetAwaiter().GetResult().Single().SessionName);
+    Equal(1, schedule.Calls);
+    Equal(1, schedule.WeekendRequests.Count);
+
+    // A season the provider has not released (no list for this year or next) is remembered too.
+    var trucks = new NascarCalendar(cached, NascarSeries.Trucks);
+    Equal(0, trucks.GetUpcomingAsync(now, CancellationToken.None).GetAwaiter().GetResult().Count);
+    Equal(3, schedule.Calls);
+    Equal(0, trucks.GetEventScheduleAsync(now, CancellationToken.None).GetAwaiter().GetResult().Count);
+    Equal(3, schedule.Calls);
+
+    // Once the lifetime passes, the next refresh asks again.
+    clock.Advance(TimeSpan.FromMinutes(31));
+    cup.GetUpcomingAsync(clock.UtcNow, CancellationToken.None).GetAwaiter().GetResult();
+    Equal(4, schedule.Calls);
+    Equal(2, schedule.WeekendRequests.Count);
+
+    // A failed read is not kept: the caller sees the failure and the next read retries the provider.
+    clock.Advance(TimeSpan.FromMinutes(31));
+    schedule.FailRaceLists = 1;
+    var failed = false;
+    try { cup.GetUpcomingAsync(clock.UtcNow, CancellationToken.None).GetAwaiter().GetResult(); }
+    catch (HttpRequestException) { failed = true; }
+    True(failed);
+    Equal(1, cup.GetUpcomingAsync(clock.UtcNow, CancellationToken.None).GetAwaiter().GetResult().Count);
+    Equal(6, schedule.Calls);
+    // The weekend feed read at the previous refresh has expired by now as well.
+    Equal(3, schedule.WeekendRequests.Count);
+
+    // A race without an id has no weekend feed to read.
+    Equal(null, cached.GetWeekendFeedAsync(2026, 1, null, CancellationToken.None).GetAwaiter().GetResult());
+    Equal(3, schedule.WeekendRequests.Count);
+}
+
+static void NascarSeriesIdentifiers()
+{
+    Equal(Championship.NascarCup, NascarSeries.Cup.Championship);
+    Equal(1, NascarSeries.Cup.SeriesId);
+    Equal("NASCAR Cup", NascarSeries.Cup.Label);
+    Equal(Championship.NascarXfinity, NascarSeries.Xfinity.Championship);
+    Equal(2, NascarSeries.Xfinity.SeriesId);
+    Equal(Championship.NascarTrucks, NascarSeries.Trucks.Championship);
+    Equal(3, NascarSeries.Trucks.SeriesId);
+}
+
+/// <summary>Two series on one feed: one request per tick serves both and each gets its own routing.</summary>
+static void NascarFeedServesEverySubscriberFromOneRequest()
+{
+    var now = new DateTimeOffset(2026, 10, 22, 18, 33, 0, TimeSpan.Zero);
+    var clock = new FakeClock(now);
+    var delay = new HeldDelay();
+    var http = new NascarFakeHttp("live/feeds/live-feed.json", NascarFixture("cup-race.json").ToJsonString());
+    var schedule = new FakeNascarScheduleClient(NascarRaceList(now.AddMinutes(-10)));
+    using var httpClient = NascarFeedHttpClient(http);
+    using var feed = new NascarFeed(clock, TestNascarFeedOptions(), delay, schedule, httpClient);
+    var cup = AttachNascarSource(feed, clock);
+    var xfinity = AttachNascarSource(feed, clock, new NascarSeries(Championship.Unknown, 2, "Xfinity"));
+
+    cup.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(1, TimeSpan.FromSeconds(2)));
+    xfinity.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    delay.Release();
+    True(delay.WaitUntilCalled(2, TimeSpan.FromSeconds(2)));
+    cup.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    xfinity.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    // Two ticks, two requests, and the season read once per series for the whole cache lifetime.
+    Equal(2, http.LiveCalls);
+    Equal(2, schedule.Calls);
+    Equal(3, cup.Snapshots.Count + xfinity.Snapshots.Count);
+
+    // The Cup payload belongs to Cup; the other series is handed a hidden session instead of that field.
+    True(cup.Snapshots.All(snapshot => snapshot.Lifecycle == SessionLifecycle.Live));
+    Equal(6, cup.Snapshots.Last().Competitors.Count);
+    True(xfinity.Snapshots.All(snapshot => snapshot.Lifecycle == SessionLifecycle.OffSession));
+    Equal(0, xfinity.Snapshots.Last().Competitors.Count);
+    Equal(Championship.Unknown, xfinity.Snapshots.Last().Championship);
+    Equal(ConnectionState.Connected, xfinity.Snapshots.Last().ConnectionState);
+}
+
+/// <summary>Five hours to the next race: nothing is requested and the feed sleeps to the lead.</summary>
+static void NascarFeedSleepsToTheNextRaceLead()
+{
+    var now = new DateTimeOffset(2026, 10, 22, 18, 33, 0, TimeSpan.Zero);
+    var clock = new FakeClock(now);
+    var delay = new HeldDelay();
+    var http = new NascarFakeHttp("live/feeds/live-feed.json", NascarFixture("cup-race.json").ToJsonString());
+    var schedule = new FakeNascarScheduleClient(NascarRaceList(now.AddHours(5)));
+    using var httpClient = NascarFeedHttpClient(http);
+    using var feed = new NascarFeed(clock, TestNascarFeedOptions(), delay, schedule, httpClient);
+    var cup = AttachNascarSource(feed, clock);
+    cup.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(1, TimeSpan.FromSeconds(2)));
+
+    Equal(0, http.LiveCalls);
+    Equal(TimeSpan.FromHours(4) + TimeSpan.FromMinutes(30), delay.Durations[0]);
+
+    // The lead has come when that sleep ends, so the next tick polls.
+    clock.Advance(TimeSpan.FromHours(4) + TimeSpan.FromMinutes(30));
+    delay.Release();
+    True(delay.WaitUntilCalled(2, TimeSpan.FromSeconds(2)));
+    Equal(1, http.LiveCalls);
+    Equal(TestNascarFeedOptions().PollInterval, delay.Durations[1]);
+    Equal(TimeSpan.FromSeconds(2), delay.Durations[1]);
+    cup.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
+static void NascarFeedStopsRequestingWithoutSubscribers()
+{
+    var now = new DateTimeOffset(2026, 10, 22, 18, 33, 0, TimeSpan.Zero);
+    var clock = new FakeClock(now);
+    var delay = new HeldDelay();
+    var http = new NascarFakeHttp("live/feeds/live-feed.json", NascarFixture("cup-race.json").ToJsonString());
+    var schedule = new FakeNascarScheduleClient(NascarRaceList(now.AddMinutes(-10)));
+    using var httpClient = NascarFeedHttpClient(http);
+    using var feed = new NascarFeed(clock, TestNascarFeedOptions(), delay, schedule, httpClient);
+    var cup = AttachNascarSource(feed, clock);
+    cup.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(1, TimeSpan.FromSeconds(2)));
+    Equal(1, http.LiveCalls);
+
+    // The last subscriber has gone: the feed parks, so neither the schedule nor the live feed is read.
+    cup.Source.StopAsync().GetAwaiter().GetResult();
+    delay.Release();
+    Thread.Sleep(200);
+    Equal(1, http.LiveCalls);
+    Equal(1, schedule.Calls);
+
+    cup.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(2, TimeSpan.FromSeconds(2)));
+    Equal(2, http.LiveCalls);
+    Equal(1, schedule.Calls);
+    cup.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
+static void NascarFeedIsolatesFailures()
+{
+    var now = new DateTimeOffset(2026, 10, 22, 18, 33, 0, TimeSpan.Zero);
+    var clock = new FakeClock(now);
+    var delay = new HeldDelay();
+    var http = new NascarFakeHttp("live/feeds/live-feed.json", NascarFixture("cup-race.json").ToJsonString());
+    var schedule = new FakeNascarScheduleClient(NascarRaceList(now.AddMinutes(-10)));
+    using var httpClient = NascarFeedHttpClient(http);
+    using var feed = new NascarFeed(clock, TestNascarFeedOptions(), delay, schedule, httpClient);
+    // A subscriber that throws must not stop the feed or its neighbours.
+    var threw = 0;
+    using var broken = feed.Subscribe(NascarSeries.Cup, (_, _) => { threw++; throw new InvalidOperationException("source"); });
+    var cup = AttachNascarSource(feed, clock);
+    cup.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(1, TimeSpan.FromSeconds(2)));
+    Equal(1, threw);
+    Equal(SessionLifecycle.Live, cup.Snapshots.Last().Lifecycle);
+    Equal(0, cup.Failures.Count);
+
+    // A broken request is a feed failure, not a crash: the widget hides and the feed backs off.
+    http.FailLiveFeed = true;
+    delay.Release();
+    True(delay.WaitUntilCalled(2, TimeSpan.FromSeconds(2)));
+    Equal(1, cup.Failures.Count);
+    True(cup.Failures[0].Message.Contains("relay refused", StringComparison.Ordinal));
+    Equal(ConnectionState.Faulted, cup.Snapshots.Last().ConnectionState);
+    Equal(SessionLifecycle.OffSession, cup.Snapshots.Last().Lifecycle);
+    Equal(TestNascarFeedOptions().FailureInterval, delay.Durations[1]);
+
+    // The loop survived both the throwing subscriber and the failed request.
+    http.FailLiveFeed = false;
+    delay.Release();
+    True(delay.WaitUntilCalled(3, TimeSpan.FromSeconds(2)));
+    Equal(2, threw);
+    Equal(SessionLifecycle.Live, cup.Snapshots.Last().Lifecycle);
+    Equal(1, cup.Failures.Count);
+    cup.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
+static void NascarFeedPollsDateOnlyRacesAllDay()
+{
+    // A round published without a clock time names a day, so the feed keeps polling through it instead of
+    // stopping four hours after midnight UTC whatever the race time turns out to be.
+    var clock = new FakeClock(new DateTimeOffset(2026, 10, 22, 12, 0, 0, TimeSpan.Zero));
+    var delay = new BlockingDelay();
+    var http = new NascarFakeHttp("live/feeds/live-feed.json", NascarFixture("cup-race.json").ToJsonString());
+    var schedule = new FakeNascarScheduleClient(JsonNode.Parse("""
+        [ { "race_name": "Pennzoil 400", "track_name": "Las Vegas Motor Speedway",
+            "date_scheduled": "1900-01-01T00:00:00", "race_date": "2026-10-22T00:00:00" } ]
+        """)!.AsArray());
+    using var httpClient = NascarFeedHttpClient(http);
+    using var feed = new NascarFeed(clock, TestNascarFeedOptions(), delay, schedule, httpClient);
+    var rig = AttachNascarSource(feed, clock);
+    rig.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(delay.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    rig.Source.StopAsync().GetAwaiter().GetResult();
+    rig.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    // Midday on the published day is inside the window, so the live feed was actually requested.
+    Equal(1, http.LiveCalls);
+    Equal(TestNascarFeedOptions().PollInterval, delay.Duration);
+
+    // The morning before it only waits for the lead.
+    var before = new FakeClock(new DateTimeOffset(2026, 10, 21, 23, 0, 0, TimeSpan.Zero));
+    var waiting = new BlockingDelay();
+    var idleHttp = new NascarFakeHttp("live/feeds/live-feed.json", "{}");
+    using var idleClient = NascarFeedHttpClient(idleHttp);
+    using var idleFeed = new NascarFeed(before, TestNascarFeedOptions(), waiting, new FakeNascarScheduleClient(JsonNode.Parse("""
+        [ { "race_name": "Pennzoil 400", "track_name": "Las Vegas Motor Speedway",
+            "date_scheduled": "1900-01-01T00:00:00", "race_date": "2026-10-22T00:00:00" } ]
+        """)!.AsArray()), idleClient);
+    var idleRig = AttachNascarSource(idleFeed, before);
+    idleRig.Source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    True(waiting.WaitUntilCalled(TimeSpan.FromSeconds(2)));
+    idleRig.Source.StopAsync().GetAwaiter().GetResult();
+    idleRig.Source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    Equal(0, idleHttp.LiveCalls);
+    Equal(TimeSpan.FromMinutes(30), waiting.Duration);
+}
+
+static void NascarFeedIdleDelay()
+{
+    var now = new DateTimeOffset(2026, 10, 22, 18, 33, 0, TimeSpan.Zero);
+    var options = TestNascarFeedOptions();
+    // Inside a window, and from its lead on, the poll interval applies.
+    Equal(options.PollInterval, NascarFeed.NextIdleDelay([(now.AddMinutes(-10), now.AddHours(3))], now, options));
+    Equal(options.PollInterval, NascarFeed.NextIdleDelay([(now.AddMinutes(20), now.AddHours(4))], now, options));
+    // Far from it: sleep to the lead, capped at the schedule refresh interval.
+    Equal(TimeSpan.FromHours(1), NascarFeed.NextIdleDelay([(now.AddHours(1).AddMinutes(30), now.AddHours(5))], now, options));
+    Equal(options.ScheduleRefreshInterval, NascarFeed.NextIdleDelay([(now.AddDays(2), now.AddDays(2))], now, options));
+    // Nothing published, or a window already over: refresh the season instead of spinning.
+    Equal(options.ScheduleRefreshInterval, NascarFeed.NextIdleDelay([], now, options));
+    Equal(options.ScheduleRefreshInterval, NascarFeed.NextIdleDelay([(now.AddHours(-6), now.AddHours(-2))], now, options));
+}
+
+static void NascarCupSourceHiddenAndStaleFeeds()
+{
+    var now = new DateTimeOffset(2026, 10, 22, 18, 33, 0, TimeSpan.Zero);
+
+    // Between sessions the feed answers with an empty field: the widget stays hidden.
+    var empty = NascarFixture("cup-race.json");
+    empty["vehicles"] = new JsonArray();
+    var idle = RunNascarTick(empty, new FakeClock(now));
+    Equal(SessionLifecycle.OffSession, idle.Snapshots.Last().Lifecycle);
+    Equal("", idle.Snapshots.Last().Meeting);
+    Equal(0, idle.Snapshots.Last().Competitors.Count);
+    Equal(Championship.NascarCup, idle.Snapshots.Last().Championship);
+    True(idle.Connections.Contains(ConnectionState.Connected));
+    Equal(0, idle.Failures.Count);
+
+    // After a session the endpoint keeps serving its last assembled field; only the assembly time
+    // proves whether it is still running, so an old one never presents as live.
+    var stale = RunNascarTick(NascarFixture("cup-race.json"), new FakeClock(now.AddMinutes(8)));
+    True(stale.Snapshots.All(snapshot => snapshot.Lifecycle != SessionLifecycle.Live));
+    Equal(SessionLifecycle.OffSession, stale.Snapshots.Last().Lifecycle);
+    Equal(ConnectionState.Stale, stale.Snapshots.Last().ConnectionState);
+    True(stale.Connections.Contains(ConnectionState.Stale));
+    Equal(0, stale.Failures.Count);
+
+    // A broken transcript is a feed failure, not a crash: the widget hides and the feed backs off.
+    var faulted = RunNascarTick(NascarFixture("cup-race.json"), new FakeClock(now), failLiveFeed: true);
+    Equal(1, faulted.Failures.Count);
+    Equal(ConnectionState.Faulted, faulted.Snapshots.Last().ConnectionState);
+    Equal(SessionLifecycle.OffSession, faulted.Snapshots.Last().Lifecycle);
+    Equal(TestNascarFeedOptions().FailureInterval, faulted.Delay);
+}
+
 static JsonObject IndyCarPracticePayload() => JsonNode.Parse("""
     {"timing_results":{"heartbeat":{
       "eventName":"Ontario Honda Dealers Indy at Markham","trackName":"Streets of Markham","currentFlag":"GREEN",
@@ -4556,6 +5478,24 @@ static WrcPollingOptions TestWrcOptions() => new(
     TimeSpan.FromHours(1), TimeSpan.FromMinutes(2), 3, 2,
     [TimeSpan.FromHours(1)], [TimeSpan.FromHours(1)]);
 
+sealed class RecordingAlerts : IAlertArbiter
+{
+    public event Action<RaceAlert?>? VisibleAlertChanged;
+    public RaceAlert? Current { get; private set; }
+    public List<RaceAlert> Accepted { get; } = [];
+    public List<TrackCondition> TrackConditions { get; } = [];
+    public void Accept(RaceAlert alert)
+    {
+        Accepted.Add(alert);
+        Current = alert;
+        VisibleAlertChanged?.Invoke(alert);
+    }
+    public void ApplyTrackCondition(TrackCondition condition, string? detail, int? lap, DateTimeOffset timestamp) =>
+        TrackConditions.Add(condition);
+    public void Tick() { }
+    public void Clear() => Current = null;
+}
+
 sealed class FakeClock : IClock
 {
     public FakeClock() : this(new DateTimeOffset(2026, 7, 14, 12, 0, 0, TimeSpan.Zero)) { }
@@ -4599,6 +5539,34 @@ sealed class StepDelay(int autoRelease) : IAsyncDelay
             Thread.Sleep(10);
         }
         lock (_gate) return _calls >= count;
+    }
+}
+
+/// <summary>A delay that only returns when the test releases it, so each tick can be inspected on its own.</summary>
+sealed class HeldDelay : IAsyncDelay
+{
+    private readonly Lock _gate = new();
+    private readonly List<TimeSpan> _durations = [];
+    private readonly SemaphoreSlim _release = new(0);
+    public IReadOnlyList<TimeSpan> Durations { get { lock (_gate) return _durations.ToArray(); } }
+    public async Task DelayAsync(TimeSpan duration, CancellationToken cancellationToken)
+    {
+        lock (_gate) _durations.Add(duration);
+        await _release.WaitAsync(cancellationToken);
+    }
+    public bool WaitUntilCalled(int count, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            lock (_gate) if (_durations.Count >= count) return true;
+            Thread.Sleep(10);
+        }
+        lock (_gate) return _durations.Count >= count;
+    }
+    public void Release()
+    {
+        if (_release.CurrentCount <= 0) _release.Release();
     }
 }
 
@@ -4678,6 +5646,55 @@ sealed class FakeIndyCarApiClient(IndyCarTimingPayload payload) : IIndyCarApiCli
 {
     public Task<IndyCarTimingPayload> GetTimingAsync(CancellationToken cancellationToken) =>
         Task.FromResult(new IndyCarTimingPayload((JsonObject)payload.Data.DeepClone(), payload.LastModified));
+    public void Dispose() { }
+}
+
+/// <summary>The live feed endpoint: every request answers with the same body unless it is told to fail.</summary>
+sealed class NascarFakeHttp(string path, string body) : HttpMessageHandler
+{
+    public int LiveCalls { get; private set; }
+    public bool FailLiveFeed { get; set; }
+    public string Body { get; set; } = body;
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        if (!request.RequestUri!.AbsolutePath.EndsWith(path, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Unexpected request to {request.RequestUri}.");
+        LiveCalls++;
+        if (FailLiveFeed) throw new HttpRequestException("relay refused");
+        return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(Body) });
+    }
+}
+
+sealed class FakeNascarScheduleClient(JsonArray? races) : INascarScheduleClient
+{
+    private readonly Lock _gate = new();
+    private readonly List<(int Year, int SeriesId, int? RaceId)> _weekendRequests = [];
+    public int Calls { get; private set; }
+    /// <summary>Per-series race lists; a series not listed answers with the shared list.</summary>
+    public Dictionary<int, JsonArray?> BySeries { get; } = [];
+    /// <summary>Weekend feeds by race id; an id not listed has no published weekend feed.</summary>
+    public Dictionary<int, JsonObject> Weekends { get; } = [];
+    public IReadOnlyList<(int Year, int SeriesId, int? RaceId)> WeekendRequests
+    {
+        get { lock (_gate) return _weekendRequests.ToArray(); }
+    }
+    /// <summary>The number of race-list requests still to fail, simulating a transport error.</summary>
+    public int FailRaceLists { get; set; }
+    public Task<JsonArray?> GetRaceListAsync(int seriesId, int year, CancellationToken cancellationToken)
+    {
+        Calls++;
+        if (FailRaceLists > 0)
+        {
+            FailRaceLists--;
+            throw new HttpRequestException("schedule unavailable");
+        }
+        return Task.FromResult(BySeries.TryGetValue(seriesId, out var own) ? own : races);
+    }
+    public Task<JsonObject?> GetWeekendFeedAsync(int year, int seriesId, int? raceId, CancellationToken cancellationToken)
+    {
+        lock (_gate) _weekendRequests.Add((year, seriesId, raceId));
+        return Task.FromResult(raceId is { } id && Weekends.TryGetValue(id, out var feed) ? feed : null);
+    }
     public void Dispose() { }
 }
 

@@ -1,0 +1,57 @@
+{
+  "lap_number": 1,
+  "elapsed_time": 96.443,
+  "flag_state": 0,
+  "laps_in_race": 999,
+  "laps_to_go": 0,
+  "run_name": "DAYTONA 500 Practice 1",
+  "series_id": 1,
+  "track_name": "Daytona International Speedway",
+  "run_type": 1,
+  "stage": { "stage_num": 1, "finish_at_lap": 0, "laps_in_stage": 99 },
+  "time_of_day_os": "2026-10-20T15:12:08.006000-04:00",
+  "vehicles": [
+    {
+      "running_position": 1,
+      "vehicle_number": "12",
+      "vehicle_manufacturer": "Frd",
+      "driver": {
+        "full_name": "Ryan Blaney",
+        "first_name": "Ryan",
+        "last_name": "Blaney",
+        "is_in_chase": true
+      },
+      "laps_completed": 1,
+      "best_lap_time": 46.912,
+      "last_lap_time": 46.912,
+      "best_lap_speed": 191.933,
+      "delta": 0,
+      "starting_position": 6,
+      "status": 1,
+      "is_on_track": true,
+      "is_on_dvp": false,
+      "sponsor_name": "Menards"
+    },
+    {
+      "running_position": 2,
+      "vehicle_number": "43",
+      "vehicle_manufacturer": "Tyt",
+      "driver": {
+        "full_name": "Erik Jones",
+        "first_name": "Erik",
+        "last_name": "Jones",
+        "is_in_chase": false
+      },
+      "laps_completed": 0,
+      "best_lap_time": null,
+      "last_lap_time": null,
+      "best_lap_speed": null,
+      "delta": null,
+      "starting_position": 19,
+      "status": 1,
+      "is_on_track": false,
+      "is_on_dvp": false,
+      "sponsor_name": "Family Dollar"
+    }
+  ]
+}

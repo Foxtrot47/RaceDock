@@ -30,22 +30,17 @@ internal static class ChampionshipLogo
         [Championship.Imsa] = "imsa",
         [Championship.Dtm] = "dtm",
         [Championship.IndyCar] = "indycar",
+        [Championship.NascarCup] = "nascar",
+        [Championship.NascarXfinity] = "nascar",
+        [Championship.NascarTrucks] = "nascar",
     };
 
-    private static readonly HashSet<Championship> WideArtwork =
+    // These championships currently have no wide asset; all others use wide artwork by default.
+    private static readonly HashSet<Championship> CompactArtwork =
     [
-        Championship.Formula1,
-        Championship.Formula2,
-        Championship.Formula3,
-        Championship.MotoGp,
-        Championship.WorldRallyChampionship,
-        Championship.GtWorldChallengeEurope,
-        Championship.WorldEnduranceChampionship,
-        Championship.EuropeanLeMansSeries,
-        Championship.MichelinLeMansCup,
-        Championship.Imsa,
-        Championship.Dtm,
-        Championship.IndyCar
+        Championship.FormulaE,
+        Championship.Moto2,
+        Championship.Moto3
     ];
 
     private static readonly HashSet<Championship> MonochromeArtwork =
@@ -63,13 +58,28 @@ internal static class ChampionshipLogo
         Championship.Dtm
     ];
 
-    private static readonly Dictionary<(Championship Championship, bool Light), ImageSource?> Cache = [];
+    // Taskbar artwork defaults to the wide mark; only championships with an explicit override use compact artwork.
+    private static readonly HashSet<Championship> CompactTaskbarArtwork =
+    [
+        Championship.NascarCup,
+        Championship.NascarXfinity,
+        Championship.NascarTrucks
+    ];
 
-    public static FrameworkElement Create(Championship championship, double width, double height)
+    private static readonly Dictionary<(Championship Championship, bool Light, bool Wide), ImageSource?> Cache = [];
+
+    public static FrameworkElement Create(Championship championship, double width, double height) =>
+        Create(championship, width, height, useWideArtwork: true);
+
+    public static FrameworkElement CreateTaskbar(Championship championship, double width, double height) =>
+        Create(championship, width, height, useWideArtwork: !CompactTaskbarArtwork.Contains(championship));
+
+    private static FrameworkElement Create(Championship championship, double width, double height, bool useWideArtwork)
     {
-        var light = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark
-            && MonochromeArtwork.Contains(championship);
-        if (Load(championship, light) is { } artwork)
+        var light = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark &&
+            (MonochromeArtwork.Contains(championship) ||
+             useWideArtwork && championship is (Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks));
+        if (Load(championship, light, useWideArtwork) is { } artwork)
         {
             var image = new Image { Source = artwork, Width = width, Height = height, Stretch = Stretch.Uniform };
             RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
@@ -89,26 +99,29 @@ internal static class ChampionshipLogo
         return fallback;
     }
 
-    private static ImageSource? Load(Championship championship, bool light)
+    private static ImageSource? Load(Championship championship, bool light, bool useWideArtwork)
     {
-        var key = (championship, light);
+        var key = (championship, light, useWideArtwork);
         if (Cache.TryGetValue(key, out var cached)) return cached;
         ImageSource? artwork = null;
         if (Assets.TryGetValue(championship, out var asset))
         {
             try
             {
-                var suffix = WideArtwork.Contains(championship) ? "-wide" : "";
+                var suffix = useWideArtwork && !CompactArtwork.Contains(championship) ? "-wide" : "";
+                var file = light && asset == "nascar" && suffix == "-wide"
+                    ? "nascar-wide-dark"
+                    : $"{asset}{suffix}";
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
-                bitmap.UriSource = new Uri($"pack://application:,,,/Assets/ChampionshipLogos/{asset}{suffix}.png");
+                bitmap.UriSource = new Uri($"pack://application:,,,/Assets/ChampionshipLogos/{file}.png");
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.EndInit();
                 bitmap.Freeze();
                 BitmapSource source = FlatBackgroundArtwork.Contains(championship)
                     ? RemoveFlatBackground(bitmap)
                     : bitmap;
-                artwork = light ? LightSilhouette(source) : source;
+                artwork = light && !(asset == "nascar" && suffix == "-wide") ? LightSilhouette(source) : source;
             }
             catch (Exception failure) when (failure is IOException or NotSupportedException or UriFormatException)
             {

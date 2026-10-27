@@ -120,7 +120,7 @@ public sealed record ChampionshipDisplaySettings
             FlyoutShowTyre = false,
             FlyoutShowSectorTimes = false
         },
-        Championship.IndyCar => this with { FlyoutShowSectorTimes = false, FlyoutShowSplitTimes = false },
+        Championship.IndyCar or Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks => this with { FlyoutShowSectorTimes = false, FlyoutShowSplitTimes = false },
         Championship.Formula1 => this with { FlyoutShowSplitTimes = false },
         _ => this with { FlyoutShowSectorTimes = false, FlyoutShowSplitTimes = false }
     }) with { FlyoutShowEnergy = championship == Championship.WorldEnduranceChampionship && FlyoutShowEnergy };
@@ -152,6 +152,9 @@ public sealed record ChampionshipDisplayProfiles
     public ChampionshipDisplaySettings FormulaE { get; init; } = new();
     public ChampionshipDisplaySettings Dtm { get; init; } = new();
     public ChampionshipDisplaySettings IndyCar { get; init; } = new();
+    public ChampionshipDisplaySettings NascarCup { get; init; } = new();
+    public ChampionshipDisplaySettings NascarXfinity { get; init; } = new();
+    public ChampionshipDisplaySettings NascarTrucks { get; init; } = new();
 
     public ChampionshipDisplaySettings For(Championship championship) => (championship switch
     {
@@ -169,6 +172,9 @@ public sealed record ChampionshipDisplayProfiles
         Championship.FormulaE => FormulaE,
         Championship.Dtm => Dtm,
         Championship.IndyCar => IndyCar,
+        Championship.NascarCup => NascarCup,
+        Championship.NascarXfinity => NascarXfinity,
+        Championship.NascarTrucks => NascarTrucks,
         _ => Formula1
     }) ?? new();
 
@@ -189,6 +195,9 @@ public sealed record ChampionshipDisplayProfiles
             Championship.FormulaE => this with { FormulaE = settings },
             Championship.Dtm => this with { Dtm = settings },
             Championship.IndyCar => this with { IndyCar = settings },
+            Championship.NascarCup => this with { NascarCup = settings },
+            Championship.NascarXfinity => this with { NascarXfinity = settings },
+            Championship.NascarTrucks => this with { NascarTrucks = settings },
             _ => this with { Formula1 = settings }
         };
 
@@ -208,7 +217,10 @@ public sealed record ChampionshipDisplayProfiles
         Imsa = (Imsa ?? new()).Normalize(),
         FormulaE = (FormulaE ?? new()).Normalize(),
         Dtm = (Dtm ?? new()).Normalize(),
-        IndyCar = (IndyCar ?? new()).Normalize()
+        IndyCar = (IndyCar ?? new()).Normalize(),
+        NascarCup = (NascarCup ?? new()).Normalize(),
+        NascarXfinity = (NascarXfinity ?? new()).Normalize(),
+        NascarTrucks = (NascarTrucks ?? new()).Normalize()
     };
 
     internal static ChampionshipDisplayProfiles Create(ChampionshipDisplaySettings settings) => new()
@@ -227,7 +239,10 @@ public sealed record ChampionshipDisplayProfiles
         Imsa = settings,
         FormulaE = settings,
         Dtm = settings,
-        IndyCar = settings
+        IndyCar = settings,
+        NascarCup = settings,
+        NascarXfinity = settings,
+        NascarTrucks = settings
     };
 }
 
@@ -242,6 +257,9 @@ public sealed record UserSettings
         Championship.FormulaE,
         Championship.Dtm,
         Championship.IndyCar,
+        Championship.NascarCup,
+        Championship.NascarXfinity,
+        Championship.NascarTrucks,
         Championship.MotoGp,
         Championship.Moto2,
         Championship.Moto3,
@@ -263,6 +281,9 @@ public sealed record UserSettings
         Championship.Moto3,
         Championship.Dtm,
         Championship.IndyCar,
+        Championship.NascarCup,
+        Championship.NascarXfinity,
+        Championship.NascarTrucks,
         Championship.EuropeanLeMansSeries,
         Championship.MichelinLeMansCup
     ];
@@ -283,6 +304,9 @@ public sealed record UserSettings
     public bool EnableFormulaE { get; init; }
     public bool EnableDtm { get; init; }
     public bool EnableIndyCar { get; init; }
+    public bool EnableNascarCup { get; init; }
+    public bool EnableNascarXfinity { get; init; }
+    public bool EnableNascarTrucks { get; init; }
     public int RotationSeconds { get; init; } = 5;
     public int CompletedSessionRetentionMinutes { get; init; } = 5;
     public int DriverCount { get; init; } = 5;
@@ -334,6 +358,9 @@ public sealed record UserSettings
         Championship.FormulaE => EnableFormulaE,
         Championship.Dtm => EnableDtm,
         Championship.IndyCar => EnableIndyCar,
+        Championship.NascarCup => EnableNascarCup,
+        Championship.NascarXfinity => EnableNascarXfinity,
+        Championship.NascarTrucks => EnableNascarTrucks,
         _ => false
     };
 
@@ -354,10 +381,13 @@ public sealed record UserSettings
         Championship.FormulaE => this with { EnableFormulaE = false },
         Championship.Dtm => this with { EnableDtm = false },
         Championship.IndyCar => this with { EnableIndyCar = false },
+        Championship.NascarCup => this with { EnableNascarCup = false },
+        Championship.NascarXfinity => this with { EnableNascarXfinity = false },
+        Championship.NascarTrucks => this with { EnableNascarTrucks = false },
         _ => this
     };
 
-    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 || EnableMoto3 || EnableGtWorldChallengeEurope || EnableWec || EnableElms || EnableMichelinLeMansCup || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar;
+    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 || EnableMoto3 || EnableGtWorldChallengeEurope || EnableWec || EnableElms || EnableMichelinLeMansCup || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar || EnableNascarCup || EnableNascarXfinity || EnableNascarTrucks;
     public ChampionshipDisplaySettings DisplayFor(Championship championship) =>
         (ChampionshipDisplay ?? ChampionshipDisplayProfiles.Create(ChampionshipDisplaySettings.FromLegacy(this)))
         .For(championship)
@@ -388,7 +418,7 @@ public sealed class UserSettingsStore(string? path = null, string? legacyPath = 
 {
     private readonly string? _legacyPath = legacyPath;
     /// <summary>Raise it when a stored field needs migrating.</summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -447,11 +477,20 @@ public sealed class UserSettingsStore(string? path = null, string? legacyPath = 
 
     private static UserSettings Upgrade(UserSettings settings)
     {
-        if (settings.Version >= 2 || settings.HiddenChampionships is null) return settings;
+        if (settings.Version >= CurrentVersion || settings.HiddenChampionships is null) return settings;
         var hidden = settings.HiddenChampionships.ToHashSet();
-        hidden.Add(Championship.EuropeanLeMansSeries);
-        hidden.Add(Championship.MichelinLeMansCup);
-        return settings with { Version = 2, HiddenChampionships = [.. hidden] };
+        // Version 2 added the two Le Mans series; version 3 adds the three NASCAR series.
+        // A championship that appeared after the file was written starts hidden, so an existing install
+        // never begins polling it unasked.
+        if (settings.Version < 2)
+        {
+            hidden.Add(Championship.EuropeanLeMansSeries);
+            hidden.Add(Championship.MichelinLeMansCup);
+        }
+        hidden.Add(Championship.NascarCup);
+        hidden.Add(Championship.NascarXfinity);
+        hidden.Add(Championship.NascarTrucks);
+        return settings with { Version = CurrentVersion, HiddenChampionships = [.. hidden] };
     }
 
     /// <summary>Moves the unreadable file aside and returns where it went, or null if it could not be kept.</summary>

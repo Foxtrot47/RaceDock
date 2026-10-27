@@ -22,7 +22,10 @@ public enum Championship
     IndyCar = 12,
     WorldEnduranceChampionship = 13,
     EuropeanLeMansSeries = 14,
-    MichelinLeMansCup = 15
+    MichelinLeMansCup = 15,
+    NascarCup = 16,
+    NascarXfinity = 17,
+    NascarTrucks = 18
 }
 public enum TrackCondition { Unknown, AllClear, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, RedFlag, FullCourseYellow }
 public enum SectorTimingState { None, OverallBest, PersonalBest, Slower }
@@ -64,6 +67,12 @@ public sealed record CompetitorStanding(
     public CarTyres? CurrentTyres { get; init; }
     public int? TyreAge { get; init; }
     public double? VirtualEnergyPercent { get; init; }
+
+    /// <summary>
+    /// Whether the championship counts this competitor as playoff-eligible (NASCAR's <c>is_in_chase</c>).
+    /// Null when the feed publishes no such field, so an absent flag never reads as "not eligible".
+    /// </summary>
+    public bool? IsPlayoffEligible { get; init; }
 }
 
 /// <summary>Which lap time a session is judged on: the best lap set, or the most recent one.</summary>
@@ -82,6 +91,14 @@ public sealed record TimingSnapshot(
 {
     public string? SessionShortName { get; init; }
     public IReadOnlyList<RallySplitPoint> StageSplitPoints { get; init; } = [];
+
+    /// <summary>
+    /// The stage being run (NASCAR's <c>stage.stage_num</c>) and, when the feed publishes it, the lap that
+    /// stage ends on and its length. All three stay null outside a series that runs stages.
+    /// </summary>
+    public int? StageNumber { get; init; }
+    public int? StageFinishLap { get; init; }
+    public int? StageLength { get; init; }
 
     public static TimingSnapshot Hidden(DateTimeOffset now) =>
         new("", "", "", 0, null, TrackCondition.Unknown, [], now, SessionLifecycle.OffSession, ConnectionState.Disconnected);

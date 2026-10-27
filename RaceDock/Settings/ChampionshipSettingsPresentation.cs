@@ -58,6 +58,7 @@ internal sealed record ChampionshipSettingsPresentation
         Championship.FormulaE => FormulaE(),
         Championship.Dtm => Dtm(),
         Championship.IndyCar => IndyCar(),
+        Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks => Nascar(),
         _ => Circuit("the championship", "competitors", "Competitor", "team", showManufacturer: false, showTyres: false)
     };
 
@@ -126,6 +127,20 @@ internal sealed record ChampionshipSettingsPresentation
         "Lap",
         "Show each driver's completed lap count.",
         "Show pit, running, retirement, and classification status.");
+
+    private static ChampionshipSettingsPresentation Nascar() => Common(
+        "drivers",
+        "Driver",
+        "Team logos",
+        "Replace position cards with official NASCAR Cup team marks when available.",
+        "Team names",
+        "Show each driver's team.",
+        "Show NASCAR Cup team marks beside drivers.",
+        "Best lap",
+        "Show each driver's best lap time.",
+        "Playoff",
+        "Show which drivers are eligible for the NASCAR Cup playoffs.",
+        "Show running, damaged-vehicle, and out status.");
 
     private static ChampionshipSettingsPresentation Moto(string championship) => Common(
         "riders",

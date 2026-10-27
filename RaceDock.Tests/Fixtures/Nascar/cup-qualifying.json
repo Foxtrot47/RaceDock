@@ -1,0 +1,78 @@
+{
+  "lap_number": 2,
+  "elapsed_time": 312.884,
+  "flag_state": 1,
+  "laps_in_race": 999,
+  "laps_to_go": 0,
+  "run_name": "DAYTONA 500 Qualifying",
+  "series_id": 1,
+  "track_name": "Daytona International Speedway",
+  "run_type": 2,
+  "stage": { "stage_num": 1, "finish_at_lap": 0, "laps_in_stage": 99 },
+  "time_of_day_os": "2026-10-21T17:04:41.910000-04:00",
+  "vehicles": [
+    {
+      "running_position": 1,
+      "vehicle_number": "22",
+      "vehicle_manufacturer": "Frd",
+      "driver": {
+        "full_name": "Joey Logano",
+        "first_name": "Joey",
+        "last_name": "Logano",
+        "is_in_chase": false
+      },
+      "laps_completed": 1,
+      "best_lap_time": 47.204,
+      "last_lap_time": 47.204,
+      "best_lap_speed": 190.747,
+      "delta": 0,
+      "starting_position": 1,
+      "status": 1,
+      "is_on_track": true,
+      "is_on_dvp": false,
+      "sponsor_name": "Shell Pennzoil"
+    },
+    {
+      "running_position": 2,
+      "vehicle_number": "8",
+      "vehicle_manufacturer": "Chv",
+      "driver": {
+        "full_name": "Kyle Busch",
+        "first_name": "Kyle",
+        "last_name": "Busch",
+        "is_in_chase": false
+      },
+      "laps_completed": 1,
+      "best_lap_time": 47.351,
+      "last_lap_time": 47.351,
+      "best_lap_speed": 190.155,
+      "delta": 0.147,
+      "starting_position": 2,
+      "status": 1,
+      "is_on_track": true,
+      "is_on_dvp": false,
+      "sponsor_name": "Zone Nicotine Pouches"
+    },
+    {
+      "running_position": 3,
+      "vehicle_number": "1",
+      "vehicle_manufacturer": "Chv",
+      "driver": {
+        "full_name": "Ross Chastain",
+        "first_name": "Ross",
+        "last_name": "Chastain",
+        "is_in_chase": false
+      },
+      "laps_completed": 0,
+      "best_lap_time": null,
+      "last_lap_time": null,
+      "best_lap_speed": null,
+      "delta": null,
+      "starting_position": 3,
+      "status": 1,
+      "is_on_track": false,
+      "is_on_dvp": false,
+      "sponsor_name": "Busch Light"
+    }
+  ]
+}
