@@ -111,7 +111,9 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
     {
         if (_hwnd == IntPtr.Zero || !GetWindowRect(_hwnd, out var widget) || widget.Right <= widget.Left) return;
         var flyoutHwnd = new WindowInteropHelper(flyout).EnsureHandle();
-        if (!GetWindowRect(flyoutHwnd, out var flyoutRect) || !GetWindowRect(FindWindow("Shell_TrayWnd", null), out var taskbar)) return;
+        var taskbarHwnd = FindWindow("Shell_TrayWnd", null);
+        if (taskbarHwnd == IntPtr.Zero || !GetWindowRect(flyoutHwnd, out var flyoutRect) ||
+            !GetWindowRect(taskbarHwnd, out var taskbar)) return;
         var width = flyoutRect.Right - flyoutRect.Left; var height = flyoutRect.Bottom - flyoutRect.Top;
         var x = widget.Left + ((widget.Right - widget.Left) - width) / 2;
         x = Math.Clamp(x, taskbar.Left + 8, Math.Max(taskbar.Left + 8, taskbar.Right - width - 8));
@@ -120,8 +122,9 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
         var scale = flyout.ActualHeight > 0 ? height / flyout.ActualHeight : 1.0;
         var offset = (int)Math.Round(slideOffset * scale);
         var taskbarIsAtTop = taskbar.Top <= 0;
-        var rest = taskbarIsAtTop ? taskbar.Bottom + 8 : taskbar.Top - height - 8;
-        var y = taskbarIsAtTop ? rest - offset : rest + offset;
+        var y = taskbarIsAtTop
+            ? WorkAreaBottom(taskbarHwnd, taskbar) - height - 8 - offset
+            : taskbar.Top - height - 8 + offset;
         SetWindowPos(flyoutHwnd, IntPtr.Zero, x, y, width, height, SwpNoZOrder | SwpNoActivate | SwpShowWindow);
     }
 
@@ -222,10 +225,26 @@ internal sealed class NativeTaskbar(System.Windows.Window window)
         return IntPtr.Zero;
     }
 
+    private static int WorkAreaBottom(IntPtr taskbar, Rect fallback)
+    {
+        var monitor = MonitorFromWindow(taskbar, 2);
+        var info = new MonitorInfo { Size = (uint)Marshal.SizeOf<MonitorInfo>() };
+        return monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref info) ? info.Work.Bottom : fallback.Bottom;
+    }
+
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo
+    {
+        public uint Size;
+        public Rect Monitor;
+        public Rect Work;
+        public uint Flags;
+    }
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string className, string? title);
     [DllImport("user32.dll")] private static extern IntPtr SetParent(IntPtr child, IntPtr parent);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+    [DllImport("user32.dll", SetLastError = true)] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
     [DllImport("user32.dll")] private static extern IntPtr GetParent(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern int MapWindowPoints(IntPtr from, IntPtr to, ref Point point, uint count);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
