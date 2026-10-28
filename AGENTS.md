@@ -99,7 +99,11 @@ Plasma package:
 - `RaceDock.Plasma/package/contents/ui/RaceDockClient.qml`
   - Polling D-Bus client and JSON parsing.
 - `RaceDock.Plasma/package/contents/ui/CompactWidget.qml`
-  - Panel strip: live cells, alerts/flags, idle next-session state.
+  - Panel strip with the Windows taskbar geometry: a 40 px strip, a left context column
+    (100 px two-row, 150 px single-row) carrying the event/flag/progress, and competitor cells to
+    the right. Idle mode shows the next session instead.
+- `RaceDock.Plasma/package/contents/ui/MarqueeText.qml`
+  - Single-line label that scrolls when the text is wider than its slot, used for the event name.
 - `RaceDock.Plasma/package/contents/ui/FlyoutPanel.qml`
   - Shared flyout body: header, table header, classification list, schedule state, footer, pin/close.
 - `RaceDock.Plasma/package/contents/ui/ClassificationRow.qml`
@@ -107,15 +111,24 @@ Plasma package:
 - `RaceDock.Plasma/package/contents/ui/ScheduleView.qml`
   - "Next on track" schedule state.
 - `RaceDock.Plasma/package/contents/ui/SettingsCatalog.qml`
-  - Championship keys/labels and column keys/flags shared by the config pages.
+  - Championship keys/labels, each championship's `UserSettings` power switch (`enableKey`), and
+    column keys/flags shared by the config pages.
+- `RaceDock.Plasma/package/contents/ui/ConfigSettingsBase.qml`
+  - Shared settings plumbing: load the complete document, edit a deep copy, apply it whole, and
+    restore defaults.
 - `RaceDock.Plasma/package/contents/ui/ConfigGeneral.qml`
-  - Config page: championships, rotation, retention, competitor counts, idle/animations, restore defaults.
-- `RaceDock.Plasma/package/contents/ui/ConfigColumns.qml`
-  - Config page: per-championship column order and visibility.
-- `RaceDock.Plasma/package/contents/ui/ConfigDeveloper.qml`
-  - Config page: start the test scenario, return to live timing, refresh the calendar.
+  - Config page: rotation, retention, competitor counts, single-row mode, idle/animations, logos,
+    restore defaults.
+- `RaceDock.Plasma/package/contents/ui/ConfigChampionshipPage.qml`
+  - Per-championship page: live-timing power switch, widget/flyout options, and column order and
+    visibility.
+- `RaceDock.Plasma/package/contents/ui/ConfigChampionship*.qml`
+  - Fifteen static wrappers, one per championship, over `ConfigChampionshipPage.qml`.
+- `RaceDock.Plasma/package/contents/ui/ConfigTesting.qml`
+  - Testing page: start the test scenario, return to live timing, replay an archive, refresh the
+    calendar.
 - `RaceDock.Plasma/package/contents/config/config.qml`
-  - `ConfigModel` that lists the General, Columns, and Developer pages.
+  - `ConfigModel` that lists General, the fifteen championship pages, and Testing.
 - `RaceDock.Plasma/package/contents/config/main.xml`
   - Placeholder config group so the Configure action exists; it is not the settings source.
 - `RaceDock.Plasma/tests/Test.qml`
@@ -145,7 +158,7 @@ Packaging and CI:
 ### Done
 
 - Confirmed `RaceDock.Core` is cross-platform and built it on Linux.
-- Full suite is green on Linux: **139/139** (122 original + 9 presentation + 8 session tests).
+- Full suite is green on Linux: **140/140** (122 original + 10 presentation + 8 session tests).
 - Created the D-Bus sidecar and verified every method (`Ping`, `GetWidgetState`, `GetFlyoutState`, `GetSettings`, `ApplySettings`, `Command`) on an isolated session bus.
 - Added shared presentation DTOs, presentation builder, and headless `RaceDockSession`.
 - Added service CLI: `--scenario`, `--archive`, `--settings`, `--log-folder`, `--dump-feed`, `--timezone`, `--paused`, `--print-state`, `--print-delay`.
@@ -153,14 +166,19 @@ Packaging and CI:
 - Added Escape-to-close, accessible names for pin/close/compact, configure buttons in both flyout hosts, and WEC wheel cells with tooltips.
 - Hardened `RaceDockSession`: coalesced `StateChanged` dispatch outside the source-switch semaphore, fallback-source cleanup, idempotent disposal, hide-championship snapshot clearing, and error payloads for commands after shutdown.
 - Made `--print-state` wait for the first non-hidden snapshot instead of sleeping for a fixed delay.
-- Added the settings UI: `config.qml`, `ConfigGeneral.qml`, `ConfigColumns.qml`, `ConfigDeveloper.qml`, and
+- Added the settings UI: `config.qml`, `ConfigSettingsBase.qml`, `ConfigGeneral.qml`,
+  `ConfigChampionshipPage.qml` with fifteen championship wrappers, `ConfigTesting.qml`, and
   `SettingsCatalog.qml`; `resetSettings` restores Core defaults.
 - Added packaging: `scripts/install-linux.sh`, `scripts/uninstall-linux.sh`, `scripts/linux/racedock-service`, D-Bus activation, and an optional systemd user unit.
 - Verified install → wrapper → `--print-state`, D-Bus activation, `kpackagetool6 --install`, and the generated activation file in a throwaway XDG prefix.
-- Verified the QML client and all three config pages against a running sidecar with `qmltestrunner`: live
-  state, settings round-trip, pause, column reorder, defaults reset, and the developer page's calendar
-  refresh all pass.
+- Verified the QML client and the config pages against a running sidecar with `qmltestrunner`: live
+  state, settings round-trip, pause, column reorder, defaults reset, championship power switches, and
+  the Testing page's calendar refresh all pass.
 - Added the Linux CI workflow (`.github/workflows/linux.yml`) and a Linux README section.
+- Aligned the flyout with the Windows design (2026-10-25): status chip lives in the header (no
+  footer), the header is one row with the event name marquee and the session info under it, sector
+  columns get individual S1/S2/S3 headers, tyre badges pick text colour by luminance, and manufacturer
+  logos render in the widget cells and beside flyout driver names.
 - Validated archive replay through the service with a synthetic F1 `.ndjson` dump: classification, gaps,
   tyre ages, sectors/mini-sectors, yellow → clear → chequered transitions, and scenario ↔ archive switching.
 - Confirmed the live service connects the enabled feeds (F1, GTWC, WEC, WRC) and fills the idle
@@ -173,14 +191,29 @@ Packaging and CI:
 - Replayed a recorded WEC fixture through `--archive` and confirmed the energy column renders
   (`83%` good → `15%` low red) along with WEC wheel ages.
 - Added `RaceDock.Plasma/tests/Screenshots.qml` and reviewed every surface as a PNG with the offscreen
-  platform: live/idle/flags on the panel strip, live/schedule/sector/energy flyouts, and the three
-  config pages. This verifies layout, column alignment, colour coding, and content, but not panel
-  integration or the pinned dialog.
-- Implemented the Windows single-row panel mode in `CompactWidget.qml` (`display.singleRow`): the
-  position card folds into the driver line as `position code interval`, the event line becomes
-  `event · progress`, the context block widens 100 → 150, and the idle strip puts headline and detail
-  side by side and sizes itself (`idleWidth`, clamped 248–520). The flag chip is now a shared inline
-  `FlagChip` component used by both context layouts.
+  platform: live/idle/flags on the panel strip, live/schedule/sector/energy flyouts, a scrolled
+  20-row archive flyout, and the General, Formula 1, WEC, and Testing config pages. This verifies
+  layout, column alignment, colour coding, and content, but not panel integration or the pinned
+  dialog.
+- Rebuilt the two-row panel strip to the Windows taskbar geometry (2026-10-29): a 40 px strip, a
+  100 px left context column (event + flag above, progress below), and competitor cells to the
+  right. Single-row mode widens the context column to 150 px, folds `position code interval` into
+  the driver line, and hides the manufacturer marker; two-row mode keeps the logo or gradient
+  position tile. Fixed a `ColumnLayout` bug where two `fillHeight` rows with different implicit
+  heights collapsed the event row to 2 px, and made `MarqueeText` report an implicit height and
+  restart its scroll when the text changes. The idle strip sizes itself (`idleWidth`, 248–520 px)
+  and the inline `FlagChip` is shared by both context layouts.
+- Reworked the settings UI into per-championship pages (`ConfigChampionshipPage.qml` plus fifteen
+  wrappers) over a shared `ConfigSettingsBase.qml`, with General and Testing pages. The
+  championship master switch now writes the real `UserSettings` flag via
+  `SettingsCatalog.enableKeyFor` (`enableWec`, `enableElms`, `enableWrc`, …), which fixes ELMS/WEC/WRC
+  staying unfetched after being "enabled".
+- Added `ManufacturerLogos` coverage to `RaceDock.Tests`: exact aliases, case/punctuation/diacritic
+  folding, substring fallback, unknown → null, the embedded manifest, and the builder's
+  manufacturer-before-team fallback.
+- Isolated the QML harnesses from the real settings file: `Test.qml`, `Screenshots.qml`,
+  `Startup.qml`, and `Reconnect.qml` all document and use `--settings`, so a test run can no longer
+  reset `~/.local/share/RaceDock/settings.json`.
 - Captured the single-row strip offscreen with the scenario service and the real F1 replay, with and
   without a yellow flag, plus a WEC-only idle single-row strip.
 - Captured the flyout with a yellow track condition, confirming the header badge renders from
@@ -192,7 +225,9 @@ Packaging and CI:
 ### In progress
 
 - Visual verification of the applet inside a real Plasma panel and the pinned `PlasmaCore.Dialog` host.
-  Component-level rendering has been reviewed offscreen.
+  Component-level rendering has been reviewed offscreen, and the strip/flyout/flags/sectors/scrolling
+  were captured on a real Xvfb Plasma session (2026-10-24). The pinned dialog drag, the config dialog
+  on a real panel, and vertical panels are still unverified.
 
 ### Blocked / unverified
 
@@ -246,7 +281,6 @@ Packaging and CI:
 
 - [x] Add `RaceDock.Plasma/package/contents/config/config.qml`.
 - [x] Add `ConfigGeneral.qml` with:
-  - enabled championships
   - rotation interval
   - completed-session retention
   - taskbar competitor count (1–5)
@@ -254,13 +288,18 @@ Packaging and CI:
   - single-row panel mode
   - animations
   - show next session when idle
-  - position colors
   - manufacturer logos
-- [x] Add a column configuration page (`ConfigColumns.qml`) with per-championship order and visibility.
+  - restore defaults
+- [x] Add a per-championship page (`ConfigChampionshipPage.qml`, with fifteen static wrappers) for
+  the live-timing power switch, widget/flyout options, position colours, sector mode, and column
+  order and visibility.
+- [x] Map each championship key to its real `UserSettings` power switch (`enableWec`, `enableElms`,
+  `enableWrc`, …) in `SettingsCatalog.enableKeyFor`; a name derived from the enum key silently left
+  WEC/ELMS/WRC unfetched.
 - [x] Load the complete settings JSON from `GetSettings`, mutate a copy, and send the complete object through `ApplySettings`.
 - [x] Add a recoverable "Restore defaults" path (`resetSettings` command).
-- [x] Add a "Test scenario / return to live" developer action, ideally hidden behind a settings or debug control.
-  It lives on the **Developer** page (`ConfigDeveloper.qml`), together with a calendar refresh.
+- [x] Add a "Test scenario / return to live" action on the **Testing** page (`ConfigTesting.qml`),
+  together with archive replay and a calendar refresh.
 - [x] Wire the flyout's configure button to `Plasmoid.internalAction("configure").trigger()`.
 
 ### Phase 4 — Plasma UI completion
@@ -459,18 +498,23 @@ point it at a scenario, an archive, or a live service depending on what you want
 ```bash
 mkdir -p /tmp/racedock-shots && cd /tmp/racedock-shots
 dbus-run-session -- bash -lc '
-  dotnet "$OLDPWD/RaceDock.Linux/bin/Debug/net10.0/racedock-service.dll" --scenario --paused &
+  dotnet "$OLDPWD/RaceDock.Linux/bin/Debug/net10.0/racedock-service.dll" --scenario --paused \
+    --settings /tmp/racedock-shots/settings.json &
   sleep 3
   QT_QPA_PLATFORM=offscreen qmltestrunner -input "$OLDPWD/RaceDock.Plasma/tests/Screenshots.qml"
 '
 ```
 
+Always pass `--settings`: the harness applies settings, and without it the captures overwrite the
+real `~/.local/share/RaceDock/settings.json`.
+
 It writes `panel.png`, `panel-yellow.png`, `panel-redflag.png`, `panel-single-row.png`,
 `panel-single-row-yellow.png`, `flyout.png`, `flyout-yellow.png`, `flyout-sectors.png`,
-`flyout-scrolled.png` (only for a source with a long classification), `config-general.png`,
-`config-columns.png`, and `config-developer.png`. The offscreen platform has no Breeze style, so
-colours come from Kirigami's fallback theme; these captures check layout and content, not the exact
-Plasma palette.
+`flyout-scrolled.png` (only for a source with a long classification; the scenario has six rows, so
+use an archive for this one), `config-general.png`, `config-championships.png`,
+`config-championships-wec.png`, and `config-testing.png`. The offscreen platform has no Breeze style,
+so colours come from Kirigami's fallback theme; these captures check layout and content, not the
+exact Plasma palette.
 
 Install from the checkout:
 
@@ -513,10 +557,11 @@ kpackagetool6 --type Plasma/Applet --upgrade RaceDock.Plasma/package
 - **Polling is intentional:** do not block on the absence of D-Bus signals in QML. Keep the 1s compact
   poll and the 750ms flyout poll unless the transport changes. Set `pollWidget: false` for config pages.
 - **Panel width is user-visible:** `CompactWidget` exposes `Layout.preferredWidth` derived from
-  `display.competitorCount`; changing it requires re-checking panel layout and overflow. Single-row
-  mode reserves 50 px more for the context block (100 → 150) and 6 px more per cell (68 → 74), caps at
-  620, and keeps a 24 px floor for the driver code so `HAM` survives beside a long interval, mirroring
-  the Windows taskbar. Re-check both display modes when the width formula changes.
+  `display.competitorCount`; changing it requires re-checking panel layout and overflow. Two-row mode
+  is `min(570, 12 + count * 78 + 100)` and single-row is `min(620, 12 + count * 74 + 150)`: the
+  single-row context block reserves 50 px more (100 → 150) and each cell 4 px less (78 → 74), because
+  the position number is inline rather than a tile. Re-check both display modes when the width
+  formula changes.
 - **Single-row is a Core setting, not a QML choice:** `CompactWidget` reads `display.singleRow`
   (serialized from `UserSettings.UseSingleRowTaskbar`). Do not read `plasmoid.configuration` for it, and
   keep the cell detail text in one place (`detailText`) so the two layouts cannot drift.
@@ -531,7 +576,24 @@ kpackagetool6 --type Plasma/Applet --upgrade RaceDock.Plasma/package
   (`worldEnduranceChampionship`, `flyoutShowSectorTimes`). Renaming Core enums requires updating that
   file and the JSON contract tests.
 - **No visual verification yet:** do not mark the Plasma UI complete until it has been seen on an
-  unlocked Plasma/Wayland session at least once.
+  unlocked Plasma/Wayland session at least once. (2026-10-24: verified on Xvfb/X11 and on the user's
+  live WSLg Wayland session via a Windows-side desktop capture; the strip renders idle and live.)
+- **Plasma 6.3 tooltip API:** `Plasmoid.toolTipSubText` no longer exists; set `toolTipMainText`/
+  `toolTipSubText` directly on the `PlasmoidItem` root or the applet fails to load.
+- **Manufacturer logos:** Core resolves team/manufacturer names to asset file names via the embedded
+  `Assets/ManufacturerLogos/manifest.json` alias catalog (`ManufacturerLogos.ResolveAsset`); rows and
+  widget competitors carry `manufacturerLogo`, the flyout carries `showManufacturerLogos`. Artwork
+  ships per front end (WPF `Assets/ManufacturerLogos`, Plasma `contents/ui/logos/`); keep the two
+  asset folders and the Core manifest in sync when logos change.
+- **Config UI parity:** config page strings mirror the Windows settings UI
+  (`ChampionshipSettingsPresentation.cs`, `SettingsDraft.cs` column titles, Testing page wording);
+  `SettingsCatalog.qml` is the ported catalog. Config pages are per championship (15 static wrapper
+  pages over `ConfigChampionshipPage.qml`) plus General and Testing. The taskbar strip mirrors the
+  Windows widget: a small gradient square behind the position number only, competitor cells across
+  the top, and the event line as a full-width second row (single-row mode keeps one line).
+  `viewMode` ("live"/"scenario"/"archive") on the widget/flyout states drives the Testing transport
+  bar; replay is wired through the `archive`/`live` commands. Windows-only cards (sign-in autostart,
+  Mica blur, taskbar position) are intentionally not shown on Plasma.
 
 ## Definition of done
 

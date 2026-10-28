@@ -18,7 +18,8 @@
 //   '
 //
 // A poll against a vanished service must report the outage (connected = false, lastError set) without
-// throwing, and the polls after the replacement takes the name must recover on their own.
+// throwing, and the polls after the replacement takes the name must recover on their own. `--settings`
+// keeps the harness off the real settings file.
 import QtQuick
 import QtTest
 import "../package/contents/ui"

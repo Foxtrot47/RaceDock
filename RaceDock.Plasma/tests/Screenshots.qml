@@ -3,17 +3,24 @@
 // without a Plasma session. Run it from the directory that should receive the images, with a
 // sidecar on the session bus:
 //
+//   mkdir -p /tmp/racedock-shots && cd /tmp/racedock-shots
 //   dbus-run-session -- bash -lc '
-//     dotnet RaceDock.Linux/bin/Debug/net10.0/racedock-service.dll --scenario --paused &
+//     dotnet "$OLDPWD/RaceDock.Linux/bin/Debug/net10.0/racedock-service.dll" \
+//       --scenario --paused --settings /tmp/racedock-shots/settings.json &
 //     sleep 3
-//     mkdir -p /tmp/racedock-shots && cd /tmp/racedock-shots
 //     QT_QPA_PLATFORM=offscreen qmltestrunner -input "$OLDPWD/RaceDock.Plasma/tests/Screenshots.qml"
 //   '
 //
-// The files land in the working directory: panel.png, flyout.png, config-general.png,
-// config-columns.png, config-developer.png. This lives outside contents/, so the package does not
-// ship it. The offscreen platform has no Breeze style, so colours come from Kirigami's fallback
-// theme; the captures verify layout and content, not the exact Plasma palette.
+// Always pass --settings: the harness applies settings, and without it the captures overwrite the
+// user's real ~/.local/share/RaceDock/settings.json.
+//
+// The files land in the working directory: panel.png, panel-yellow.png, panel-redflag.png,
+// panel-single-row.png, panel-single-row-yellow.png, flyout.png, flyout-yellow.png,
+// flyout-sectors.png, flyout-scrolled.png (long classifications only), config-general.png,
+// config-championships.png, config-championships-wec.png, config-testing.png. This lives outside
+// contents/, so the package does not ship it. The offscreen platform has no Breeze style, so colours
+// come from Kirigami's fallback theme; the captures verify layout and content, not the exact Plasma
+// palette.
 import QtQuick
 import QtTest
 import org.kde.kirigami as Kirigami
@@ -76,26 +83,43 @@ TestCase {
         }
 
         Rectangle {
-            id: columnsFrame
+            id: championshipsFrame
             width: 720
-            height: columnsPage.implicitHeight
+            height: championshipsPage.implicitHeight
             color: Kirigami.Theme.backgroundColor
 
-            ConfigColumns {
-                id: columnsPage
+            ConfigChampionshipPage {
+                championship: "formula1"
+                id: championshipsPage
+                width: parent.width
+                height: parent.height
+            }
+        }
+
+        // WEC carries the energy and wheel-age options the other profiles hide, so its page is a
+        // separate capture.
+        Rectangle {
+            id: wecFrame
+            width: 720
+            height: wecPage.implicitHeight
+            color: Kirigami.Theme.backgroundColor
+
+            ConfigChampionshipPage {
+                championship: "worldEnduranceChampionship"
+                id: wecPage
                 width: parent.width
                 height: parent.height
             }
         }
 
         Rectangle {
-            id: developerFrame
+            id: testingFrame
             width: 720
-            height: developerPage.implicitHeight
+            height: testingPage.implicitHeight
             color: Kirigami.Theme.backgroundColor
 
-            ConfigDeveloper {
-                id: developerPage
+            ConfigTesting {
+                id: testingPage
                 width: parent.width
                 height: parent.height
             }
@@ -194,12 +218,14 @@ TestCase {
     function test_render_config_pages() {
         wait(1500);
         verify(generalPage.loaded);
-        verify(columnsPage.loaded);
-        console.log("page heights:", generalPage.implicitHeight, columnsPage.implicitHeight,
-                    developerPage.implicitHeight);
+        verify(championshipsPage.loaded);
+        verify(wecPage.loaded);
+        console.log("page heights:", generalPage.implicitHeight, championshipsPage.implicitHeight,
+                    wecPage.implicitHeight, testingPage.implicitHeight);
         grab(generalFrame, "config-general.png");
-        grab(columnsFrame, "config-columns.png");
-        grab(developerFrame, "config-developer.png");
+        grab(championshipsFrame, "config-championships.png");
+        grab(wecFrame, "config-championships-wec.png");
+        grab(testingFrame, "config-testing.png");
     }
 
     function test_render_scrolled_classification() {

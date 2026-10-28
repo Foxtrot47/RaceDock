@@ -14,7 +14,7 @@
 //   '
 //
 // The polls that run before the service exists must report an outage rather than throw, and the next
-// poll after it takes the name must connect.
+// poll after it takes the name must connect. `--settings` keeps the harness off the real settings file.
 import QtQuick
 import QtTest
 import "../package/contents/ui"
