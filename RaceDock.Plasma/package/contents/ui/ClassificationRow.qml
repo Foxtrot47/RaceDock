@@ -15,11 +15,25 @@ Item {
     property real driverWidth: 180
     property bool animations: true
     property int rowIndex: 0
+    property bool showManufacturerLogos: false
 
     readonly property color textColor: Kirigami.Theme.textColor
     readonly property color mutedColor: Kirigami.Theme.disabledTextColor
     readonly property real totalWidth: 42 + driverWidth
         + columns.reduce((sum, column) => sum + (column.visible ? column.width : 0), 0) + 10
+    readonly property bool logoVisible: showManufacturerLogos && !!row.manufacturerLogo
+
+    /// Compound badges come from the service as saturated colours; light tyres need dark text to
+    /// stay readable on any theme.
+    function contrastText(color) {
+        const hex = String(color).replace("#", "");
+        if (hex.length < 6)
+            return "#FFFFFF";
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#15181D" : "#FFFFFF";
+    }
 
     implicitWidth: totalWidth
     implicitHeight: 40
@@ -66,32 +80,48 @@ Item {
             width: rowItem.driverWidth
             height: parent.height
 
-            Column {
+            Row {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.leftMargin: 4
                 anchors.rightMargin: 6
-                spacing: 0
+                spacing: 4
 
-                Text {
-                    width: parent.width
-                    text: rowItem.row.name || rowItem.row.code || ""
-                    color: rowItem.row.isOverallFastest ? "#C457FF" : rowItem.textColor
-                    font.pixelSize: 11
-                    font.bold: rowItem.row.isOverallFastest
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
+                Image {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: rowItem.logoVisible
+                    source: rowItem.logoVisible ? "logos/" + rowItem.row.manufacturerLogo : ""
+                    width: 14
+                    height: 14
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
                 }
 
-                Text {
-                    width: parent.width
-                    visible: text.length > 0
-                    text: rowItem.row.team || ""
-                    color: rowItem.mutedColor
-                    font.pixelSize: 8
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - (rowItem.logoVisible ? 18 : 0)
+                    spacing: 0
+
+                    Text {
+                        width: parent.width
+                        text: rowItem.row.name || rowItem.row.code || ""
+                        color: rowItem.row.isOverallFastest ? "#C457FF" : rowItem.textColor
+                        font.pixelSize: 11
+                        font.bold: rowItem.row.isOverallFastest
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
+
+                    Text {
+                        width: parent.width
+                        visible: text.length > 0
+                        text: rowItem.row.team || ""
+                        color: rowItem.mutedColor
+                        font.pixelSize: 8
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
                 }
             }
         }
@@ -137,6 +167,7 @@ Item {
                         model: rowItem.row.sectors || []
 
                         delegate: Item {
+                            id: sectorCell
                             required property var modelData
                             width: cell.width / 3
                             height: cell.height
@@ -147,8 +178,8 @@ Item {
 
                                 Text {
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: modelData.value || "—"
-                                    color: modelData.color || rowItem.textColor
+                                    text: sectorCell.modelData.value || "—"
+                                    color: sectorCell.modelData.color || rowItem.textColor
                                     font.pixelSize: 9
                                     font.family: "monospace"
                                     maximumLineCount: 1
@@ -159,7 +190,7 @@ Item {
                                     spacing: 1
 
                                     Repeater {
-                                        model: modelData.miniSectors || []
+                                        model: sectorCell.modelData.miniSectors || []
 
                                         delegate: Rectangle {
                                             required property var modelData
@@ -219,7 +250,7 @@ Item {
                                 const age = rowItem.row.tyre.age;
                                 return letter + (age !== null && age !== undefined ? " " + age : "");
                             }
-                            color: rowItem.row.tyre ? rowItem.row.tyre.textColor : "#FFFFFF"
+                            color: rowItem.contrastText(rowItem.row.tyre ? rowItem.row.tyre.color : "#5C606A")
                             font.pixelSize: 9
                             font.bold: true
                             maximumLineCount: 1
@@ -236,34 +267,35 @@ Item {
                             model: rowItem.row.tyre && rowItem.row.tyre.showAges ? rowItem.row.tyre.wheels : []
 
                             delegate: Rectangle {
+                                id: wheelCell
                                 required property var modelData
                                 width: 23
                                 height: 16
                                 radius: 2
-                                color: modelData.color || "#5C606A"
+                                color: wheelCell.modelData.color || "#5C606A"
 
                                 // The cell is 23px wide, so a wheel shows the compound letter and its age
                                 // rather than "MEDIUM 12" clipping into nonsense.
                                 Text {
                                     anchors.centerIn: parent
                                     text: {
-                                        const compound = (modelData.compound || "").toUpperCase();
+                                        const compound = (wheelCell.modelData.compound || "").toUpperCase();
                                         const letter = compound.length > 0 ? compound.charAt(0) : "·";
-                                        return modelData.age !== null && modelData.age !== undefined
-                                            ? letter + modelData.age
+                                        return wheelCell.modelData.age !== null && wheelCell.modelData.age !== undefined
+                                            ? letter + wheelCell.modelData.age
                                             : letter;
                                     }
-                                    color: "#FFFFFF"
+                                    color: rowItem.contrastText(wheelCell.modelData.color || "#5C606A")
                                     font.pixelSize: 7
                                     font.bold: true
                                     maximumLineCount: 1
                                 }
 
                                 PlasmaComponents3.ToolTip {
-                                    text: (modelData.name || "Wheel") + ": "
-                                        + (modelData.compound || "unknown compound")
-                                        + (modelData.age !== null && modelData.age !== undefined
-                                            ? ", " + modelData.age + " laps" : "")
+                                    text: (wheelCell.modelData.name || "Wheel") + ": "
+                                        + (wheelCell.modelData.compound || "unknown compound")
+                                        + (wheelCell.modelData.age !== null && wheelCell.modelData.age !== undefined
+                                            ? ", " + wheelCell.modelData.age + " laps" : "")
                                     visible: wheelMouse.containsMouse
                                     delay: 600
                                 }

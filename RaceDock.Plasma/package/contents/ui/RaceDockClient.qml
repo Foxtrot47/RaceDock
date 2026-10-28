@@ -18,6 +18,7 @@ Item {
 
     property var widgetState: ({
         mode: "hidden",
+        viewMode: "live",
         competitors: [],
         display: { singleRow: false, competitorCount: 5, animations: true, positionColors: true, widthHint: 520 },
         updatedAt: ""

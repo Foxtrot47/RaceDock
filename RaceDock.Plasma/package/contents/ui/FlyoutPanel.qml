@@ -22,7 +22,6 @@ Item {
     signal configureRequested()
 
     readonly property int tableHeaderHeight: 24
-    readonly property int footerHeight: 26
     readonly property real rowHeight: 40
 
     implicitWidth: Math.max(430, state.width || 460)
@@ -61,16 +60,9 @@ Item {
                 }
             }
 
-            Rectangle {
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: 4
-                radius: 2
-                color: panel.state.accent || "#7E8798"
-            }
-
-            Column {
+            // Event name with the session info directly under it, in the same column. The name
+            // scrolls when it is wider than the available width.
+            ColumnLayout {
                 anchors.left: parent.left
                 anchors.leftMargin: 14
                 anchors.right: actions.left
@@ -78,18 +70,17 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 1
 
-                Text {
-                    width: parent.width
+                MarqueeText {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 17
                     text: panel.state.title || "RaceDock"
-                    color: Kirigami.Theme.textColor
-                    font.pixelSize: 14
-                    font.bold: true
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
+                    textColor: Kirigami.Theme.textColor
+                    pixelSize: 14
+                    bold: true
                 }
 
                 Text {
-                    width: parent.width
+                    Layout.fillWidth: true
                     text: {
                         if (panel.state.mode === "schedule")
                             return "Published sessions · local time";
@@ -112,6 +103,43 @@ Item {
                 anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 2
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    implicitWidth: statusRow.implicitWidth + 10
+                    implicitHeight: 17
+                    radius: 4
+                    color: Qt.rgba(1, 1, 1, 0.07)
+
+                    Row {
+                        id: statusRow
+                        anchors.centerIn: parent
+                        spacing: 4
+
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 6
+                            height: 6
+                            radius: 3
+                            color: panel.client && panel.client.connected
+                                ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.negativeTextColor
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: {
+                                if (!(panel.client && panel.client.connected))
+                                    return "OFFLINE";
+                                const view = panel.state.viewMode || "live";
+                                return view === "scenario" ? "SCENARIO"
+                                    : view === "archive" ? "ARCHIVE" : "CONNECTED";
+                            }
+                            color: Kirigami.Theme.disabledTextColor
+                            font.pixelSize: 7
+                            font.bold: true
+                        }
+                    }
+                }
 
                 Rectangle {
                     visible: !!panel.state.trackLabel && panel.state.trackLabel.length > 0
@@ -228,14 +256,42 @@ Item {
                                     anchors.fill: parent
                                     anchors.leftMargin: 4
                                     anchors.rightMargin: 4
-                                    text: column.label || ""
+                                    visible: columnCell.column.key !== "sectors"
+                                    text: columnCell.column.label || ""
                                     color: Kirigami.Theme.disabledTextColor
                                     font.pixelSize: 8
                                     font.bold: true
-                                    horizontalAlignment: column.align === "center" ? Text.AlignHCenter
-                                        : column.align === "right" ? Text.AlignRight : Text.AlignLeft
+                                    horizontalAlignment: columnCell.column.align === "center" ? Text.AlignHCenter
+                                        : columnCell.column.align === "right" ? Text.AlignRight : Text.AlignLeft
                                     verticalAlignment: Text.AlignVCenter
                                     maximumLineCount: 1
+                                }
+
+                                // Sector times get one header per sector, not one combined label.
+                                Row {
+                                    id: sectorHeader
+                                    anchors.fill: parent
+                                    visible: columnCell.column.key === "sectors"
+
+                                    Repeater {
+                                        model: ["S1", "S2", "S3"]
+
+                                        delegate: Text {
+                                            required property string modelData
+                                            required property int index
+                                            // Size from the Row's id, not `parent`: a delegate can
+                                            // briefly outlive its parent while a column is rebuilt.
+                                            width: sectorHeader.width / 3
+                                            height: sectorHeader.height
+                                            text: modelData
+                                            color: Kirigami.Theme.disabledTextColor
+                                            font.pixelSize: 8
+                                            font.bold: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                            maximumLineCount: 1
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -261,6 +317,7 @@ Item {
                         row: modelData
                         columns: panel.state.columns || []
                         driverWidth: panel.state.driverColumnWidth || 180
+                        showManufacturerLogos: panel.state.showManufacturerLogos === true
                         animations: true
                         rowIndex: index
                     }
@@ -312,56 +369,6 @@ Item {
                     font.pixelSize: 10
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.Wrap
-                }
-            }
-        }
-
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 1
-            implicitHeight: 1
-            color: Qt.rgba(1, 1, 1, 0.08)
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: panel.footerHeight
-
-            Row {
-                anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
-                spacing: 6
-
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 7
-                    height: 7
-                    radius: 4
-                    color: panel.client && panel.client.connected ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.negativeTextColor
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 120
-                    text: panel.client && panel.client.connected
-                        ? "RaceDock · " + (panel.state.connection || "connected")
-                        : "RaceDock service offline"
-                    color: Kirigami.Theme.disabledTextColor
-                    font.pixelSize: 8
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
-                }
-
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 104
-                    text: panel.state.mode === "live" ? "LIVE" : panel.state.mode === "schedule" ? "SCHEDULE" : ""
-                    color: panel.state.accent || Kirigami.Theme.disabledTextColor
-                    font.pixelSize: 8
-                    font.bold: true
-                    horizontalAlignment: Text.AlignRight
-                    maximumLineCount: 1
                 }
             }
         }

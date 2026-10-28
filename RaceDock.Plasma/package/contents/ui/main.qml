@@ -19,7 +19,9 @@ PlasmoidItem {
     preferredRepresentation: compactRepresentation
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
 
-    Plasmoid.toolTipMainText: {
+    // Plasma 6.3 removed the tooltip properties from the Applet object;
+    // PlasmoidItem exposes them directly.
+    toolTipMainText: {
         if (widgetState.mode === "live") {
             if (widgetState.alert && widgetState.alert.title)
                 return widgetState.alert.title;
@@ -31,7 +33,7 @@ PlasmoidItem {
             return widgetState.idle.headline;
         return "RaceDock";
     }
-    Plasmoid.toolTipSubText: {
+    toolTipSubText: {
         if (widgetState.mode === "live")
             return (widgetState.progress || "") + (widgetState.alert && widgetState.alert.detail ? "\n" + widgetState.alert.detail : "");
         if (widgetState.mode === "idle" && widgetState.idle)
