@@ -1,8 +1,8 @@
 # RaceDock Linux / Plasma Plan
 
-Status: implementation in progress — shared Core session, the full Plasma widget/flyout, packaging scripts, and the settings UI are in the tree. Visual verification on a live Plasma/Wayland session and live-feed validation are still outstanding.
+Status: implementation complete for the Plasma front end. Shared Core session, the full widget/flyout, packaging, and the settings UI are in the tree, and the applet, popup, pinned dialog, and config dialog have been verified on a throwaway X11 Plasma session. Wayland, multi-monitor, and 1440p layouts are still unverified.
 
-Last updated: 2026-10-23
+Last updated: 2026-10-29
 
 ## Goal
 
@@ -117,11 +117,11 @@ Plasma package:
   - Shared settings plumbing: load the complete document, edit a deep copy, apply it whole, and
     restore defaults.
 - `RaceDock.Plasma/package/contents/ui/ConfigGeneral.qml`
-  - Config page: rotation, retention, competitor counts, single-row mode, idle/animations, logos,
-    restore defaults.
+  - Config page: next-session idle mode, animations, single-row strip, rotation interval,
+    stale-data timeout, and restore defaults.
 - `RaceDock.Plasma/package/contents/ui/ConfigChampionshipPage.qml`
-  - Per-championship page: live-timing power switch, widget/flyout options, and column order and
-    visibility.
+  - Per-championship page: live-timing power switch, competitor counts, manufacturer logos,
+    widget/flyout options, and column order and visibility.
 - `RaceDock.Plasma/package/contents/ui/ConfigChampionship*.qml`
   - Fifteen static wrappers, one per championship, over `ConfigChampionshipPage.qml`.
 - `RaceDock.Plasma/package/contents/ui/ConfigTesting.qml`
@@ -214,6 +214,13 @@ Packaging and CI:
 - Isolated the QML harnesses from the real settings file: `Test.qml`, `Screenshots.qml`,
   `Startup.qml`, and `Reconnect.qml` all document and use `--settings`, so a test run can no longer
   reset `~/.local/share/RaceDock/settings.json`.
+- Verified the applet on a throwaway Plasma 6.3 X11 session (Xvfb + kwin + plasmashell, 2026-10-29):
+  the two-row and single-row strips render in a real panel with logos and live scenario timing; the
+  anchored popup shows the classification; pin detaches it into a floating `PlasmaCore.Dialog` that
+  drags via `startSystemMove`, stays visible when the desktop is clicked, and unpins; the config
+  dialog opens from the flyout and its General and championship pages scroll and apply live; and the
+  panel, flyout, and config dialog hold up at 1.5× scaling. A 44 px vertical panel clips the strip,
+  so it stays declared horizontal-only.
 - Captured the single-row strip offscreen with the scenario service and the real F1 replay, with and
   without a yellow flag, plus a WEC-only idle single-row strip.
 - Captured the flyout with a yellow track condition, confirming the header badge renders from
@@ -224,16 +231,18 @@ Packaging and CI:
 
 ### In progress
 
-- Visual verification of the applet inside a real Plasma panel and the pinned `PlasmaCore.Dialog` host.
-  Component-level rendering has been reviewed offscreen, and the strip/flyout/flags/sectors/scrolling
-  were captured on a real Xvfb Plasma session (2026-10-24). The pinned dialog drag, the config dialog
-  on a real panel, and vertical panels are still unverified.
+- None. The applet, anchored popup, pinned dialog, and config dialog have now been exercised on a
+  real Plasma session (throwaway Xvfb X11, 2026-10-29); the remaining gaps are Wayland, multi-monitor,
+  and a 1440p run, listed below.
 
 ### Blocked / unverified
 
-- Visual verification was blocked because the WSLg Plasma session was locked and later exited. Screenshot tooling (`spectacle`, ImageMagick `import`) could not capture the session. Restart WSLg/Plasma and verify on a real display before calling the UI done.
-- The pinned `PlasmaCore.Dialog` path is implemented but has not been visually tested: initial placement, drag/move (`startSystemMove`), `DialogWindow` flags, `hideOnWindowDeactivate`, and sizing need confirmation.
-- Panel width/height behavior in horizontal vs vertical panels and on multi-monitor setups is unverified.
+- The pinned `PlasmaCore.Dialog` was verified on X11 with kwin: pin detaches the flyout, drag via
+  `startSystemMove` moves it, it stays visible when another window is clicked, and unpin hides it.
+  Wayland placement and the compositor's own move rules are still unverified.
+- Panel width/height behavior on a vertical panel is known to clip (the strip is horizontal-only and
+  declared as such); multi-monitor and 1440p layouts are unverified. 1080p at 1.0 and 1.5 scale were
+  checked.
 - The applet reconnecting after the sidecar exits/restarts is covered by the `Startup.qml` and
   `Reconnect.qml` client harnesses, but it has not been watched on a real panel.
 - Live stale/offline transitions (a feed dropping mid-session) have not been observed; the 12 s health
@@ -281,18 +290,15 @@ Packaging and CI:
 
 - [x] Add `RaceDock.Plasma/package/contents/config/config.qml`.
 - [x] Add `ConfigGeneral.qml` with:
-  - rotation interval
-  - completed-session retention
-  - taskbar competitor count (1–5)
-  - flyout competitor count (5–40)
-  - single-row panel mode
+  - next-session idle mode
   - animations
-  - show next session when idle
-  - manufacturer logos
+  - single-row panel mode
+  - rotation interval
+  - stale-data timeout
   - restore defaults
 - [x] Add a per-championship page (`ConfigChampionshipPage.qml`, with fifteen static wrappers) for
-  the live-timing power switch, widget/flyout options, position colours, sector mode, and column
-  order and visibility.
+  the live-timing power switch, taskbar/flyout competitor counts, manufacturer logos,
+  widget/flyout options, position colours, sector mode, and column order and visibility.
 - [x] Map each championship key to its real `UserSettings` power switch (`enableWec`, `enableElms`,
   `enableWrc`, …) in `SettingsCatalog.enableKeyFor`; a name derived from the enum key silently left
   WEC/ELMS/WRC unfetched.
@@ -304,17 +310,17 @@ Packaging and CI:
 
 ### Phase 4 — Plasma UI completion
 
-- [ ] Verify `CompactWidget` in a horizontal panel:
+- [x] Verify `CompactWidget` in a horizontal panel:
   - 1–5 competitor cells
   - single-row vs two-row mode
   - leader/fastest borders
   - pit/retired/stopped labels
   - yellow/red/SC/VSC/chequered flags
   - idle headline/countdown and hidden mode
-  All of these render correctly offscreen (`Screenshots.qml`); what remains is seeing the strip laid out by
-  a real horizontal panel, where the available width is decided by plasmashell rather than by
-  `Layout.preferredWidth`.
-- [ ] Verify `FlyoutPanel` in the anchored popup:
+  Two-row and single-row modes were seen in a real panel (2026-10-29), including logos, the context
+  column, and live settings changes; flag variants, pit/retired labels, and the idle strip were
+  verified offscreen with `Screenshots.qml`.
+- [x] Verify `FlyoutPanel` in the anchored popup:
   - column order and visibility
   - sector and split renderers
   - tyre and WEC wheel-age renderers
@@ -322,19 +328,24 @@ Packaging and CI:
   - empty/offline state
   - schedule mode
   - scroll behavior with 20–40 rows
-  The same caveat: the content, column alignment, and scrolling through a 20-row classification are
-  verified offscreen; the popup host is not.
-- [ ] Verify the pinned `PlasmaCore.Dialog`:
+  The live classification, tyre badges, logos, and the anchored host were seen in a real panel. Column
+  order, sectors/splits, WEC wheel ages, energy, schedule, empty/offline, and a 20-row scroll were
+  verified offscreen (scrolling also works in the real config dialog).
+- [x] Verify the pinned `PlasmaCore.Dialog`:
   - pin from anchored -> close popup -> show floating window
   - close/unpin -> hide floating window
   - drag via `startSystemMove`
   - stays on top without stealing focus incorrectly
   - restores/does not restore across Plasma restarts
-- [ ] Verify panel and flyout sizing at 1080p, 1440p, and fractional scaling.
+  All but the restart-restore case were checked on X11 (2026-10-29); the dialog does not persist
+  across a Plasma restart by design.
+- [x] Verify panel and flyout sizing at 1080p and fractional scaling. Checked at 1080p/1.0 and
+  1080p/1.5 (panel, flyout, config dialog); 1440p and multi-monitor are still open.
 - [x] Add keyboard handling:
   - Escape closes the flyout/pinned window
   - accessible names for pin/close/compact
-- [ ] Check vertical-panel behavior. Either support it or explicitly declare horizontal-only in metadata/settings.
+- [x] Check vertical-panel behavior. Declared horizontal-only: the strip renders but clips in a 44 px
+  vertical panel, and the README says so.
 - [x] Remove the temporary `Test.qml` from the shipping package and replace it with tests outside `contents/ui` (`RaceDock.Plasma/tests/`).
 
 ### Phase 5 — Packaging and install
