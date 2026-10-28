@@ -512,12 +512,13 @@ public sealed class RaceDockSession : IAsyncDisposable
     {
         if (_disposed) return;
         var now = _clock.UtcNow;
+        var viewMode = !TestMode ? "live" : _source is ScenarioTimingSource ? "scenario" : "archive";
         lock (_stateGate)
         {
             _widget = RaceDockPresentationBuilder.BuildWidget(
-                _currentSnapshot, _settings, _upcoming, _alerts.Current, now, _timeZone, TestMode);
+                _currentSnapshot, _settings, _upcoming, _alerts.Current, now, _timeZone, TestMode, viewMode);
             _flyout = RaceDockPresentationBuilder.BuildFlyout(
-                _currentSnapshot, _settings, _upcoming, _alerts.Current, now, _timeZone);
+                _currentSnapshot, _settings, _upcoming, _alerts.Current, now, _timeZone, viewMode);
         }
         RequestStateChanged();
     }

@@ -196,6 +196,42 @@ internal static class PresentationTests
         Equal<double?>(null, rows[3].Energy!.Percent);
     }
 
+    public static void ManufacturerLogosResolveThroughOneCatalog()
+    {
+        // Exact alias, including the metadata each front end needs to paint the artwork.
+        var mclaren = ManufacturerLogos.Resolve("McLaren Formula 1 Team");
+        True(mclaren is not null);
+        Equal("mclaren.svg", mclaren!.Asset);
+        Equal("#ff9901", mclaren.Color);
+        False(mclaren.PreserveColors);
+
+        // Case, punctuation, and diacritics fold into the same key, so a provider's spelling never
+        // decides whether the strip draws a mark.
+        Equal("citroen.svg", ManufacturerLogos.ResolveAsset("Citroën Racing"));
+        Equal("citroen.svg", ManufacturerLogos.ResolveAsset("CITROEN"));
+        Equal("mercedes.svg", ManufacturerLogos.ResolveAsset("Mercedes-AMG Petronas F1 Team"));
+
+        // A longer provider string still matches on the alias it contains.
+        Equal("redbull.png", ManufacturerLogos.ResolveAsset("Oracle Red Bull Racing Team"));
+
+        // Nothing to draw stays null: no guessed asset and no placeholder file.
+        Equal<string?>(null, ManufacturerLogos.ResolveAsset(null));
+        Equal<string?>(null, ManufacturerLogos.ResolveAsset("   "));
+        Equal<string?>(null, ManufacturerLogos.ResolveAsset("ab"));
+        Equal<string?>(null, ManufacturerLogos.ResolveAsset("No Such Team"));
+
+        // The manifest is embedded, so Core carries the catalog without any front-end asset folder.
+        True(ManufacturerLogos.Resolve("Ferrari") is not null);
+
+        // Rows prefer the manufacturer and fall back to the team name.
+        var snapshot = Snapshot(Championship.Formula1,
+            Standing(1, "NOR") with { Team = "Scuderia Ferrari HP", Manufacturer = null },
+            Standing(2, "PIA") with { Team = "McLaren", Manufacturer = "Mercedes" });
+        var rows = Flyout(snapshot, Settings()).Rows;
+        Equal("ferrari.svg", rows[0].ManufacturerLogo);
+        Equal("mercedes.svg", rows[1].ManufacturerLogo);
+    }
+
     public static void AlertAndFlagMapping()
     {
         var snapshot = Snapshot(Championship.Formula1, Standing(1, "NOR"));

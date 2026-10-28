@@ -136,6 +136,7 @@ var tests = new (string Name, Action Run)[]
     ("alerts and taskbar flags map to their colours", PresentationTests.AlertAndFlagMapping),
     ("idle widget and schedule flyout word the next session", PresentationTests.ScheduleWordingAndCountdowns),
     ("the front-end JSON contract is camel case and clamps", PresentationTests.JsonContractIsCamelCaseWithStringEnums),
+    ("manufacturer logos resolve from the embedded alias catalog", PresentationTests.ManufacturerLogosResolveThroughOneCatalog),
     ("the scenario session publishes live state and runs commands", SessionTests.ScenarioSessionPublishesLiveStateAndCommands),
     ("a schedule refresh fills the idle widget and flyout", SessionTests.ScheduleRefreshFeedsTheIdleState),
     ("applying settings leaves a replay source alone", SessionTests.ApplyingSettingsKeepsTheReplaySource),

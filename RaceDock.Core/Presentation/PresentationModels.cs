@@ -11,6 +11,8 @@ namespace RaceDock.Core.Presentation;
 public sealed record RaceDockWidgetState
 {
     public string Mode { get; init; } = "hidden";
+    /// <summary>What is driving the widget: "live", "scenario", or "archive".</summary>
+    public string ViewMode { get; init; } = "live";
     public string? Championship { get; init; }
     public string? ChampionshipShort { get; init; }
     public string? ChampionshipName { get; init; }
@@ -49,6 +51,8 @@ public sealed record RaceDockCompetitor
     public string Code { get; init; } = "";
     public string Name { get; init; } = "";
     public string Team { get; init; } = "";
+    /// <summary>Logo asset file name resolved from the manufacturer, when a logo exists.</summary>
+    public string? ManufacturerLogo { get; init; }
     public string? Gap { get; init; }
     public string? Interval { get; init; }
     public string? Status { get; init; }
@@ -97,6 +101,8 @@ public sealed record RaceDockIdle
 public sealed record RaceDockFlyoutState
 {
     public string Mode { get; init; } = "hidden";
+    /// <summary>What is driving the flyout: "live", "scenario", or "archive".</summary>
+    public string ViewMode { get; init; } = "live";
     public string Title { get; init; } = "";
     public string? Championship { get; init; }
     public string? ChampionshipShort { get; init; }
@@ -111,6 +117,7 @@ public sealed record RaceDockFlyoutState
     public string? TrackLabel { get; init; }
     public string? TrackColor { get; init; }
     public string? EmptyMessage { get; init; }
+    public bool ShowManufacturerLogos { get; init; }
     public double Width { get; init; } = 460;
     public double Height { get; init; } = 420;
     public double DriverColumnWidth { get; init; } = 190;
@@ -137,6 +144,8 @@ public sealed record RaceDockRow
     public string Code { get; init; } = "";
     public string Name { get; init; } = "";
     public string Team { get; init; } = "";
+    /// <summary>Logo asset file name resolved from the manufacturer, when a logo exists.</summary>
+    public string? ManufacturerLogo { get; init; }
     public string? Gap { get; init; }
     public string? Interval { get; init; }
     public string? LapTime { get; init; }

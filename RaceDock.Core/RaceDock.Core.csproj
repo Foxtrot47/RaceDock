@@ -7,4 +7,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="RaceDock.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The alias catalog for manufacturer logos. Artwork ships with each front end; Core only
+         resolves the asset file name so every front end picks the same logo. -->
+    <EmbeddedResource Include="Assets/ManufacturerLogos/manifest.json" />
+  </ItemGroup>
 </Project>

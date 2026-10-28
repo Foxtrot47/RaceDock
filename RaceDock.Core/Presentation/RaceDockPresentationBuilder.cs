@@ -28,7 +28,8 @@ public static class RaceDockPresentationBuilder
         RaceAlert? alert,
         DateTimeOffset now,
         TimeZoneInfo timeZone,
-        bool testMode)
+        bool testMode,
+        string? viewMode = null)
     {
         var display = settings.DisplayFor(snapshot?.Championship ?? Championship.Formula1);
         var mode = IsLive(snapshot) ? "live" : "hidden";
@@ -44,6 +45,7 @@ public static class RaceDockPresentationBuilder
         var widget = new RaceDockWidgetState
         {
             Mode = mode,
+            ViewMode = viewMode ?? "live",
             Championship = snapshot?.Championship.ToString(),
             ChampionshipShort = snapshot is null ? null : ChampionshipDisplay.ShortName(snapshot.Championship),
             ChampionshipName = snapshot is null ? null : ChampionshipDisplay.FullName(snapshot.Championship),
@@ -81,10 +83,11 @@ public static class RaceDockPresentationBuilder
         IReadOnlyList<UpcomingSession> upcoming,
         RaceAlert? alert,
         DateTimeOffset now,
-        TimeZoneInfo timeZone)
+        TimeZoneInfo timeZone,
+        string? viewMode = null)
     {
         if (IsLive(snapshot))
-            return BuildLiveFlyout(snapshot!, settings, now, timeZone);
+            return BuildLiveFlyout(snapshot!, settings, now, timeZone, viewMode);
 
         var schedule = NextSessionDisplay.Schedule(upcoming, now, timeZone);
         if (schedule.Count == 0)
@@ -92,6 +95,7 @@ public static class RaceDockPresentationBuilder
             return new RaceDockFlyoutState
             {
                 Mode = "hidden",
+                ViewMode = viewMode ?? "live",
                 Title = "Next on track",
                 EmptyMessage = "No published sessions for the championships you follow.",
                 Schedule = [],
@@ -102,6 +106,7 @@ public static class RaceDockPresentationBuilder
         return new RaceDockFlyoutState
         {
             Mode = "schedule",
+            ViewMode = viewMode ?? "live",
             Title = "Next on track",
             Schedule = [.. schedule.Select((session, index) => BuildScheduleItem(session, now, timeZone, index == 0))],
             Columns = [],
@@ -116,7 +121,8 @@ public static class RaceDockPresentationBuilder
         TimingSnapshot snapshot,
         UserSettings settings,
         DateTimeOffset now,
-        TimeZoneInfo timeZone)
+        TimeZoneInfo timeZone,
+        string? viewMode = null)
     {
         var display = settings.DisplayFor(snapshot.Championship);
         var rally = IsRally(snapshot);
@@ -132,6 +138,7 @@ public static class RaceDockPresentationBuilder
         return new RaceDockFlyoutState
         {
             Mode = "live",
+            ViewMode = viewMode ?? "live",
             Title = string.IsNullOrWhiteSpace(snapshot.Meeting) ? "Live classification" : ChampionshipDisplay.FullEvent(snapshot),
             Championship = snapshot.Championship.ToString(),
             ChampionshipShort = ChampionshipDisplay.ShortName(snapshot.Championship),
@@ -145,6 +152,7 @@ public static class RaceDockPresentationBuilder
             TrackCondition = snapshot.TrackCondition.ToString(),
             TrackLabel = TrackLabel(snapshot.TrackCondition),
             TrackColor = TrackColor(snapshot.TrackCondition),
+            ShowManufacturerLogos = display.FlyoutUseManufacturerLogos,
             Width = width,
             Height = height,
             DriverColumnWidth = driverWidth,
@@ -235,6 +243,7 @@ public static class RaceDockPresentationBuilder
             Code = standing.Code,
             Name = ChampionshipDisplay.FlyoutDriverName(snapshot.Championship, standing),
             Team = standing.Team,
+            ManufacturerLogo = ManufacturerLogos.ResolveAsset(standing.Manufacturer ?? standing.Team),
             Gap = visible.Contains("gap") ? (standing.Position == 1 ? "LEADER" : standing.GapToLeader ?? "—") : null,
             Interval = visible.Contains("interval") ? (standing.Position == 1 ? "LEADER" : standing.IntervalToPositionAhead ?? "—") : null,
             LapTime = visible.Contains("lapTime") ? lapTime ?? "—" : null,
@@ -395,6 +404,7 @@ public static class RaceDockPresentationBuilder
                     Status = BuildStatus(standing).Text,
                     Category = standing.Category,
                     Manufacturer = standing.Manufacturer,
+                    ManufacturerLogo = ManufacturerLogos.ResolveAsset(standing.Manufacturer ?? standing.Team),
                     PositionColorStart = start,
                     PositionColorEnd = end,
                     IsLeader = standing.Position == 1,
