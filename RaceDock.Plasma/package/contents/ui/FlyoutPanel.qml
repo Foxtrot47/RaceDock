@@ -51,15 +51,6 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 58
 
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.LeftButton
-                onPressed: {
-                    if (panel.pinned && panel.hostWindow && panel.hostWindow.startSystemMove)
-                        panel.hostWindow.startSystemMove();
-                }
-            }
-
             // Event name with the session info directly under it, in the same column. The name
             // scrolls when it is wider than the available width.
             ColumnLayout {
@@ -95,6 +86,43 @@ Item {
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
+            }
+
+            // The drag handle sits above the title, not below it: a sibling item that is on top
+            // swallows the press, so a MouseArea declared before the labels never saw the drag.
+            // The action buttons stay on top of it, so pin/close still click normally.
+            MouseArea {
+                id: dragArea
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton
+                enabled: panel.pinned
+                cursorShape: panel.pinned ? Qt.SizeAllCursor : Qt.ArrowCursor
+                property bool dragging: false
+                property real pressX: 0
+                property real pressY: 0
+
+                onPressed: function (mouse) {
+                    if (!panel.pinned || !panel.hostWindow)
+                        return;
+                    // Let the compositor move the window when it supports it; this is the only
+                    // route on Wayland, where setting x/y is ignored.
+                    if (panel.hostWindow.startSystemMove && panel.hostWindow.startSystemMove())
+                        return;
+                    // Fallback for a window that refuses a system move: drag it by hand.
+                    dragging = true;
+                    pressX = mouse.x;
+                    pressY = mouse.y;
+                }
+
+                onPositionChanged: function (mouse) {
+                    if (!dragging || !panel.hostWindow)
+                        return;
+                    panel.hostWindow.x += mouse.x - pressX;
+                    panel.hostWindow.y += mouse.y - pressY;
+                }
+
+                onReleased: dragging = false
+                onCanceled: dragging = false
             }
 
             Row {
@@ -170,11 +198,17 @@ Item {
                 PlasmaComponents3.ToolButton {
                     width: 28
                     height: 28
-                    icon.name: "pin"
+                    icon.name: panel.pinned ? "window-unpin" : "window-pin"
                     checkable: true
                     checked: panel.pinned
-                    Accessible.name: panel.pinned ? "Unpin the classification window" : "Pin the classification window"
-                    onClicked: panel.pinRequested(!panel.pinned)
+                    Accessible.name: panel.pinned ? "Unpin and return to the flyout" : "Pin as a movable overlay"
+                    // The host owns the pinned state, so the button only asks for a change. A
+                    // checkable button drops its own `checked` binding when it is clicked, so
+                    // put the binding back and let the host decide the final state.
+                    onClicked: {
+                        panel.pinRequested(!panel.pinned);
+                        checked = Qt.binding(function () { return panel.pinned; });
+                    }
                 }
 
                 PlasmaComponents3.ToolButton {

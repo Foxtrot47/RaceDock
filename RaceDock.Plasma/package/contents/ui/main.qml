@@ -3,10 +3,8 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Window
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
-import org.kde.kirigami as Kirigami
 
 PlasmoidItem {
     id: root
@@ -42,10 +40,10 @@ PlasmoidItem {
     }
 
     function toggleFlyout() {
-        if (root.pinned) {
-            root.pinned = false;
+        // A pinned overlay is independent of the panel: clicking the widget must not dismiss it.
+        // Windows keeps the overlay up in this case too.
+        if (root.pinned)
             return;
-        }
         root.expanded = !root.expanded;
     }
 
@@ -56,6 +54,13 @@ PlasmoidItem {
         } else {
             root.pinned = false;
         }
+    }
+
+    /// Unpinning returns the flyout to the anchored popup instead of making it vanish, which is
+    /// what the Windows pin button does: the content stays on screen, only its host changes.
+    function unpinToFlyout() {
+        root.pinned = false;
+        root.expanded = true;
     }
 
     compactRepresentation: CompactWidget {
@@ -76,45 +81,32 @@ PlasmoidItem {
         }
     }
 
-    PlasmaCore.Dialog {
-        id: floatingDialog
-
-        visible: root.pinned
-        type: PlasmaCore.Dialog.DialogWindow
-        location: PlasmaCore.Types.Floating
-        flags: Qt.WindowStaysOnTopHint
-        hideOnWindowDeactivate: false
-        backgroundHints: PlasmaCore.Dialog.NoBackground
-        width: floatingPanel.implicitWidth
-        height: floatingPanel.implicitHeight
-        x: Math.max(0, Screen.desktopAvailableWidth - width - 32)
-        y: Math.max(0, 48)
-
-        onVisibleChanged: {
-            if (!visible && root.pinned)
-                root.pinned = false;
-            else if (visible)
-                floatingPanel.forceActiveFocus();
+    // The pinned host is created on demand with no parent item, so it is not transient for the
+    // panel. See PinnedFlyout.qml for why that matters.
+    Component {
+        id: pinnedComponent
+        PinnedFlyout {
+            onDismissed: root.pinned = false
+            onUnpinRequested: root.unpinToFlyout()
+            onConfigureRequested: Plasmoid.internalAction("configure").trigger()
         }
+    }
 
-        mainItem: Item {
-            width: floatingDialog.width
-            height: floatingDialog.height
+    property var pinnedWindow: null
 
-            FlyoutPanel {
-                id: floatingPanel
-                anchors.fill: parent
-                client: raceDockClient
-                pinned: true
-                hostWindow: floatingDialog
-                onCloseRequested: root.pinned = false
-                onPinRequested: function (shouldPin) {
-                    if (!shouldPin)
-                        root.pinned = false;
-                }
-                onConfigureRequested: Plasmoid.internalAction("configure").trigger()
-            }
+    function showPinnedWindow() {
+        if (!pinnedWindow) {
+            pinnedWindow = pinnedComponent.createObject(null, { client: raceDockClient });
+            if (!pinnedWindow)
+                return;
         }
+        pinnedWindow.visible = true;
+        pinnedWindow.raise();
+    }
+
+    function hidePinnedWindow() {
+        if (pinnedWindow)
+            pinnedWindow.visible = false;
     }
 
     RaceDockClient {
@@ -147,10 +139,20 @@ PlasmoidItem {
             raceDockClient.refreshFlyout();
             if (!raceDockClient.settingsLoaded)
                 raceDockClient.loadSettings();
+            showPinnedWindow();
+        } else {
+            hidePinnedWindow();
         }
     }
 
     Component.onCompleted: {
         raceDockClient.loadSettings();
+    }
+
+    Component.onDestruction: {
+        if (pinnedWindow) {
+            pinnedWindow.destroy();
+            pinnedWindow = null;
+        }
     }
 }
