@@ -19,9 +19,11 @@ MouseArea {
     /// the event and progress share one line, so the whole strip stays one line tall.
     readonly property bool singleRow: display.singleRow === true
     /// The idle strip grows to fit "event detail" side by side in single-row mode, like the Windows view.
+    /// Windows reserves 210 px for the two-row strip and 63 px of chrome (padding, logo, gap) plus
+    /// the natural text widths for the single line.
     readonly property real idleWidth: singleRow
-        ? Math.min(520, Math.max(248, 70 + idleEventInline.implicitWidth + idleDetailInline.implicitWidth))
-        : 248
+        ? Math.min(520, Math.max(210, 71 + idleEventInline.implicitWidth + idleDetailInline.implicitWidth))
+        : 210
 
     signal toggleRequested()
 
@@ -291,14 +293,19 @@ MouseArea {
         }
     }
 
+    // The Windows idle strip is a 40 px taskbar surface with 2 px vertical padding: a 42 x 22
+    // championship mark, then the event above and the session/detail below, 17 px each.
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 6
-        spacing: 8
+        anchors.leftMargin: 7
+        anchors.rightMargin: 6
+        anchors.topMargin: 2
+        anchors.bottomMargin: 2
+        spacing: widget.singleRow ? 8 : 10
         visible: widget.idle
 
         Rectangle {
-            implicitWidth: 38
+            implicitWidth: 42
             implicitHeight: 22
             radius: 4
             color: widget.state.idle ? widget.state.idle.accent : "#7E8798"
@@ -307,7 +314,7 @@ MouseArea {
                 anchors.centerIn: parent
                 text: widget.state.idle ? widget.state.idle.logoText : ""
                 color: "#FFFFFF"
-                font.pixelSize: 8
+                font.pixelSize: 9
                 font.bold: true
                 elide: Text.ElideRight
             }
@@ -320,20 +327,23 @@ MouseArea {
 
             Text {
                 Layout.fillWidth: true
+                Layout.preferredHeight: 17
                 text: widget.state.idle ? widget.state.idle.headline : ""
                 color: Kirigami.Theme.textColor
-                font.pixelSize: 10
-                font.bold: true
+                font.pixelSize: 11
                 elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
                 maximumLineCount: 1
             }
 
             Text {
                 Layout.fillWidth: true
+                Layout.preferredHeight: 17
                 text: widget.state.idle ? widget.state.idle.detail : ""
                 color: Kirigami.Theme.disabledTextColor
-                font.pixelSize: 9
+                font.pixelSize: 11
                 elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
                 maximumLineCount: 1
             }
         }
@@ -345,26 +355,29 @@ MouseArea {
 
             Text {
                 id: idleEventInline
-                Layout.fillWidth: true
                 text: widget.state.idle ? widget.state.idle.headline : ""
                 color: Kirigami.Theme.textColor
-                font.pixelSize: 10
-                font.bold: true
+                font.pixelSize: 11
                 elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
                 maximumLineCount: 1
             }
 
             Text {
                 id: idleDetailInline
-                Layout.fillWidth: true
                 // Windows drops the separator in the single line so the two segments do not read as
                 // one run of dots next to the headline's own " · ".
                 text: widget.state.idle && widget.state.idle.detail
                     ? widget.state.idle.detail.replace(" · ", " ") : ""
                 color: Kirigami.Theme.disabledTextColor
-                font.pixelSize: 9
+                font.pixelSize: 11
                 elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
                 maximumLineCount: 1
+            }
+
+            Item {
+                Layout.fillWidth: true
             }
         }
     }

@@ -25,7 +25,11 @@ Item {
     readonly property real rowHeight: 40
 
     implicitWidth: Math.max(430, state.width || 460)
-    implicitHeight: Math.max(230, state.height || 320)
+    // The schedule sizes itself: 1 px frame + 58 px header + 6 px gap + list + 12 px bottom + 1 px.
+    // Core's height is tuned for the classification rows, which the schedule does not have.
+    implicitHeight: state.mode === "schedule"
+        ? Math.max(230, 78 + scheduleView.implicitHeight)
+        : Math.max(230, state.height || 320)
 
     focus: true
     Keys.onEscapePressed: function (event) {
@@ -38,7 +42,10 @@ Item {
         radius: 10
         color: Kirigami.Theme.backgroundColor
         border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.12)
+        // A tint of the text colour instead of a white wash: the Windows flyout has a real
+        // outline, and white at 12% vanishes on a light Plasma theme.
+        border.color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g,
+            Kirigami.Theme.textColor.b, 0.18)
     }
 
     ColumnLayout {
@@ -225,6 +232,9 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 1
             implicitHeight: 1
+            // The schedule already separates its heading with spacing; a rule here would be a
+            // second divider the Windows flyout does not have.
+            visible: panel.state.mode !== "schedule"
             color: Qt.rgba(1, 1, 1, 0.08)
         }
 
@@ -369,8 +379,12 @@ Item {
             }
 
             ScheduleView {
+                id: scheduleView
                 anchors.fill: parent
-                anchors.margins: 8
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
+                anchors.topMargin: 6
+                anchors.bottomMargin: 12
                 visible: panel.state.mode === "schedule"
                 schedule: panel.state.schedule || []
             }
