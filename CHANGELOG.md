@@ -2,6 +2,13 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
+## [Unreleased]
+
+### Added
+
+- The classification flyout lists every live series and switches between them on demand instead of only when the rotation reaches them.
+- A pinned classification holds the series it was pinned to, and a feed that ends is left in place as finished with its tab disabled instead of being replaced by another stream.
+
 ## [1.4.0] — 2026-10-22
 
 ### Added

@@ -1,0 +1,71 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Live-feed tabs in the classification flyout. A flat chip with no border, an optional series accent
+    underline when selected, and the subtle Fluent hover/press fills. A feed that has ended becomes a
+    disabled tab with a desaturated mark instead of adding a line of explanatory text. Kept here rather
+    than in the settings dictionary because it belongs to the flyout surface, not the settings page.
+  -->
+  <Style x:Key="FlyoutFeedChipStyle" TargetType="ToggleButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    <Setter Property="FontSize" Value="10.5" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="Padding" Value="7,3" />
+    <Setter Property="Height" Value="26" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Focusable" Value="True" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToggleButton">
+          <Border x:Name="Root"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="5"
+                  SnapsToDevicePixels="True">
+            <Grid>
+              <ContentPresenter Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                TextElement.Foreground="{TemplateBinding Foreground}"
+                                TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                TextElement.FontSize="{TemplateBinding FontSize}"
+                                RecognizesAccessKey="False" />
+              <Border x:Name="Underline"
+                      Height="2"
+                      Margin="6,0,6,1"
+                      VerticalAlignment="Bottom"
+                      CornerRadius="1"
+                      Background="{TemplateBinding BorderBrush}"
+                      Opacity="0" />
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <MultiTrigger>
+              <MultiTrigger.Conditions>
+                <Condition Property="IsMouseOver" Value="True" />
+                <Condition Property="IsEnabled" Value="True" />
+              </MultiTrigger.Conditions>
+              <Setter TargetName="Root" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+            </MultiTrigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Underline" Property="Opacity" Value="1" />
+              <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+              <Setter Property="FontWeight" Value="SemiBold" />
+            </Trigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions>
+                <Condition Property="IsPressed" Value="True" />
+                <Condition Property="IsEnabled" Value="True" />
+              </MultiTrigger.Conditions>
+              <Setter TargetName="Root" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+            </MultiTrigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+</ResourceDictionary>

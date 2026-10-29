@@ -10,6 +10,7 @@
         <ui:ThemesDictionary Theme="Unknown" />
         <ui:ControlsDictionary />
         <ResourceDictionary Source="Settings/SettingsStyles.xaml" />
+        <ResourceDictionary Source="FlyoutStyles.xaml" />
       </ResourceDictionary.MergedDictionaries>
       <FontFamily x:Key="MotorsportFontFamily">Segoe UI Variable Text, Segoe UI</FontFamily>
     </ResourceDictionary>

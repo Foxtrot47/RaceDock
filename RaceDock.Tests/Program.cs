@@ -35,6 +35,10 @@ var tests = new (string Name, Action Run)[]
     ("active feeds rotate at the display interval", FeedRotation),
     ("completed classifications remain visible for the configured interval", CompletedClassificationRetention),
     ("off-session feeds clear retained live classifications", OffSessionClearsRetention),
+    ("live feeds publish individually while the rotation continues", FeedDirectoryPublications),
+    ("the live feed directory tracks starts ends and retention", FeedDirectoryLifecycle),
+    ("a pinned feed ignores every other championship", PinnedFeedSelection),
+    ("pinning the schedule adopts the first classification", PinnedScheduleSelection),
     ("WRC categories follow championship eligibility", WrcCategoryEligibility),
     ("WRC season discovery excludes ERC and finds the next rally", WrcSeasonDiscovery),
     ("WRC provider keeps event rally and itinerary ids distinct", WrcProviderIdentifiers),
@@ -860,6 +864,97 @@ static void OffSessionClearsRetention()
     Equal(SessionLifecycle.OffSession, snapshots[^1].Lifecycle);
 
     source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
+static void FeedDirectoryPublications()
+{
+    var clock = new FakeClock();
+    var first = new FakeTimingSource(FeedSnapshot("F1", Championship.Formula1));
+    var second = new FakeTimingSource(FeedSnapshot("WRC", Championship.WorldRallyChampionship));
+    var source = new CompositeLiveTimingSource([() => first, () => second], clock, TimeSpan.FromMilliseconds(25));
+    List<string> rotated = [];
+    List<string> feeds = [];
+    List<int> directories = [];
+    source.SnapshotReceived += snapshot => { lock (rotated) rotated.Add(snapshot.Meeting); };
+    source.FeedSnapshotReceived += snapshot => { lock (feeds) feeds.Add(snapshot.Meeting); };
+    source.LiveFeedsChanged += list => { lock (directories) directories.Add(list.Count); };
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+    // A change to the feed the rotation is not showing still reaches the directory consumer.
+    first.Publish(FeedSnapshot("F1 Updated", Championship.Formula1));
+    Thread.Sleep(40);
+
+    lock (feeds) True(feeds.Contains("F1 Updated"));
+    lock (directories) True(directories.Contains(2));
+    lock (rotated) True(rotated.Count >= 2);
+    Equal(2, source.LiveFeeds.Count);
+    Equal(Championship.Formula1, source.LiveFeeds[0].Championship);
+    Equal(Championship.WorldRallyChampionship, source.LiveFeeds[1].Championship);
+
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
+static void FeedDirectoryLifecycle()
+{
+    var clock = new FakeClock();
+    var first = new FakeTimingSource(FeedSnapshot("British Grand Prix", Championship.Formula1));
+    var second = new FakeTimingSource(FeedSnapshot("Rally Finland", Championship.WorldRallyChampionship));
+    var source = new CompositeLiveTimingSource([() => first, () => second], clock,
+        TimeSpan.FromMilliseconds(20), TimeSpan.FromMinutes(5));
+    List<int> changes = [];
+    source.LiveFeedsChanged += list => { lock (changes) changes.Add(list.Count); };
+    source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+    Equal(2, source.LiveFeeds.Count);
+
+    // One feed leaving the track removes only its own entry.
+    second.Publish(TimingSnapshot.Hidden(clock.UtcNow));
+    Thread.Sleep(30);
+    Equal(1, source.LiveFeeds.Count);
+    Equal(Championship.Formula1, source.LiveFeeds[0].Championship);
+
+    // A finished session stays selectable for the retention window, then leaves the directory.
+    first.Publish(FeedSnapshot("British Grand Prix", Championship.Formula1, SessionLifecycle.Ended));
+    Thread.Sleep(30);
+    Equal(1, source.LiveFeeds.Count);
+    True(source.LiveFeeds[0].Retained);
+    clock.Advance(TimeSpan.FromMinutes(5));
+    Thread.Sleep(45);
+    Equal(0, source.LiveFeeds.Count);
+    lock (changes) True(changes.Contains(0));
+
+    source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+}
+
+static void PinnedFeedSelection()
+{
+    var selection = new FeedSelection();
+    True(selection.IsFollowingRotation);
+    True(selection.TryAccept(FeedSnapshot("F1", Championship.Formula1)));
+
+    selection.Freeze(Championship.Formula1);
+    False(selection.IsFollowingRotation);
+    True(selection.TryAccept(FeedSnapshot("F1", Championship.Formula1)));
+    False(selection.TryAccept(FeedSnapshot("WRC", Championship.WorldRallyChampionship)));
+    Equal<Championship?>(Championship.Formula1, selection.PinnedChampionship);
+
+    selection.FollowRotation();
+    True(selection.IsFollowingRotation);
+    True(selection.TryAccept(FeedSnapshot("WRC", Championship.WorldRallyChampionship)));
+
+    // An unknown or null freeze waits for the first real classification instead of binding to Unknown.
+    selection.Freeze(Championship.Unknown);
+    True(selection.TryAccept(FeedSnapshot("F1", Championship.Formula1)));
+    Equal<Championship?>(Championship.Formula1, selection.PinnedChampionship);
+}
+
+static void PinnedScheduleSelection()
+{
+    var selection = new FeedSelection();
+    selection.Freeze(null);
+    False(selection.TryAccept(TimingSnapshot.Hidden(DateTimeOffset.UtcNow)));
+    True(selection.TryAccept(FeedSnapshot("Spa", Championship.Formula1)));
+    False(selection.TryAccept(FeedSnapshot("Rally Finland", Championship.WorldRallyChampionship)));
+    Equal<Championship?>(Championship.Formula1, selection.PinnedChampionship);
 }
 
 static void WrcCategoryEligibility()
@@ -5513,6 +5608,9 @@ static void EndedFeedsClearSelection()
 static TimingSnapshot Snapshot(string meeting, SessionLifecycle lifecycle = SessionLifecycle.Live) => new(meeting, "Live", "Test", 0, null, TrackCondition.AllClear,
     [new CompetitorStanding("1", 1, "AAA", "Driver", "Team", "LEAD", null, null, 0, false, false, false, false)],
     DateTimeOffset.UtcNow, lifecycle);
+
+static TimingSnapshot FeedSnapshot(string meeting, Championship championship, SessionLifecycle lifecycle = SessionLifecycle.Live) =>
+    Snapshot(meeting, lifecycle) with { Championship = championship };
 
 static void WrcRunningStageHidesWhenWrc1Done()
 {

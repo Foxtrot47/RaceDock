@@ -54,6 +54,7 @@ public sealed class TaskbarWindow : Window
     private readonly List<TaskbarCell> _cells = [];
     private readonly DispatcherTimer _reattach;
     private TimingSnapshot? _snapshot;
+    private TimingSnapshot? _overlaySnapshot;
     private UpcomingSession? _nextSession;
     private IReadOnlyList<UpcomingSession> _upcoming = [];
     private RaceAlert? _currentAlert;
@@ -108,6 +109,7 @@ public sealed class TaskbarWindow : Window
             else PositionFlyout();
         };
         _flyout.PinChanged += PositionFlyout;
+        _flyout.FeedSelectionChanged += feed => OverlayFeedChanged?.Invoke(feed);
         _flyout.SettingsRequested += () => SettingsRequested?.Invoke();
         MouseLeftButtonUp += (_, _) => ShowFlyout(); MouseLeave += (_, _) => { if (_flyout.IsVisible) _flyout.ScheduleClose(); };
         _flyout.PointerEntered += (_, _) => _flyout.CancelClose();
@@ -123,7 +125,10 @@ public sealed class TaskbarWindow : Window
     /// <summary>Whether a classification currently owns the widget, which the countdown must not displace.</summary>
     public bool ShowingSnapshot => _snapshot is not null && IsVisible;
     public bool IsClosed { get; private set; }
+    /// <summary>The feed the flyout is held on, or null while it follows rotation.</summary>
+    public Championship? OverlayFeed => _flyout.PinnedFeed;
     public event Action? SettingsRequested;
+    public event Action<Championship?>? OverlayFeedChanged;
 
     public void ApplySettings(UserSettings settings)
     {
@@ -140,6 +145,8 @@ public sealed class TaskbarWindow : Window
             _idle.Update(_nextSession, DateTimeOffset.UtcNow, TimeZoneInfo.Local, _settings.UseSingleRowTaskbar);
             ApplyIdleWidth();
         }
+        // Column and layout settings also belong to the panel; redraw what it is currently showing.
+        if (_overlaySnapshot is not null) UpdateOverlaySnapshot(_overlaySnapshot);
     }
 
     private void ApplyDisplay(Championship championship)
@@ -225,9 +232,25 @@ public sealed class TaskbarWindow : Window
         _raceText.ToolTip = ChampionshipDisplay.FullEvent(snapshot);
         _lapText.Text = progress;
         UpdateCells(snapshot);
-        _flyout.UpdateSnapshot(snapshot);
         RefreshFlag();
     }
+
+    /// <summary>Draws a classification on the flyout, which may reject it when held on another feed.</summary>
+    public bool UpdateOverlaySnapshot(TimingSnapshot snapshot)
+    {
+        var accepted = _flyout.UpdateSnapshot(snapshot);
+        if (accepted) _overlaySnapshot = snapshot;
+        return accepted;
+    }
+
+    /// <summary>Publishes the championships the flyout can offer as manual choices.</summary>
+    public void UpdateLiveFeeds(IReadOnlyList<LiveFeedStatus> feeds) => _flyout.SetLiveFeeds(feeds);
+
+    /// <summary>Forgets the current choices while the live source is being replaced.</summary>
+    public void ResetLiveFeeds() => _flyout.ResetLiveFeeds();
+
+    /// <summary>Returns the panel to rotation, for a source change it should not stay pinned against.</summary>
+    public void ResetOverlayFeed() => _flyout.ResetFeedSelection();
 
     private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Championship == Championship.WorldRallyChampionship || snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);
     public void SetAlert(RaceAlert? alert)
@@ -314,13 +337,23 @@ public sealed class TaskbarWindow : Window
 
     public void UpdateOverlaySchedule(IReadOnlyList<UpcomingSession> upcoming, DateTimeOffset now)
     {
-        if (_flyout.IsPinned) _flyout.ShowSchedule(upcoming, now);
+        // A pinned panel holding a feed keeps it; only a panel pinned on the schedule follows the calendar.
+        if (!_flyout.IsPinned || _flyout.PinnedFeed is not null) return;
+        _overlaySnapshot = null;
+        _flyout.ShowSchedule(upcoming, now);
     }
 
     private void ShowFlyout()
     {
         // Between sessions the flyout carries the schedule, which is the only thing there is to show.
-        if (_snapshot is null && !PrepareSchedule()) return;
+        if (_snapshot is null)
+        {
+            // A pinned panel keeps whatever it is holding; the schedule belongs to the widget underneath.
+            if (_flyout.IsPinned || !PrepareSchedule()) return;
+            _overlaySnapshot = null;
+        }
+        // A flyout that was held on another feed would otherwise show it until the next rotation.
+        else UpdateOverlaySnapshot(_snapshot);
         // Sized and placed before the reveal, so the slide starts from the correct resting point.
         _flyout.Show(); _flyout.UpdateLayout(); PositionFlyout(); _flyout.Reveal();
     }

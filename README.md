@@ -32,7 +32,8 @@ The leaders stay visible in a small strip on the taskbar. Click it and the full 
 - A countdown to the next session of the championships you follow while nothing is running.
 - Lap, stage, gap, tyre, class, pit, status, and flag details when the series publishes them.
 - 15 championships: F1, F2, F3, Formula E, DTM, INDYCAR, MotoGP, Moto2, Moto3, WEC, ELMS, Michelin Le Mans Cup, GT World Challenge Europe, IMSA WeatherTech, and WRC.
-- Follow several series at once — RaceDock rotates between the ones currently live.
+- Follow several series at once — RaceDock rotates between the ones currently live, and the flyout lists every live series so you can switch on your own.
+- Pin the full classification as an overlay above other windows and it stays on the series you chose instead of following the rotation.
 - Position cards or team and manufacturer logos, in a light or dark look that follows Windows.
 - Replay recorded sessions, so you can try the app without waiting for a race.
 

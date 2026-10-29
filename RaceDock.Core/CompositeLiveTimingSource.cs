@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 namespace RaceDock.Core;
 
-/// <summary>Runs multiple championship adapters and rotates active snapshots at a fixed display interval.</summary>
+/// <summary>
+/// Runs multiple championship adapters, rotates their active snapshots at a fixed display interval, and
+/// publishes each adapter's own snapshot plus the set of championships that currently have data.
+/// </summary>
 public sealed class CompositeLiveTimingSource(
     IReadOnlyList<Func<ILiveTimingSource>> factories,
     IClock clock,
     TimeSpan? displayInterval = null,
-    TimeSpan? completedSessionRetention = null) : ILiveTimingSource
+    TimeSpan? completedSessionRetention = null) : ILiveTimingSource, ILiveFeedDirectory
 {
     private readonly TimeSpan _displayInterval = displayInterval ?? TimeSpan.FromSeconds(5);
     private readonly TimeSpan _completedSessionRetention = completedSessionRetention ?? TimeSpan.FromMinutes(5);
@@ -20,11 +23,19 @@ public sealed class CompositeLiveTimingSource(
     private CancellationTokenSource? _runCts;
     private Task? _rotation;
     private ILiveTimingSource? _selected;
+    private IReadOnlyList<LiveFeedStatus> _liveFeeds = [];
 
     public event Action<TimingSnapshot>? SnapshotReceived;
     public event Action<TimingDelta>? DeltaReceived;
     public event Action<ConnectionState>? ConnectionChanged;
     public event Action<FeedFailure>? Failed;
+    public event Action<TimingSnapshot>? FeedSnapshotReceived;
+    public event Action<IReadOnlyList<LiveFeedStatus>>? LiveFeedsChanged;
+
+    public IReadOnlyList<LiveFeedStatus> LiveFeeds
+    {
+        get { lock (_gate) return _liveFeeds; }
+    }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -37,6 +48,7 @@ public sealed class CompositeLiveTimingSource(
             Attach(source);
         }
         await Task.WhenAll(_sources.Select(source => source.StartAsync(_runCts.Token)));
+        RefreshLiveFeeds();
         _rotation = Task.Run(() => RotateAsync(_runCts.Token), _runCts.Token);
     }
 
@@ -89,7 +101,9 @@ public sealed class CompositeLiveTimingSource(
                 if (active.Count == 1 || ReferenceEquals(source, _selected)) selected = _snapshots[_selected];
             }
         }
+        FeedSnapshotReceived?.Invoke(snapshot);
         if (selected is not null) SnapshotReceived?.Invoke(selected);
+        RefreshLiveFeeds();
     }
 
     private async Task RotateAsync(CancellationToken ct)
@@ -115,14 +129,59 @@ public sealed class CompositeLiveTimingSource(
                 if (_selected is not null) selected = _snapshots[_selected];
             }
             if (selected is not null) SnapshotReceived?.Invoke(selected);
+            // Retention expiry is only observable when the active set is recomputed, which happens here.
+            RefreshLiveFeeds();
         }
     }
 
     private List<ILiveTimingSource> ActiveSources() => _sources
-        .Where(source => _snapshots.TryGetValue(source, out var snapshot) &&
+        .Where(source => TryActiveSnapshot(source, out _))
+        .ToList();
+
+    private bool TryActiveSnapshot(ILiveTimingSource source, out TimingSnapshot snapshot)
+    {
+        if (_snapshots.TryGetValue(source, out snapshot!) &&
             snapshot.Lifecycle == SessionLifecycle.Live && snapshot.Competitors.Count > 0 &&
             (!_retainedUntil.TryGetValue(source, out var until) || until > clock.UtcNow))
-        .ToList();
+            return true;
+        snapshot = null!;
+        return false;
+    }
+
+    /// <summary>
+    /// Recomputes the displayable championship set and publishes it when it changed. Called after every
+    /// snapshot, rotation tick, and connection change so the directory also reflects retention expiry.
+    /// </summary>
+    private void RefreshLiveFeeds()
+    {
+        IReadOnlyList<LiveFeedStatus>? changed = null;
+        lock (_gate)
+        {
+            var next = ActiveLiveFeeds();
+            if (!_liveFeeds.SequenceEqual(next))
+            {
+                _liveFeeds = next;
+                changed = next;
+            }
+        }
+        if (changed is not null) LiveFeedsChanged?.Invoke(changed);
+    }
+
+    /// <summary>The active adapters mapped to championships, keeping the rotation order and naming each once.</summary>
+    private List<LiveFeedStatus> ActiveLiveFeeds()
+    {
+        var result = new List<LiveFeedStatus>();
+        var seen = new HashSet<Championship>();
+        foreach (var source in _sources)
+        {
+            if (!TryActiveSnapshot(source, out var snapshot) || snapshot.Championship == Championship.Unknown) continue;
+            if (!seen.Add(snapshot.Championship)) continue;
+            result.Add(new LiveFeedStatus(
+                snapshot.Championship,
+                _retainedUntil.TryGetValue(source, out var until) && until > clock.UtcNow));
+        }
+        return result;
+    }
 
     private void OnConnection(ILiveTimingSource source, ConnectionState state)
     {
@@ -137,6 +196,7 @@ public sealed class CompositeLiveTimingSource(
                 : ConnectionState.Disconnected;
         }
         ConnectionChanged?.Invoke(aggregate);
+        RefreshLiveFeeds();
     }
 
     public async Task StopAsync()
@@ -154,6 +214,7 @@ public sealed class CompositeLiveTimingSource(
             _snapshots.Clear();
             _connections.Clear();
             _selected = null;
+            _liveFeeds = [];
         }
         _rotation = null;
         _runCts?.Dispose();

@@ -43,6 +43,10 @@ public sealed class ClassificationFlyout : Window
     private ScrollingTextBlock _statusHeader = null!;
     private readonly DispatcherTimer _closeTimer;
     private readonly List<ClassificationRow> _standingRows = [];
+    private readonly FeedSelection _selection = new();
+    private readonly FlyoutFeedSwitcher _feedSwitcher = new();
+    private IReadOnlyList<LiveFeedStatus> _liveFeeds = [];
+    private bool _hasLiveFeedDirectory;
     private UserSettings _settings;
     private ChampionshipDisplaySettings _display;
     private TimingSnapshot? _snapshot;
@@ -58,6 +62,8 @@ public sealed class ClassificationFlyout : Window
     public bool IsPinned { get; private set; }
     public event Action? PinChanged;
     public event Action? SettingsRequested;
+    /// <summary>Null means the flyout follows the rotation again.</summary>
+    public event Action<Championship?>? FeedSelectionChanged;
     private bool _blurred;
     private int _driverSignature;
     private int _visibleRowCount;
@@ -155,6 +161,7 @@ public sealed class ClassificationFlyout : Window
         _scheduleOverlayControls.AttachDragHandle(_schedule.Header);
         _overlayControls.PinChanged += SetPinned;
         _scheduleOverlayControls.PinChanged += SetPinned;
+        _feedSwitcher.SelectionChanged += OnFeedSelected;
         _overlayControls.DragRequested += DragOverlay;
         _scheduleOverlayControls.DragRequested += DragOverlay;
         _overlayControls.SettingsRequested += () => SettingsRequested?.Invoke();
@@ -184,7 +191,12 @@ public sealed class ClassificationFlyout : Window
         _slide.Changed += (_, _) => SlideTo?.Invoke(_slide.Y);
         IsVisibleChanged += (_, _) =>
         {
-            if (!IsVisible) return;
+            if (!IsVisible)
+            {
+                // A feed picked in the hover flyout lasts only for as long as it stays open.
+                ResetTemporarySelection();
+                return;
+            }
             _scrollClock.Reset();
             // Updates are skipped while hidden, so the retained snapshot is drawn on the way back in.
             RefreshFromSnapshot();
@@ -224,6 +236,9 @@ public sealed class ClassificationFlyout : Window
     /// </summary>
     public Action<double>? SlideTo { get; set; }
 
+    /// <summary>The championship the flyout is held on, or null while it follows rotation or waits for one.</summary>
+    public Championship? PinnedFeed => _selection.PinnedChampionship;
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
@@ -254,15 +269,25 @@ public sealed class ClassificationFlyout : Window
         if (!ReferenceEquals(_body.Child, _schedule.Element)) _body.Child = _schedule.Element;
         Width = ScheduleView.Width;
         _schedule.Update(sessions, now, TimeZoneInfo.Local);
+        RefreshFeedBar();
     }
 
-    public void UpdateSnapshot(TimingSnapshot snapshot)
+    /// <summary>
+    /// Draws a classification. Returns false when the flyout is held on another feed, so a pinned panel is
+    /// never pulled away by the source's rotation.
+    /// </summary>
+    public bool UpdateSnapshot(TimingSnapshot snapshot)
     {
+        // A panel that was released from its feed (for example by a source-mode change) holds the next one
+        // it is offered rather than falling back into rotation while still pinned.
+        if (IsPinned && _selection.IsFollowingRotation) _selection.Freeze(snapshot.Championship);
+        if (!_selection.TryAccept(snapshot)) return false;
         _snapshot = snapshot;
         // Timing takes the flyout back from the schedule as soon as a session reports in.
         _body.Child = _classification;
+        RefreshFeedBar();
         // A closed flyout is redrawn when it opens, so keeping it current while hidden is pure cost.
-        if (!IsVisible) return;
+        if (!IsVisible) return true;
         _display = _settings.DisplayFor(snapshot.Championship);
         _visibleRowCount = Math.Min(snapshot.Competitors.Count, _display.FlyoutCompetitorCount);
         UpdateDriverColumnWidth(snapshot);
@@ -286,6 +311,74 @@ public sealed class ClassificationFlyout : Window
         UpdateTrackBadge(snapshot.TrackCondition);
 
         UpdateRows(snapshot, new ClassificationRowFormat(rally, endurance, lapTimeMode, PlayoffFormat(snapshot)));
+        return true;
+    }
+
+    /// <summary>Publishes which championships the source can currently show and which of them have ended.</summary>
+    public void SetLiveFeeds(IReadOnlyList<LiveFeedStatus> feeds)
+    {
+        _hasLiveFeedDirectory = true;
+        // A feed that just ended changes only its retention flag, so compare the whole status, not the series.
+        if (feeds.SequenceEqual(_liveFeeds)) return;
+        _liveFeeds = feeds;
+        RefreshFeedBar();
+    }
+
+    /// <summary>Forgets the directory while a source is being replaced, so a pin never flashes an ended tab.</summary>
+    public void ResetLiveFeeds()
+    {
+        _hasLiveFeedDirectory = false;
+        _liveFeeds = [];
+        RefreshFeedBar();
+    }
+
+    /// <summary>Drops a held feed, for a source change the flyout should simply follow.</summary>
+    public void ResetFeedSelection()
+    {
+        _selection.FollowRotation();
+        RefreshFeedBar();
+        FeedSelectionChanged?.Invoke(null);
+    }
+
+    private void OnFeedSelected(Championship? championship)
+    {
+        if (championship is { } feed) _selection.Freeze(feed);
+        else _selection.FollowRotation();
+        RefreshFeedBar();
+        FeedSelectionChanged?.Invoke(_selection.IsFollowingRotation ? null : _selection.PinnedChampionship);
+    }
+
+    /// <summary>Restores rotation after a temporary pick in the hover flyout.</summary>
+    private void ResetTemporarySelection()
+    {
+        if (IsPinned || _selection.IsFollowingRotation) return;
+        _selection.FollowRotation();
+        RefreshFeedBar();
+        FeedSelectionChanged?.Invoke(null);
+    }
+
+    private void RefreshFeedBar()
+    {
+        var selected = _selection.IsFollowingRotation ? null : _selection.PinnedChampionship;
+        var feeds = _liveFeeds.Select(feed => feed.Championship).ToList();
+        var ended = _liveFeeds.Where(feed => feed.Retained).Select(feed => feed.Championship).ToHashSet();
+        // A pinned panel outlives its feed's retention window; keeping the tab explains what is still on screen.
+        if (_hasLiveFeedDirectory && selected is { } pinned && !feeds.Contains(pinned))
+        {
+            feeds.Add(pinned);
+            ended.Add(pinned);
+        }
+        _feedSwitcher.AllowAuto = !IsPinned;
+        _feedSwitcher.SetFeeds(feeds, ended);
+        _feedSwitcher.SetSelected(selected);
+        _feedSwitcher.Element.Visibility = ShouldShowFeedBar() ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private bool ShouldShowFeedBar()
+    {
+        if (ReferenceEquals(_body.Child, _schedule.Element)) return false;
+        // The hover flyout offers a choice only when there is one; a pinned panel always shows what it is on.
+        return _liveFeeds.Count >= 2 || IsPinned;
     }
 
     /// <summary>Redraws the classification by reusing the realized rows instead of rebuilding the visual tree.</summary>
@@ -401,9 +494,13 @@ public sealed class ClassificationFlyout : Window
         // Change the anchoring mode before cancelling motion: cancellation also fires SlideTo.
         IsPinned = pinned;
         CancelClose();
+        if (pinned && _selection.IsFollowingRotation) _selection.Freeze(_snapshot?.Championship);
+        else if (!pinned) _selection.FollowRotation();
+        RefreshFeedBar();
         _overlayControls.SetPinned(pinned);
         _scheduleOverlayControls.SetPinned(pinned);
         PinChanged?.Invoke();
+        FeedSelectionChanged?.Invoke(_selection.IsFollowingRotation ? null : _selection.PinnedChampionship);
         if (!pinned && !IsMouseOver) ScheduleClose();
     }
 
@@ -506,13 +603,28 @@ public sealed class ClassificationFlyout : Window
         header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        // Settings and pin sit in their own row above the title, so they never squeeze the event name.
-        _overlayControls.Element.Margin = new Thickness(0, 0, 0, 4);
+        // Live-series tabs share the top row with the settings and pin buttons: tabs left, controls right.
+        _feedSwitcher.Element.Visibility = Visibility.Collapsed;
+        _feedSwitcher.Element.Margin = new Thickness(0, 0, 8, 0);
+        _feedSwitcher.Element.HorizontalAlignment = HorizontalAlignment.Left;
+        _feedSwitcher.Element.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetRow(_feedSwitcher.Element, 0);
+        Grid.SetColumn(_feedSwitcher.Element, 0);
+        header.Children.Add(_feedSwitcher.Element);
+
+        _overlayControls.Element.Margin = new Thickness(0, 1, 0, 0);
         _overlayControls.Element.HorizontalAlignment = HorizontalAlignment.Right;
-        Grid.SetColumnSpan(_overlayControls.Element, 2);
+        _overlayControls.Element.VerticalAlignment = VerticalAlignment.Top;
+        Grid.SetRow(_overlayControls.Element, 0);
+        Grid.SetColumn(_overlayControls.Element, 1);
         header.Children.Add(_overlayControls.Element);
 
-        var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent };
+        var copy = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = Brushes.Transparent,
+            Margin = new Thickness(0, 4, 0, 0)
+        };
         Grid.SetRow(copy, 1);
         _overlayControls.AttachDragHandle(copy);
         _title.FontSize = 15;

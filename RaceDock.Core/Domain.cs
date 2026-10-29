@@ -123,6 +123,25 @@ public interface ILiveTimingSource : IAsyncDisposable
     Task StopAsync();
 }
 
+/// <summary>One championship a composite can currently display, in rotation order.</summary>
+public sealed record LiveFeedStatus(Championship Championship, bool Retained);
+
+/// <summary>
+/// A live source that runs several championship adapters at once and reports what each of them publishes,
+/// independently of which one the rotation happens to be displaying.
+/// </summary>
+public interface ILiveFeedDirectory
+{
+    /// <summary>Every snapshot any adapter accepts, not only the rotation-selected one.</summary>
+    event Action<TimingSnapshot>? FeedSnapshotReceived;
+
+    /// <summary>Raised when a championship starts, ends, is retained, or leaves the displayable set.</summary>
+    event Action<IReadOnlyList<LiveFeedStatus>>? LiveFeedsChanged;
+
+    /// <summary>The championships that currently have a classification to show, in rotation order.</summary>
+    IReadOnlyList<LiveFeedStatus> LiveFeeds { get; }
+}
+
 public interface ITimingPlaybackSource : ILiveTimingSource
 {
     bool IsPaused { get; }

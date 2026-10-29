@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Windows.Threading;
 using RaceDock.Core;
@@ -20,6 +21,11 @@ public sealed class AppController : IAsyncDisposable
     private ILiveTimingSource? _source;
     private TimingSnapshot? _pending;
     private readonly Dictionary<Championship, TimingSnapshot> _latestSnapshots = [];
+    private readonly Dictionary<Championship, TimingSnapshot> _feedSnapshots = [];
+    private readonly ConcurrentQueue<TimingSnapshot> _feedUpdates = new();
+    private IReadOnlyList<LiveFeedStatus> _liveFeeds = [];
+    private Championship? _overlayFeed;
+    private TimingSnapshot? _lastRotation;
     private TaskbarWindow? _taskbar;
     private SettingsWindow? _settingsWindow;
     private readonly CancellationTokenSource _lifetime = new();
@@ -77,7 +83,7 @@ public sealed class AppController : IAsyncDisposable
     }
 
     public Task SetTestModeAsync(bool enabled) =>
-        SwitchSourceAsync(enabled ? TimingSourceMode.Scenario : TimingSourceMode.Live);
+        SwitchSourceAsync(enabled ? TimingSourceMode.Scenario : TimingSourceMode.Live, resetOverlay: true);
 
     public async Task LoadArchiveReplayAsync(string path)
     {
@@ -88,14 +94,14 @@ public sealed class AppController : IAsyncDisposable
             ITimingArchiveSource replay = string.Equals(Path.GetExtension(fullPath), ".ndjson", StringComparison.OrdinalIgnoreCase)
                 ? await FeedDumpReplayLoader.CreateAsync(fullPath, _clock, _lifetime.Token)
                 : await TimingArchiveReplaySource.CreateAsync(fullPath, _clock, _lifetime.Token);
-            await SwitchSourceCoreAsync(TimingSourceMode.ArchiveReplay, replay);
+            await SwitchSourceCoreAsync(TimingSourceMode.ArchiveReplay, replay, resetOverlay: true);
         }
         finally { _sourceSwitch.Release(); }
     }
 
-    public Task ReturnToLiveAsync() => SwitchSourceAsync(TimingSourceMode.Live);
+    public Task ReturnToLiveAsync() => SwitchSourceAsync(TimingSourceMode.Live, resetOverlay: true);
 
-    private async Task SwitchSourceAsync(TimingSourceMode mode, bool force = false)
+    private async Task SwitchSourceAsync(TimingSourceMode mode, bool force = false, bool resetOverlay = false)
     {
         await _sourceSwitch.WaitAsync(_lifetime.Token);
         try
@@ -105,7 +111,7 @@ public sealed class AppController : IAsyncDisposable
             var candidate = mode == TimingSourceMode.Scenario
                 ? new ScenarioTimingSource(_processor, _clock)
                 : CreateLiveSource();
-            await SwitchSourceCoreAsync(mode, candidate);
+            await SwitchSourceCoreAsync(mode, candidate, resetOverlay);
         }
         finally { _sourceSwitch.Release(); }
     }
@@ -152,7 +158,7 @@ public sealed class AppController : IAsyncDisposable
             TimeSpan.FromMinutes(_settings.CompletedSessionRetentionMinutes));
     }
 
-    private async Task SwitchSourceCoreAsync(TimingSourceMode mode, ILiveTimingSource candidate)
+    private async Task SwitchSourceCoreAsync(TimingSourceMode mode, ILiveTimingSource candidate, bool resetOverlay = false)
     {
         if (_source is not null)
         {
@@ -161,6 +167,16 @@ public sealed class AppController : IAsyncDisposable
             _source = null;
         }
         _latestSnapshots.Clear();
+        _feedSnapshots.Clear();
+        _feedUpdates.Clear();
+        _liveFeeds = [];
+        _lastRotation = null;
+        if (resetOverlay)
+        {
+            _overlayFeed = null;
+            _taskbar?.ResetOverlayFeed();
+        }
+        _taskbar?.ResetLiveFeeds();
         _settingsWindow?.ClearTimingStatuses();
         _pending = null;
         _taskbar?.Hide();
@@ -205,10 +221,26 @@ public sealed class AppController : IAsyncDisposable
     private void Attach(ILiveTimingSource source)
     {
         source.SnapshotReceived += OnSnapshot; source.DeltaReceived += OnDelta; source.ConnectionChanged += OnConnection; source.Failed += OnFailure;
+        if (source is ILiveFeedDirectory directory)
+        {
+            directory.FeedSnapshotReceived += OnFeedSnapshot;
+            directory.LiveFeedsChanged += OnLiveFeedsChanged;
+        }
     }
     private void Detach(ILiveTimingSource source)
     {
         source.SnapshotReceived -= OnSnapshot; source.DeltaReceived -= OnDelta; source.ConnectionChanged -= OnConnection; source.Failed -= OnFailure;
+        if (source is ILiveFeedDirectory directory)
+        {
+            directory.FeedSnapshotReceived -= OnFeedSnapshot;
+            directory.LiveFeedsChanged -= OnLiveFeedsChanged;
+        }
+    }
+    private void OnFeedSnapshot(TimingSnapshot snapshot) => _feedUpdates.Enqueue(snapshot);
+    private void OnLiveFeedsChanged(IReadOnlyList<LiveFeedStatus> feeds)
+    {
+        if (_disposed) return;
+        _dispatcher.BeginInvoke(() => ApplyLiveFeeds(feeds));
     }
     private void OnSnapshot(TimingSnapshot snapshot)
     {
@@ -238,7 +270,9 @@ public sealed class AppController : IAsyncDisposable
     private void RenderPending()
     {
         if (_disposed) return;
+        DrainFeedUpdates();
         var snapshot = Interlocked.Exchange(ref _pending, null); if (snapshot is null) return;
+        _lastRotation = snapshot;
         // Live feeds never start for a hidden championship, but archive playback can still produce one.
         if (snapshot.Championship != Championship.Unknown && !_settings.IsChampionshipVisible(snapshot.Championship)) return;
         UpdateTimingStatuses(snapshot);
@@ -250,8 +284,52 @@ public sealed class AppController : IAsyncDisposable
         }
         var taskbar = EnsureTaskbar();
         taskbar.UpdateSnapshot(snapshot);
+        // A held flyout refuses every other championship, which is what keeps a pinned panel still.
+        taskbar.UpdateOverlaySnapshot(snapshot);
+        _overlayFeed = taskbar.OverlayFeed;
         taskbar.SetAlert(_alerts.Current);
         if (!taskbar.IsVisible) taskbar.Show();
+    }
+
+    /// <summary>
+    /// Reads snapshots from every feed, not only the rotation-selected one, so the flyout can follow a
+    /// championship the widget happens not to be showing.
+    /// </summary>
+    private void DrainFeedUpdates()
+    {
+        var overlayUpdated = false;
+        while (_feedUpdates.TryDequeue(out var snapshot))
+        {
+            if (snapshot.Championship == Championship.Unknown) continue;
+            if (snapshot.Lifecycle == SessionLifecycle.Live) _feedSnapshots[snapshot.Championship] = snapshot;
+            else if (snapshot.Lifecycle == SessionLifecycle.OffSession) _feedSnapshots.Remove(snapshot.Championship);
+            // An ended snapshot keeps the last live classification, mirroring the composite's retention window.
+            if (snapshot.Championship == _overlayFeed) overlayUpdated = true;
+        }
+        if (!overlayUpdated || _overlayFeed is not { } feed) return;
+        if (_feedSnapshots.TryGetValue(feed, out var overlay)) _taskbar?.UpdateOverlaySnapshot(overlay);
+    }
+
+    private void ApplyLiveFeeds(IReadOnlyList<LiveFeedStatus> feeds)
+    {
+        if (_disposed) return;
+        _liveFeeds = feeds;
+        var live = feeds.Select(feed => feed.Championship).ToHashSet();
+        foreach (var championship in _feedSnapshots.Keys.Where(championship => !live.Contains(championship)).ToList())
+            _feedSnapshots.Remove(championship);
+        _taskbar?.UpdateLiveFeeds(feeds);
+    }
+
+    /// <summary>The flyout changed feeds by itself: a chip was picked, a pin froze it, or it returned to rotation.</summary>
+    private void OnOverlayFeedChanged(Championship? feed)
+    {
+        _overlayFeed = feed;
+        if (feed is { } championship)
+        {
+            if (_feedSnapshots.TryGetValue(championship, out var overlay)) _taskbar?.UpdateOverlaySnapshot(overlay);
+            return;
+        }
+        if (_lastRotation is not null) _taskbar?.UpdateOverlaySnapshot(_lastRotation);
     }
 
     private void UpdateTimingStatuses(TimingSnapshot snapshot)
@@ -276,6 +354,10 @@ public sealed class AppController : IAsyncDisposable
         _taskbar = null;
         var taskbar = new TaskbarWindow(_settings);
         taskbar.SettingsRequested += ShowSettings;
+        taskbar.OverlayFeedChanged += OnOverlayFeedChanged;
+        // A recreated widget starts following rotation and reuses the feed choices already known.
+        _overlayFeed = null;
+        taskbar.UpdateLiveFeeds(_liveFeeds);
         taskbar.Closed += (_, _) =>
         {
             if (ReferenceEquals(_taskbar, taskbar)) _taskbar = null;

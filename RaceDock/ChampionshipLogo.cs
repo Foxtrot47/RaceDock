@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using RaceDock.Core;
 using Wpf.Ui.Appearance;
 using Control = System.Windows.Controls.Control;
@@ -68,10 +69,46 @@ internal static class ChampionshipLogo
         Championship.NascarTrucks
     ];
 
-    private static readonly Dictionary<(Championship Championship, bool Light, bool Wide), ImageSource?> Cache = [];
+    // A couple of series ship a wordmark under the compact name; the sidebar file is the square mark.
+    private static readonly Dictionary<Championship, string> SquareArtwork = new()
+    {
+        [Championship.Moto2] = "moto2-sidebar",
+        [Championship.Moto3] = "moto3-sidebar",
+    };
+
+    // Keyed by what actually ends up on screen rather than the championship, because a mark may use a
+    // different file for the same series.
+    private readonly record struct ArtworkKey(string File, bool Light, bool Stripped, bool Grayscale);
+
+    private static readonly Dictionary<ArtworkKey, ImageSource?> Cache = [];
 
     public static FrameworkElement Create(Championship championship, double width, double height) =>
         Create(championship, width, height, useWideArtwork: true);
+
+    /// <summary>
+    /// The square series mark, for places only tall enough for an icon such as the flyout's feed tabs. It keeps
+    /// an opaque tile intact: at this size the artwork is the whole icon, not a backdrop to remove. A
+    /// <paramref name="muted"/> mark is desaturated so an ended series reads as inactive, not merely dim.
+    /// </summary>
+    public static FrameworkElement CreateMark(Championship championship, double size, bool muted = false)
+    {
+        var light = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark &&
+            MonochromeArtwork.Contains(championship);
+        var artwork = SquareFile(championship) is { } file
+            ? LoadArtwork(championship, file, light, stripBackground: false, grayscale: muted)
+            : null;
+        if (artwork is null)
+            return new Ellipse
+            {
+                Width = 6,
+                Height = 6,
+                Fill = muted ? Brushes.Gray : ChampionshipAccent.For(championship),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+        var image = new Image { Source = artwork, Width = size, Height = size, Stretch = Stretch.Uniform };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+        return image;
+    }
 
     public static FrameworkElement CreateTaskbar(Championship championship, double width, double height) =>
         Create(championship, width, height, useWideArtwork: !CompactTaskbarArtwork.Contains(championship));
@@ -81,7 +118,8 @@ internal static class ChampionshipLogo
         var light = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark &&
             (MonochromeArtwork.Contains(championship) ||
              useWideArtwork && championship is (Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks));
-        if (Load(championship, light, useWideArtwork) is { } artwork)
+        if (ArtworkFile(championship, light, useWideArtwork) is { } file
+            && LoadArtwork(championship, file, light, stripBackground: true) is { } artwork)
         {
             var image = new Image { Source = artwork, Width = width, Height = height, Stretch = Stretch.Uniform };
             RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
@@ -101,34 +139,47 @@ internal static class ChampionshipLogo
         return fallback;
     }
 
-    private static ImageSource? Load(Championship championship, bool light, bool useWideArtwork)
+    /// <summary>The file for the wide or compact logo a schedule row or taskbar slot shows.</summary>
+    private static string? ArtworkFile(Championship championship, bool light, bool useWideArtwork)
     {
-        var key = (championship, light, useWideArtwork);
+        if (!Assets.TryGetValue(championship, out var asset)) return null;
+        var wide = useWideArtwork && !CompactArtwork.Contains(championship);
+        // The dark taskbar needs the light-on-dark NASCAR mark instead of an inverted wide logo.
+        if (light && wide && asset == "nascar") return "nascar-wide-dark";
+        return wide ? $"{asset}-wide" : asset;
+    }
+
+    /// <summary>The square file for <see cref="CreateMark"/>, which is always compact artwork.</summary>
+    private static string? SquareFile(Championship championship)
+    {
+        if (SquareArtwork.TryGetValue(championship, out var mark)) return mark;
+        return Assets.TryGetValue(championship, out var asset) ? asset : null;
+    }
+
+    private static ImageSource? LoadArtwork(Championship championship, string file, bool light,
+        bool stripBackground, bool grayscale = false)
+    {
+        var strip = stripBackground && FlatBackgroundArtwork.Contains(championship);
+        var key = new ArtworkKey(file, light, strip, grayscale);
         if (Cache.TryGetValue(key, out var cached)) return cached;
         ImageSource? artwork = null;
-        if (Assets.TryGetValue(championship, out var asset))
+        try
         {
-            try
-            {
-                var suffix = useWideArtwork && !CompactArtwork.Contains(championship) ? "-wide" : "";
-                var file = light && asset == "nascar" && suffix == "-wide"
-                    ? "nascar-wide-dark"
-                    : $"{asset}{suffix}";
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.UriSource = new Uri($"pack://application:,,,/Assets/ChampionshipLogos/{file}.png");
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.EndInit();
-                bitmap.Freeze();
-                BitmapSource source = FlatBackgroundArtwork.Contains(championship)
-                    ? RemoveFlatBackground(bitmap)
-                    : bitmap;
-                artwork = light && !(asset == "nascar" && suffix == "-wide") ? LightSilhouette(source) : source;
-            }
-            catch (Exception failure) when (failure is IOException or NotSupportedException or UriFormatException)
-            {
-                AppLog.Warning("Schedule", $"Championship logo '{asset}' could not be loaded.", failure);
-            }
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.UriSource = new Uri($"pack://application:,,,/Assets/ChampionshipLogos/{file}.png");
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            BitmapSource source = strip ? RemoveFlatBackground(bitmap) : bitmap;
+            // The light NASCAR mark is already drawn for a dark surface, so it keeps its colours.
+            if (light && file != "nascar-wide-dark") source = LightSilhouette(source);
+            if (grayscale) source = Desaturate(source);
+            artwork = source;
+        }
+        catch (Exception failure) when (failure is IOException or NotSupportedException or UriFormatException)
+        {
+            AppLog.Warning("Schedule", $"Championship logo '{file}' could not be loaded.", failure);
         }
         Cache[key] = artwork;
         return artwork;
@@ -150,6 +201,27 @@ internal static class ChampionshipLogo
                 || Math.Abs(pixels[index + 1] - green) > 10
                 || Math.Abs(pixels[index + 2] - red) > 10) continue;
             pixels[index + 3] = 0;
+        }
+        var result = BitmapSource.Create(converted.PixelWidth, converted.PixelHeight, converted.DpiX,
+            converted.DpiY, PixelFormats.Bgra32, null, pixels, stride);
+        result.Freeze();
+        return result;
+    }
+
+    /// <summary>Removes colour while keeping the mark's shape, for a series that has stopped.</summary>
+    private static BitmapSource Desaturate(BitmapSource source)
+    {
+        var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        var stride = converted.PixelWidth * 4;
+        var pixels = new byte[stride * converted.PixelHeight];
+        converted.CopyPixels(pixels, stride, 0);
+        for (var index = 0; index < pixels.Length; index += 4)
+        {
+            var grey = (byte)Math.Round(
+                0.2126 * pixels[index + 2] + 0.7152 * pixels[index + 1] + 0.0722 * pixels[index]);
+            pixels[index] = grey;
+            pixels[index + 1] = grey;
+            pixels[index + 2] = grey;
         }
         var result = BitmapSource.Create(converted.PixelWidth, converted.PixelHeight, converted.DpiX,
             converted.DpiY, PixelFormats.Bgra32, null, pixels, stride);
