@@ -35,12 +35,25 @@ internal static class ManufacturerLogo
         if (championship is Championship.FormulaE or Championship.IndyCar)
         {
             if (TryCreate(standing.Team, size, out logo)) return true;
-            return TryCreate(standing.Manufacturer, size, out logo);
+            return TryCreateManufacturer(standing.Manufacturer, championship, size, out logo);
         }
         // F1 Academy shows each driver's F1 backer; falling back to the entrant team would mix two kinds of mark.
         if (championship == Championship.F1Academy) return TryCreate(standing.Manufacturer, size, out logo);
         if (TryCreate(standing.Manufacturer, size, out logo)) return true;
         return TryCreate(standing.Team, size, out logo);
+    }
+
+    /// <summary>
+    /// Sportscar feeds report their Corvettes as Chevrolet, so the Chevrolet name keeps the Corvette mark; an
+    /// INDYCAR Chevrolet is an engine supplier, shown by the bowtie.
+    /// </summary>
+    private static bool TryCreateManufacturer(string? manufacturer, Championship championship, double size, out Border logo)
+    {
+        var bowtie = championship == Championship.IndyCar &&
+            string.Equals(manufacturer, "Chevrolet", StringComparison.OrdinalIgnoreCase);
+        if (!TryCreate(bowtie ? "Chevrolet Bowtie" : manufacturer, size, out logo)) return false;
+        logo.ToolTip = manufacturer;
+        return true;
     }
 
     /// <summary>Whether logos are drawn for a dark theme; part of a cached logo's key, so it is rebuilt when that changes.</summary>

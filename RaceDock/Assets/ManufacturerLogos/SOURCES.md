@@ -33,6 +33,12 @@ The following entrant marks are the official negative team artwork published on 
 | `indycar-rahal-letterman-lanigan.png` | [Rahal Letterman Lanigan Racing](https://www.indycar.com/-/media/IndyCar/Team/RahalLettermanLanigan_neg.png) |
 | `indycar-team-penske.png` | [Team Penske](https://www.indycar.com/-/media/IndyCar/Team/TeamPenske_neg.png) |
 
+## NTT INDYCAR SERIES engine manufacturers
+
+| Asset | Source |
+| --- | --- |
+| `chevrolet.svg` | [Simple Icons 16.36.0 Chevrolet](https://simpleicons.org/?q=chevrolet) (CC0 path data, brand colour `#CD9834`), sourced there from Chevrolet's published catalogue. Used for INDYCAR Chevrolet entries without an entrant badge; sportscar Chevrolet entries keep the Corvette Racing mark. |
+
 ## F1 Academy driver backers
 
 F1 Academy timing graphics mark each driver with the F1 team or partner whose livery she carries. Backers that are F1 teams use the marks above; the partner brands are:

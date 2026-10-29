@@ -26,6 +26,7 @@
   { "asset": "cadillac.svg", "color": "#f0f4f3", "aliases": ["Cadillac", "Cadillac Formula 1 Team", "Cadillac Racing"] },
   { "asset": "boscoscuro.png", "preserveColors": true, "aliases": ["Boscoscuro", "Speed Up", "Speed Up Racing"] },
   { "asset": "corvette.png", "preserveColors": true, "aliases": ["Corvette", "Chevrolet", "Chevrolet Corvette", "Corvette Racing"] },
+  { "asset": "chevrolet.svg", "color": "#cd9834", "aliases": ["Chevrolet Bowtie"] },
   { "asset": "citroen.svg", "color": "#ED1C24", "aliases": ["Citroen", "Citroën", "Citroen Racing", "Citroën Racing"] },
   { "asset": "ds.svg", "color": "#cba65f", "aliases": ["DS", "DS Automobiles", "DS Penske"] },
   { "asset": "ferrari.svg", "preserveColors": true, "aliases": ["Ferrari", "Scuderia Ferrari", "Scuderia Ferrari HP", "AF Corse", "Ferrari AF Corse", "Vista AF Corse"] },
