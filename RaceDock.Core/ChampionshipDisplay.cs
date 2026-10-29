@@ -29,12 +29,16 @@ public static class ChampionshipDisplay
     public static string FullEvent(TimingSnapshot snapshot) =>
         Join(FullName(snapshot.Championship), ShortEventName(snapshot.Championship, snapshot.Meeting), " · ");
 
-    /// <summary>Shared-entry championships identify the car as well as its active driver in the flyout.</summary>
+    /// <summary>
+    /// Shared-entry championships identify the car as well as its active driver in the flyout, and NASCAR fans
+    /// know an entry by its number first.
+    /// </summary>
     public static string FlyoutDriverName(Championship championship, CompetitorStanding standing)
     {
         var name = string.IsNullOrWhiteSpace(standing.Name) ? standing.Code : standing.Name;
         if (championship is not (Championship.WorldEnduranceChampionship or Championship.Imsa or
-            Championship.GtWorldChallengeEurope or Championship.EuropeanLeMansSeries or Championship.MichelinLeMansCup))
+            Championship.GtWorldChallengeEurope or Championship.EuropeanLeMansSeries or Championship.MichelinLeMansCup or
+            Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks))
             return name;
         if (string.IsNullOrWhiteSpace(standing.CarNumber)) return name;
         var number = standing.CarNumber.Trim().TrimStart('#');
@@ -72,6 +76,7 @@ public static class ChampionshipDisplay
         Championship.Formula1 => "F1",
         Championship.Formula2 => "F2",
         Championship.Formula3 => "F3",
+        Championship.F1Academy => "F1A",
         Championship.MotoGp => "MotoGP",
         Championship.Moto2 => "Moto2",
         Championship.Moto3 => "Moto3",
@@ -95,6 +100,7 @@ public static class ChampionshipDisplay
         Championship.Formula1 => "Formula 1",
         Championship.Formula2 => "Formula 2",
         Championship.Formula3 => "Formula 3",
+        Championship.F1Academy => "F1 Academy",
         Championship.MotoGp => "MotoGP",
         Championship.Moto2 => "Moto2",
         Championship.Moto3 => "Moto3",

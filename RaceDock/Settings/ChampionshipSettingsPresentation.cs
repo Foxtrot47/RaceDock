@@ -40,6 +40,11 @@ internal sealed record ChampionshipSettingsPresentation
         },
         Championship.Formula2 => Circuit("Formula 2", "drivers", "Driver", "team", showManufacturer: false, showTyres: false),
         Championship.Formula3 => Circuit("Formula 3", "drivers", "Driver", "team", showManufacturer: false, showTyres: false),
+        Championship.F1Academy => Circuit("F1 Academy", "drivers", "Driver", "team", showManufacturer: true, showTyres: false) with
+        {
+            ManufacturerTitle = "Team logos",
+            ShowSectorTimingSetting = true
+        },
         Championship.MotoGp => Moto("MotoGP"),
         Championship.Moto2 => Moto("Moto2"),
         Championship.Moto3 => Moto("Moto3"),
@@ -58,7 +63,9 @@ internal sealed record ChampionshipSettingsPresentation
         Championship.FormulaE => FormulaE(),
         Championship.Dtm => Dtm(),
         Championship.IndyCar => IndyCar(),
-        Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks => Nascar(),
+        Championship.NascarCup => Nascar("Cup Series"),
+        Championship.NascarXfinity => Nascar("Xfinity Series"),
+        Championship.NascarTrucks => Nascar("Truck Series"),
         _ => Circuit("the championship", "competitors", "Competitor", "team", showManufacturer: false, showTyres: false)
     };
 
@@ -128,19 +135,28 @@ internal sealed record ChampionshipSettingsPresentation
         "Show each driver's completed lap count.",
         "Show pit, running, retirement, and classification status.");
 
-    private static ChampionshipSettingsPresentation Nascar() => Common(
+    /// <summary>
+    /// A NASCAR entry is known by its number and driver. The feed has no tyres and no team field (its sponsor is not a
+    /// team), and a manufacturer mark would only stand in for the number, so none of those has a control here.
+    /// </summary>
+    private static ChampionshipSettingsPresentation Nascar(string series) => Common(
         "drivers",
         "Driver",
-        "Team logos",
-        "Replace position cards with official NASCAR Cup team marks when available.",
-        "Team names",
-        "Show each driver's team.",
-        "Show NASCAR Cup team marks beside drivers.",
-        "Best lap",
-        "Show each driver's best lap time.",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
         "Playoff",
-        "Show which drivers are eligible for the NASCAR Cup playoffs.",
-        "Show running, damaged-vehicle, and out status.");
+        $"Show which drivers are eligible for the {series} playoffs.",
+        "Show cars on pit road (PIT), on the damaged-vehicle clock (DVP), and out of the session.") with
+        {
+            ShowManufacturerSettings = false,
+            ShowTeamSetting = false,
+            ShowResultSetting = false
+        };
 
     private static ChampionshipSettingsPresentation Moto(string championship) => Common(
         "riders",

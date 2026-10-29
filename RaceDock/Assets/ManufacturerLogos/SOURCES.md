@@ -33,4 +33,17 @@ The following entrant marks are the official negative team artwork published on 
 | `indycar-rahal-letterman-lanigan.png` | [Rahal Letterman Lanigan Racing](https://www.indycar.com/-/media/IndyCar/Team/RahalLettermanLanigan_neg.png) |
 | `indycar-team-penske.png` | [Team Penske](https://www.indycar.com/-/media/IndyCar/Team/TeamPenske_neg.png) |
 
+## F1 Academy driver backers
+
+F1 Academy timing graphics mark each driver with the F1 team or partner whose livery she carries. Backers that are F1 teams use the marks above; the partner brands are:
+
+| Asset | Source |
+| --- | --- |
+| `tagheuer.png` | Rendered from [TAG Heuer Logo — Wikimedia Commons](https://commons.wikimedia.org/wiki/File:TAG_Heuer_Logo.svg) (public domain) |
+| `lego.png` | Rendered from [LEGO logo — Wikimedia Commons](https://commons.wikimedia.org/wiki/File:LEGO_logo.svg) (public domain), sourced there from LEGO's brand assets |
+| `gatorade.png` | Rendered from [Gatorade logo — Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Gatorade_logo.svg) (public domain); `gatorade-dark.png` recolours its black to white for dark themes |
+| `teamviewer.svg` | [Simple Icons 16.36.0 TeamViewer](https://simpleicons.org/?q=teamviewer) (CC0 path data) |
+| `americanexpress.svg` | [Simple Icons 16.36.0 American Express](https://simpleicons.org/?q=americanexpress) (CC0 path data, brand colour `#2E77BC`) |
+| `puma.svg` | [Simple Icons 16.36.0 Puma](https://simpleicons.org/?q=puma) (CC0 path data) |
+
 Other manufacturer marks retain their existing upstream brand or Wikimedia sources. All names and marks remain trademarks of their respective owners. Their inclusion identifies timing entries and does not imply endorsement.

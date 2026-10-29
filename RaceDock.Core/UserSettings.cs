@@ -99,6 +99,12 @@ public sealed record ChampionshipDisplaySettings
             FlyoutShowSectorTimes = false,
             FlyoutShowSplitTimes = false
         },
+        // The F1 Academy feed publishes each lap's three sectors with their best-time flags, but no tyre compound.
+        Championship.F1Academy => this with
+        {
+            FlyoutShowTyre = false,
+            FlyoutShowSplitTimes = false
+        },
         Championship.WorldEnduranceChampionship => this with { FlyoutShowSplitTimes = false },
         Championship.GtWorldChallengeEurope => this with
         {
@@ -120,7 +126,18 @@ public sealed record ChampionshipDisplaySettings
             FlyoutShowTyre = false,
             FlyoutShowSectorTimes = false
         },
-        Championship.IndyCar or Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks => this with { FlyoutShowSectorTimes = false, FlyoutShowSplitTimes = false },
+        Championship.IndyCar => this with { FlyoutShowSectorTimes = false, FlyoutShowSplitTimes = false },
+        // The NASCAR feed carries no tyres, and its only team-like field is the primary sponsor; the car number,
+        // shown beside the driver, is what identifies an entry, so no logo replaces it either.
+        Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks => this with
+        {
+            TaskbarUseManufacturerLogos = false,
+            FlyoutUseManufacturerLogos = false,
+            FlyoutShowTyre = false,
+            FlyoutShowTeamNames = false,
+            FlyoutShowSectorTimes = false,
+            FlyoutShowSplitTimes = false
+        },
         Championship.Formula1 => this with { FlyoutShowSplitTimes = false },
         _ => this with { FlyoutShowSectorTimes = false, FlyoutShowSplitTimes = false }
     }) with { FlyoutShowEnergy = championship == Championship.WorldEnduranceChampionship && FlyoutShowEnergy };
@@ -140,6 +157,7 @@ public sealed record ChampionshipDisplayProfiles
     public ChampionshipDisplaySettings Formula1 { get; init; } = new();
     public ChampionshipDisplaySettings Formula2 { get; init; } = new();
     public ChampionshipDisplaySettings Formula3 { get; init; } = new();
+    public ChampionshipDisplaySettings F1Academy { get; init; } = AcademyDefaults(new());
     public ChampionshipDisplaySettings MotoGp { get; init; } = new();
     public ChampionshipDisplaySettings Moto2 { get; init; } = new();
     public ChampionshipDisplaySettings Moto3 { get; init; } = new();
@@ -160,6 +178,7 @@ public sealed record ChampionshipDisplayProfiles
     {
         Championship.Formula2 => Formula2,
         Championship.Formula3 => Formula3,
+        Championship.F1Academy => F1Academy,
         Championship.MotoGp => MotoGp,
         Championship.Moto2 => Moto2,
         Championship.Moto3 => Moto3,
@@ -183,6 +202,7 @@ public sealed record ChampionshipDisplayProfiles
         {
             Championship.Formula2 => this with { Formula2 = settings },
             Championship.Formula3 => this with { Formula3 = settings },
+            Championship.F1Academy => this with { F1Academy = settings },
             Championship.MotoGp => this with { MotoGp = settings },
             Championship.Moto2 => this with { Moto2 = settings },
             Championship.Moto3 => this with { Moto3 = settings },
@@ -206,6 +226,7 @@ public sealed record ChampionshipDisplayProfiles
         Formula1 = (Formula1 ?? new()).Normalize(),
         Formula2 = (Formula2 ?? new()).Normalize(),
         Formula3 = (Formula3 ?? new()).Normalize(),
+        F1Academy = (F1Academy ?? AcademyDefaults(new())).Normalize(),
         MotoGp = (MotoGp ?? new()).Normalize(),
         Moto2 = (Moto2 ?? new()).Normalize(),
         Moto3 = (Moto3 ?? new()).Normalize(),
@@ -228,6 +249,7 @@ public sealed record ChampionshipDisplayProfiles
         Formula1 = settings,
         Formula2 = settings,
         Formula3 = settings,
+        F1Academy = AcademyDefaults(settings),
         MotoGp = settings,
         Moto2 = settings,
         Moto3 = settings,
@@ -244,6 +266,10 @@ public sealed record ChampionshipDisplayProfiles
         NascarXfinity = settings,
         NascarTrucks = settings
     };
+
+    /// <summary>F1 Academy entries are known by the backer each driver carries, so its marks start on in the flyout as well as the widget.</summary>
+    private static ChampionshipDisplaySettings AcademyDefaults(ChampionshipDisplaySettings settings) =>
+        settings with { TaskbarUseManufacturerLogos = true, FlyoutUseManufacturerLogos = true };
 }
 
 public sealed record UserSettings
@@ -254,6 +280,7 @@ public sealed record UserSettings
         Championship.Formula1,
         Championship.Formula2,
         Championship.Formula3,
+        Championship.F1Academy,
         Championship.FormulaE,
         Championship.Dtm,
         Championship.IndyCar,
@@ -277,6 +304,7 @@ public sealed record UserSettings
     [
         Championship.Formula2,
         Championship.Formula3,
+        Championship.F1Academy,
         Championship.Moto2,
         Championship.Moto3,
         Championship.Dtm,
@@ -292,6 +320,7 @@ public sealed record UserSettings
     public bool EnableFormula1 { get; init; } = true;
     public bool EnableFormula2 { get; init; }
     public bool EnableFormula3 { get; init; }
+    public bool EnableF1Academy { get; init; }
     public bool EnableMotoGp { get; init; }
     public bool EnableMoto2 { get; init; }
     public bool EnableMoto3 { get; init; }
@@ -346,6 +375,7 @@ public sealed record UserSettings
         Championship.Formula1 => EnableFormula1,
         Championship.Formula2 => EnableFormula2,
         Championship.Formula3 => EnableFormula3,
+        Championship.F1Academy => EnableF1Academy,
         Championship.MotoGp => EnableMotoGp,
         Championship.Moto2 => EnableMoto2,
         Championship.Moto3 => EnableMoto3,
@@ -369,6 +399,7 @@ public sealed record UserSettings
         Championship.Formula1 => this with { EnableFormula1 = false },
         Championship.Formula2 => this with { EnableFormula2 = false },
         Championship.Formula3 => this with { EnableFormula3 = false },
+        Championship.F1Academy => this with { EnableF1Academy = false },
         Championship.MotoGp => this with { EnableMotoGp = false },
         Championship.Moto2 => this with { EnableMoto2 = false },
         Championship.Moto3 => this with { EnableMoto3 = false },
@@ -387,7 +418,7 @@ public sealed record UserSettings
         _ => this
     };
 
-    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 || EnableMoto3 || EnableGtWorldChallengeEurope || EnableWec || EnableElms || EnableMichelinLeMansCup || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar || EnableNascarCup || EnableNascarXfinity || EnableNascarTrucks;
+    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableF1Academy || EnableMotoGp || EnableMoto2 || EnableMoto3 || EnableGtWorldChallengeEurope || EnableWec || EnableElms || EnableMichelinLeMansCup || EnableWrc || EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar || EnableNascarCup || EnableNascarXfinity || EnableNascarTrucks;
     public ChampionshipDisplaySettings DisplayFor(Championship championship) =>
         (ChampionshipDisplay ?? ChampionshipDisplayProfiles.Create(ChampionshipDisplaySettings.FromLegacy(this)))
         .For(championship)
@@ -479,7 +510,7 @@ public sealed class UserSettingsStore(string? path = null, string? legacyPath = 
     {
         if (settings.Version >= CurrentVersion || settings.HiddenChampionships is null) return settings;
         var hidden = settings.HiddenChampionships.ToHashSet();
-        // Version 2 added the two Le Mans series; version 3 adds the three NASCAR series.
+        // Version 2 added the two Le Mans series; version 3 adds the three NASCAR series and F1 Academy.
         // A championship that appeared after the file was written starts hidden, so an existing install
         // never begins polling it unasked.
         if (settings.Version < 2)
@@ -490,6 +521,7 @@ public sealed class UserSettingsStore(string? path = null, string? legacyPath = 
         hidden.Add(Championship.NascarCup);
         hidden.Add(Championship.NascarXfinity);
         hidden.Add(Championship.NascarTrucks);
+        hidden.Add(Championship.F1Academy);
         return settings with { Version = CurrentVersion, HiddenChampionships = [.. hidden] };
     }
 

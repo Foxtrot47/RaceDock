@@ -1,6 +1,5 @@
 // Copyright (c) 2026 RaceDock contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
-using System.Net.Http.Headers;
 using System.Text.Json.Nodes;
 
 namespace RaceDock.Core;
@@ -78,7 +77,7 @@ internal sealed class GriiipApiClient(GriiipSeries series) : IGriiipApiClient
             BaseAddress = new Uri("https://insights.griiip.com/"),
             Timeout = TimeSpan.FromSeconds(15)
         };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RaceDock", "1.0"));
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent.Value);
         return client;
     }
 

@@ -18,6 +18,7 @@ internal static class ChampionshipLogo
         [Championship.Formula1] = "f1",
         [Championship.Formula2] = "f2",
         [Championship.Formula3] = "f3",
+        [Championship.F1Academy] = "f1academy",
         [Championship.FormulaE] = "formulae",
         [Championship.MotoGp] = "motogp",
         [Championship.Moto2] = "moto2",
@@ -45,6 +46,7 @@ internal static class ChampionshipLogo
 
     private static readonly HashSet<Championship> MonochromeArtwork =
     [
+        Championship.F1Academy,
         Championship.MotoGp,
         Championship.Moto2,
         Championship.Moto3,

@@ -422,6 +422,40 @@ public static class ChampionshipCalendars
             ? new DateTimeOffset(date.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
             : session.StartUtc;
 
+    /// <summary>The remaining sessions of the next F1 Academy round.</summary>
+    public static IReadOnlyList<UpcomingSession> F1AcademyRound(JsonArray? races, DateTimeOffset now, TimeZoneInfo timeZone)
+    {
+        // Each round runs over a few days, and later rounds sit ahead of it, so the first round with a session still
+        // to come is the one being followed.
+        foreach (var round in (races?.OfType<JsonObject>() ?? []).OrderBy(race => JsonSupport.String(race["RaceStartDate"])))
+        {
+            var name = JsonSupport.String(round["CircuitShortName"]) ?? JsonSupport.String(round["CountryName"]) ?? "F1 Academy";
+            var venue = JsonSupport.String(round["CircuitName"]);
+            var sessions = (round["Sessions"] as JsonArray)?.OfType<JsonObject>()
+                .Select(session => F1AcademySession(session, name, venue))
+                .OfType<UpcomingSession>()
+                .Where(session => session.IsAhead(now, timeZone))
+                .OrderBy(session => session.StartUtc)
+                .ToList() ?? [];
+            if (sessions.Count > 0) return sessions;
+        }
+        return [];
+    }
+
+    /// <summary>
+    /// A session the series has not confirmed carries a placeholder clock time (the official page shows it as TBC),
+    /// so only its local date is kept.
+    /// </summary>
+    private static UpcomingSession? F1AcademySession(JsonObject session, string eventName, string? venue)
+    {
+        if (ParseDate(JsonSupport.String(session["SessionStartTime"])) is not { } start) return null;
+        var name = JsonSupport.String(session["SessionName"]);
+        return JsonSupport.Bool(session["Unconfirmed"])
+            ? new UpcomingSession(Championship.F1Academy, eventName, name, new DateTimeOffset(start.Date, TimeSpan.Zero), venue)
+                { StartDate = DateOnly.FromDateTime(start.DateTime) }
+            : new UpcomingSession(Championship.F1Academy, eventName, name, start.ToUniversalTime(), venue);
+    }
+
     /// <summary>Plain-language lead time such as "in 3 days", used next to the exact start time.</summary>
     public static string DescribeTimeUntil(DateTimeOffset start, DateTimeOffset now)
     {

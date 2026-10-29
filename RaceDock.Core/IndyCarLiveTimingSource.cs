@@ -33,7 +33,7 @@ internal sealed class IndyCarApiClient : IIndyCarApiClient
             BaseAddress = new Uri("https://indycar.blob.core.windows.net/"),
             Timeout = TimeSpan.FromSeconds(15)
         };
-        _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RaceDock", "1.0"));
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent.Value);
     }
 
     public async Task<IndyCarTimingPayload> GetTimingAsync(CancellationToken cancellationToken)

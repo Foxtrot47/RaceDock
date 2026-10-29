@@ -208,6 +208,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     private bool _enableFormula1;
     private bool _enableFormula2;
     private bool _enableFormula3;
+    private bool _enableF1Academy;
     private bool _enableMotoGp;
     private bool _enableMoto2;
     private bool _enableMoto3;
@@ -259,6 +260,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             Status(Championship.Formula1, "Formula 1", "f1.png", "World championship single-seaters"),
             Status(Championship.Formula2, "Formula 2", "f2.png", "Junior single-seater feeder series"),
             Status(Championship.Formula3, "Formula 3", "f3.png", "Junior single-seater feeder series"),
+            Status(Championship.F1Academy, "F1 Academy", "f1academy.png", "Women-only junior single-seater championship"),
             Status(Championship.FormulaE, "Formula E", "formulae.png", "All-electric street racing"),
             Status(Championship.Dtm, "DTM", "dtm.png", "German GT3 touring car series"),
             Status(Championship.IndyCar, "INDYCAR", "indycar.png", "North American open-wheel racing"),
@@ -306,6 +308,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
     public bool EnableFormula1 { get => _enableFormula1; set => SetStream(Championship.Formula1, ref _enableFormula1, value); }
     public bool EnableFormula2 { get => _enableFormula2; set => SetStream(Championship.Formula2, ref _enableFormula2, value); }
     public bool EnableFormula3 { get => _enableFormula3; set => SetStream(Championship.Formula3, ref _enableFormula3, value); }
+    public bool EnableF1Academy { get => _enableF1Academy; set => SetStream(Championship.F1Academy, ref _enableF1Academy, value); }
     public bool EnableMotoGp { get => _enableMotoGp; set => SetStream(Championship.MotoGp, ref _enableMotoGp, value); }
     public bool EnableMoto2 { get => _enableMoto2; set => SetStream(Championship.Moto2, ref _enableMoto2, value); }
     public bool EnableMoto3 { get => _enableMoto3; set => SetStream(Championship.Moto3, ref _enableMoto3, value); }
@@ -364,6 +367,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         Championship.Formula1 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f1-wide.png",
         Championship.Formula2 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f2-wide.png",
         Championship.Formula3 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f3-wide.png",
+        Championship.F1Academy => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f1academy-wide.png",
         Championship.MotoGp => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/motogp-wide.png",
         Championship.Moto2 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/moto2.png",
         Championship.Moto3 => "pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/moto3.png",
@@ -387,6 +391,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             Championship.Formula1 => EnableFormula1,
             Championship.Formula2 => EnableFormula2,
             Championship.Formula3 => EnableFormula3,
+            Championship.F1Academy => EnableF1Academy,
             Championship.MotoGp => EnableMotoGp,
             Championship.Moto2 => EnableMoto2,
             Championship.Moto3 => EnableMoto3,
@@ -414,6 +419,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             case Championship.Formula1: EnableFormula1 = value; break;
             case Championship.Formula2: EnableFormula2 = value; break;
             case Championship.Formula3: EnableFormula3 = value; break;
+            case Championship.F1Academy: EnableF1Academy = value; break;
             case Championship.MotoGp: EnableMotoGp = value; break;
             case Championship.Moto2: EnableMoto2 = value; break;
             case Championship.Moto3: EnableMoto3 = value; break;
@@ -533,7 +539,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             supported[position].Position = position + 1;
     }
 
-    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableMotoGp || EnableMoto2 ||
+    public bool HasEnabledStream => EnableFormula1 || EnableFormula2 || EnableFormula3 || EnableF1Academy || EnableMotoGp || EnableMoto2 ||
         EnableMoto3 || EnableGtWorldChallengeEurope || EnableWec || EnableElms || EnableMichelinLeMansCup || EnableWrc ||
         EnableImsa || EnableFormulaE || EnableDtm || EnableIndyCar || EnableNascarCup || EnableNascarXfinity || EnableNascarTrucks;
 
@@ -546,6 +552,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
         EnableFormula1 = normalized.EnableFormula1;
         EnableFormula2 = normalized.EnableFormula2;
         EnableFormula3 = normalized.EnableFormula3;
+        EnableF1Academy = normalized.EnableF1Academy;
         EnableMotoGp = normalized.EnableMotoGp;
         EnableMoto2 = normalized.EnableMoto2;
         EnableMoto3 = normalized.EnableMoto3;
@@ -620,6 +627,7 @@ internal sealed class SettingsDraft : INotifyPropertyChanged
             EnableFormula1 = EnableFormula1,
             EnableFormula2 = EnableFormula2,
             EnableFormula3 = EnableFormula3,
+            EnableF1Academy = EnableF1Academy,
             EnableMotoGp = EnableMotoGp,
             EnableMoto2 = EnableMoto2,
             EnableMoto3 = EnableMoto3,

@@ -18,7 +18,7 @@ internal sealed class GtwcApiClient : IDisposable
         _ownsHttp = httpClient is null;
         _http = httpClient ?? new HttpClient(CreateDefaultHandler()) { Timeout = TimeSpan.FromSeconds(30) };
         if (!_http.DefaultRequestHeaders.UserAgent.Any())
-            _http.DefaultRequestHeaders.UserAgent.ParseAdd("RaceDock/1.0");
+            _http.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent.Value);
     }
 
     internal static SocketsHttpHandler CreateDefaultHandler() => new()

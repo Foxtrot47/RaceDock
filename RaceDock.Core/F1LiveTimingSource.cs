@@ -68,7 +68,7 @@ public sealed class F1LiveTimingSource(TimingStateProcessor processor, IClock cl
     {
         _socket = new ClientWebSocket();
         _socket.Options.SetRequestHeader("Origin", "https://www.formula1.com");
-        _socket.Options.SetRequestHeader("User-Agent", "RaceDock/1.0");
+        _socket.Options.SetRequestHeader("User-Agent", BrowserUserAgent.Value);
         await _socket.ConnectAsync(new Uri(WsUrl), ct);
         await SendAsync(JsonSerializer.Serialize(new { protocol = "json", version = 1 }) + RecordSeparator, ct);
         var handshake = await ReceiveTextAsync(ct) ?? throw new WebSocketException("F1 live-timing handshake closed.");

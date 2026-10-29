@@ -38,7 +38,10 @@ public static partial class TaskbarSessionDisplay
             ["Sprint"] = new("SPR", false),
             ["Sprint Race"] = new("SPR", false),
             ["SPR"] = new("SPR", false),
-            ["Feature Race"] = new("FEA", false)
+            ["Feature Race"] = new("FEA", false),
+            // F1 Academy's two weekend races, run on laps like any other race.
+            ["Opening Race"] = new("RAC", false),
+            ["Reverse Grid Race"] = new("RAC", false)
         };
 
     public static string Progress(TimingSnapshot snapshot)
@@ -73,7 +76,7 @@ public static partial class TaskbarSessionDisplay
         Championship.MichelinLeMansCup or Championship.Imsa or Championship.GtWorldChallengeEurope;
 
     private static bool IsLapBased(Championship championship) => championship is
-        Championship.Formula1 or Championship.Formula2 or Championship.Formula3 or
+        Championship.Formula1 or Championship.Formula2 or Championship.Formula3 or Championship.F1Academy or
         Championship.MotoGp or Championship.Moto2 or Championship.Moto3 or Championship.IndyCar or
         Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks;
 
@@ -83,8 +86,9 @@ public static partial class TaskbarSessionDisplay
     private static string LapProgress(TimingSnapshot snapshot, string code)
     {
         var lap = Math.Max(0, snapshot.CurrentLap);
+        // Without a lap total a bare number would read as a session number ("RAC 2"), so it is named as a lap.
         var progress = snapshot.TotalLaps is > 0 ? $"{code} {lap}/{snapshot.TotalLaps}"
-            : lap > 0 ? $"{code} {lap}" : code;
+            : lap > 0 ? $"{code} LAP {lap}" : code;
         return StageSuffix(snapshot) is { } stage ? $"{progress} · {stage}" : progress;
     }
 

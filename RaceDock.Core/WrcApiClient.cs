@@ -202,7 +202,7 @@ internal sealed class WrcApiClient : IDisposable
     private async Task<HttpResponseMessage> SendAsync(string path, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(new Uri(ApiBase), path));
-        request.Headers.UserAgent.ParseAdd("RaceDock/1.0");
+        request.Headers.UserAgent.ParseAdd(BrowserUserAgent.Value);
         return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
     }
 

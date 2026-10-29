@@ -63,6 +63,14 @@
   { "asset": "rodin.svg", "aliases": ["Rodin Motorsport", "Rodin"] },
   { "asset": "trident.png", "preserveColors": true, "aliases": ["Trident"] },
   { "asset": "var.png", "color": "#dc4600", "aliases": ["Van Amersfoort Racing (VAR)", "Van Amersfoort Racing", "VAR"] },
-  { "asset": "rb.svg", "preserveColors": true, "aliases": ["Visa Cash App RB (VCARB)", "Visa Cash App RB F1 Team", "Visa Cash App Racing Bulls", "Racing Bulls", "VCARB"] },
-  { "asset": "williams.svg", "color": "#00A3E0", "aliases": ["Williams Racing", "Williams", "Atlassian Williams F1 Team"] }
+  { "asset": "rb.svg", "darkAsset": "rb-dark.svg", "preserveColors": true, "aliases": ["Visa Cash App RB (VCARB)", "Visa Cash App RB F1 Team", "Visa Cash App Racing Bulls", "Racing Bulls", "VCARB"] },
+  { "asset": "williams.svg", "color": "#00A3E0", "aliases": ["Williams Racing", "Williams", "Atlassian Williams F1 Team"] },
+
+  { "asset": "sephora.png", "color": "#f0f4f3", "aliases": ["Sephora"] },
+  { "asset": "tagheuer.png", "preserveColors": true, "aliases": ["TAG Heuer"] },
+  { "asset": "lego.png", "preserveColors": true, "aliases": ["LEGO"] },
+  { "asset": "gatorade.png", "darkAsset": "gatorade-dark.png", "preserveColors": true, "aliases": ["Gatorade"] },
+  { "asset": "teamviewer.svg", "color": "#0e8ee9", "aliases": ["TeamViewer"] },
+  { "asset": "americanexpress.svg", "color": "#2e77bc", "aliases": ["American Express", "Amex"] },
+  { "asset": "puma.svg", "color": "#f0f4f3", "aliases": ["PUMA"] }
 ]

@@ -25,7 +25,8 @@ public enum Championship
     MichelinLeMansCup = 15,
     NascarCup = 16,
     NascarXfinity = 17,
-    NascarTrucks = 18
+    NascarTrucks = 18,
+    F1Academy = 19
 }
 public enum TrackCondition { Unknown, AllClear, Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, RedFlag, FullCourseYellow }
 public enum SectorTimingState { None, OverallBest, PersonalBest, Slower }

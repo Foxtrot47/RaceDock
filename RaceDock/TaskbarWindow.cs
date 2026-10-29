@@ -4,13 +4,11 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
-using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using RaceDock.Core;
 using Wpf.Ui.Appearance;
 using WindowBackdropType = Wpf.Ui.Controls.WindowBackdropType;
-using Image = System.Windows.Controls.Image;
 
 namespace RaceDock.App;
 
@@ -29,15 +27,6 @@ public sealed class TaskbarWindow : Window
     private readonly ScrollingTextBlock _raceText = new() { FontSize = 12, FontWeight = FontWeights.Normal };
     private readonly TextBlock _lapText = new() { FontSize = 12, FontWeight = FontWeights.Normal, Opacity = 0.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _eventHeader = new() { MaxWidth = 150 };
-    private readonly Image _championshipLogo = new()
-    {
-        Width = 18,
-        Height = 18,
-        Margin = new Thickness(0, 0, 4, 0),
-        Stretch = Stretch.Uniform,
-        Visibility = Visibility.Collapsed,
-        Source = new BitmapImage(new Uri("pack://application:,,,/Assets/ChampionshipLogos/nascar.png"))
-    };
     private readonly Border _alert = new()
     {
         Visibility = Visibility.Collapsed,
@@ -91,11 +80,9 @@ public sealed class TaskbarWindow : Window
         _root.ColumnDefinitions.Add(_stripColumn);
         _raceContext.RowDefinitions.Add(_contextFirstRow);
         _raceContext.RowDefinitions.Add(_contextSecondRow);
-        _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(_championshipLogo, 0); Grid.SetColumn(_raceText, 1); Grid.SetColumn(_alert, 2);
-        _eventHeader.Children.Add(_championshipLogo);
+        Grid.SetColumn(_raceText, 0); Grid.SetColumn(_alert, 1);
         _eventHeader.Children.Add(_raceText); _eventHeader.Children.Add(_alert);
         Grid.SetRow(_eventHeader, 0); Grid.SetRow(_lapText, 1);
         _raceContext.Children.Add(_eventHeader); _raceContext.Children.Add(_lapText);
@@ -230,7 +217,6 @@ public sealed class TaskbarWindow : Window
         _snapshot = snapshot;
         ApplyDisplay(snapshot.Championship);
         ApplyTaskbarLayout();
-        UpdateChampionshipLogo(snapshot.Championship);
         var eventName = ChampionshipDisplay.CompactEvent(snapshot);
         var progress = TaskbarSessionDisplay.Progress(snapshot);
         _raceText.Text = _settings.UseSingleRowTaskbar ? $"{eventName} · {progress}" : eventName;
@@ -239,13 +225,6 @@ public sealed class TaskbarWindow : Window
         UpdateCells(snapshot);
         _flyout.UpdateSnapshot(snapshot);
         RefreshFlag();
-    }
-
-    private void UpdateChampionshipLogo(Championship championship)
-    {
-        _championshipLogo.Visibility = championship is Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks
-            ? Visibility.Visible
-            : Visibility.Collapsed;
     }
 
     private static bool IsRallySnapshot(TimingSnapshot snapshot) => snapshot.Championship == Championship.WorldRallyChampionship || snapshot.Meeting.Contains("Rally", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SS", StringComparison.OrdinalIgnoreCase) || snapshot.Session.StartsWith("SHAKEDOWN", StringComparison.OrdinalIgnoreCase);

@@ -161,7 +161,7 @@ internal sealed class TaskbarCell
         CompetitorStanding standing, Championship championship, ChampionshipDisplaySettings display, bool singleRow)
     {
         var logoKey = !singleRow && display.TaskbarUseManufacturerLogos
-            ? $"{championship}|{standing.Manufacturer}|{standing.Team}"
+            ? $"{championship}|{standing.Manufacturer}|{standing.Team}|{ManufacturerLogo.IsDarkTheme}"
             : "";
         if (logoKey == _logoKey) return;
         _logoKey = logoKey;

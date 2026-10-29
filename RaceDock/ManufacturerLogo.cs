@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Xml.Linq;
 using RaceDock.Core;
+using Wpf.Ui.Appearance;
 using Image = System.Windows.Controls.Image;
 
 namespace RaceDock.App;
@@ -31,20 +32,24 @@ internal static class ManufacturerLogo
 
     public static bool TryCreateForStanding(CompetitorStanding standing, Championship championship, double size, out Border logo)
     {
-        if (championship is Championship.FormulaE or Championship.IndyCar or
-            Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks)
+        if (championship is Championship.FormulaE or Championship.IndyCar)
         {
             if (TryCreate(standing.Team, size, out logo)) return true;
             return TryCreate(standing.Manufacturer, size, out logo);
         }
+        // F1 Academy shows each driver's F1 backer; falling back to the entrant team would mix two kinds of mark.
+        if (championship == Championship.F1Academy) return TryCreate(standing.Manufacturer, size, out logo);
         if (TryCreate(standing.Manufacturer, size, out logo)) return true;
         return TryCreate(standing.Team, size, out logo);
     }
 
+    /// <summary>Whether logos are drawn for a dark theme; part of a cached logo's key, so it is rebuilt when that changes.</summary>
+    public static bool IsDarkTheme => ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
+
     public static bool TryCreate(string? manufacturer, double size, out Border logo)
     {
         logo = null!;
-        var definition = Resolve(manufacturer);
+        var definition = Resolve(manufacturer)?.ForTheme(IsDarkTheme);
         if (definition is null) return false;
         var artwork = LoadArtwork(definition);
         if (artwork is null) return false;
@@ -396,8 +401,13 @@ internal static class ManufacturerLogo
     private sealed class LogoDefinition
     {
         public string Asset { get; init; } = "";
+        /// <summary>Artwork drawn in place of <see cref="Asset"/> on a dark theme, for marks too dark to read there.</summary>
+        public string? DarkAsset { get; init; }
         public string Color { get; init; } = "#FFFFFF";
         public bool PreserveColors { get; init; }
         public string[] Aliases { get; init; } = [];
+
+        public LogoDefinition ForTheme(bool dark) =>
+            dark && !string.IsNullOrEmpty(DarkAsset) ? new() { Asset = DarkAsset, Color = Color, PreserveColors = PreserveColors } : this;
     }
 }

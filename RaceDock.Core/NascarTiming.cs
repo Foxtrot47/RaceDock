@@ -26,6 +26,7 @@ internal static class NascarTiming
     private const int StoppedFlagState = 9;
     private const int UnboundedLapCount = 999;
     private const int OutStatusCode = 0;
+    private const int RunningStatusCode = 1;
 
     public static TimingSnapshot BuildSnapshot(JsonObject payload, DateTimeOffset now, ConnectionState connection) =>
         BuildSnapshot(payload, now, connection, NascarSeries.Cup);
@@ -39,16 +40,22 @@ internal static class NascarTiming
             standings.Select(value => value.Lap).DefaultIfEmpty(0).Max();
         var totalLaps = LapCount(payload["laps_in_race"]);
         var stage = runType == RaceRunType ? CurrentStage(payload) : default;
+        var lifecycle = Lifecycle(payload, standings.Count > 0, runType, currentLap, series);
+        var trackState = TrackState(JsonSupport.Int(payload["flag_state"]));
+        // Off track means pit road only while cars are racing: the grid forms off track before green, the field
+        // leaves the track once it has stopped, and a red flag parks it, often on pit road, without anyone pitting.
+        if (lifecycle != SessionLifecycle.Live || trackState == TrackCondition.RedFlag)
+            standings = [.. standings.Select(value => value.InPit ? value with { InPit = false } : value)];
         return new(
             BlankTo(JsonSupport.String(payload["run_name"]), circuit),
             SessionName(runType),
             circuit,
             currentLap,
             totalLaps,
-            TrackState(JsonSupport.Int(payload["flag_state"])),
+            trackState,
             standings,
             now,
-            Lifecycle(payload, standings.Count > 0, runType, currentLap, series),
+            lifecycle,
             connection,
             // NASCAR races are run to a lap count, so the feed publishes no session countdown.
             TimeRemaining: null,
@@ -163,9 +170,7 @@ internal static class NascarTiming
                 Interval(index > 0 ? rows[index - 1].Delta : null, row.Delta),
                 null,
                 JsonSupport.Int(vehicle["laps_completed"]) ?? 0,
-                // The feed carries no pit-road signal: DVP parks a damaged car for repairs instead of
-                // sending it down pit road, so it is reported as a status label, not as a pit stop.
-                false,
+                OnPitRoad(vehicle),
                 false,
                 false,
                 row.BestLap is not null && row.BestLap == fastestLap,
@@ -181,6 +186,16 @@ internal static class NascarTiming
 
         return standings;
     }
+
+    /// <summary>
+    /// A running car the feed explicitly reports off track is on pit road: in the 24 Oct Xfinity race, 100 of the
+    /// 106 times a running car left the track were under caution, when the field pits. <c>pit_stops</c> only lists
+    /// completed stops, so it cannot say a car is in the pits now. DVP and out-of-session cars keep their own status,
+    /// and an absent <c>is_on_track</c> proves nothing.
+    /// </summary>
+    private static bool OnPitRoad(JsonObject vehicle) =>
+        vehicle["is_on_track"] is JsonValue onTrack && onTrack.TryGetValue<bool>(out var value) && !value &&
+        JsonSupport.Int(vehicle["status"]) == RunningStatusCode && !JsonSupport.Bool(vehicle["is_on_dvp"]);
 
     /// <summary>
     /// The per-vehicle <c>status</c> code table is undocumented: only the observed running code (1) and the

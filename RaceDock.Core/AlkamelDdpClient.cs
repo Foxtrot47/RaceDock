@@ -27,7 +27,7 @@ internal sealed class AlkamelDdpClient(Uri socketBase, string source) : IAlkamel
         if (_socket is not null) throw new InvalidOperationException("The Al Kamel connection is already open.");
         _socket = new ClientWebSocket();
         _socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
-        _socket.Options.SetRequestHeader("User-Agent", "RaceDock/1.0");
+        _socket.Options.SetRequestHeader("User-Agent", BrowserUserAgent.Value);
         using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         connectCts.CancelAfter(TimeSpan.FromSeconds(10));
         await _socket.ConnectAsync(CreateEndpoint(socketBase), connectCts.Token);

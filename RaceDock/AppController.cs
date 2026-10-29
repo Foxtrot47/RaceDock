@@ -118,6 +118,7 @@ public sealed class AppController : IAsyncDisposable
         new(Championship.Formula1, "F1", owner => new F1LiveTimingSource(owner._processor, owner._clock)),
         new(Championship.Formula2, "F2", owner => new F2LiveTimingSource(owner._clock, owner._alerts)),
         new(Championship.Formula3, "F3", owner => new F2LiveTimingSource(owner._clock, owner._alerts, "F3")),
+        new(Championship.F1Academy, "F1 Academy", owner => new F2LiveTimingSource(owner._clock, owner._alerts, "F1 Academy")),
         new(Championship.MotoGp, "MotoGP", owner => new MotoGpLiveTimingSource(owner._clock, owner._alerts, Championship.MotoGp)),
         new(Championship.Moto2, "Moto2", owner => new MotoGpLiveTimingSource(owner._clock, owner._alerts, Championship.Moto2)),
         new(Championship.Moto3, "Moto3", owner => new MotoGpLiveTimingSource(owner._clock, owner._alerts, Championship.Moto3)),

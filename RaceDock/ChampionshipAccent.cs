@@ -13,6 +13,7 @@ internal static class ChampionshipAccent
         [Championship.Formula1] = Frozen(0xE1, 0x0A, 0x0A),
         [Championship.Formula2] = Frozen(0x12, 0x5F, 0xA9),
         [Championship.Formula3] = Frozen(0xA6, 0x16, 0x52),
+        [Championship.F1Academy] = Frozen(0xE8, 0x5D, 0x9E),
         [Championship.FormulaE] = Frozen(0x00, 0x67, 0x7A),
         [Championship.MotoGp] = Frozen(0xBE, 0x24, 0x32),
         [Championship.Moto2] = Frozen(0x8E, 0x48, 0x1D),

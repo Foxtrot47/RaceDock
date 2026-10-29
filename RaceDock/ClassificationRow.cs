@@ -302,8 +302,8 @@ internal sealed class ClassificationRow
 
     private void UpdateLogo(CompetitorStanding standing, Championship championship, ChampionshipDisplaySettings display)
     {
-        // Rebuilding the logo element is only worth it when the competitor's branding actually changed.
-        var key = display.FlyoutUseManufacturerLogos ? $"{championship}|{standing.Manufacturer}|{standing.Team}" : "";
+        // Rebuilding the logo element is only worth it when the competitor's branding, or the theme it is drawn for, changed.
+        var key = display.FlyoutUseManufacturerLogos ? $"{championship}|{standing.Manufacturer}|{standing.Team}|{ManufacturerLogo.IsDarkTheme}" : "";
         if (key == _logoKey) return;
         _logoKey = key;
 

@@ -162,6 +162,11 @@
                         <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f3.png" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="F1 Academy" Tag="Championship:F1Academy" Click="NavigationItem_Click">
+                    <ui:NavigationViewItem.Icon>
+                        <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/f1academy.png" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
                 <ui:NavigationViewItem Content="Moto2" Tag="Championship:Moto2" Click="NavigationItem_Click">
                     <ui:NavigationViewItem.Icon>
                         <local:ChampionshipNavigationIcon Source="pack://application:,,,/RaceDock;component/Assets/ChampionshipLogos/moto2-sidebar.png" />

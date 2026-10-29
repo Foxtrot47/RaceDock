@@ -42,7 +42,7 @@ public sealed class GitHubReleaseClient : IDisposable
     {
         _ownsHttp = httpClient is null;
         _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        _http.DefaultRequestHeaders.UserAgent.TryParseAdd("RaceDock");
+        _http.DefaultRequestHeaders.UserAgent.TryParseAdd(BrowserUserAgent.Value);
         _http.DefaultRequestHeaders.Accept.TryParseAdd("application/vnd.github+json");
     }
 

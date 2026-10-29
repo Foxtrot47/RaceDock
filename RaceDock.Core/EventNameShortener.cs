@@ -183,7 +183,7 @@ public static class EventNameShortener
         if (ExactAliases.TryGetValue(value, out var exact)) return exact;
         return championship switch
         {
-            Championship.Formula1 or Championship.Formula2 or Championship.Formula3 =>
+            Championship.Formula1 or Championship.Formula2 or Championship.Formula3 or Championship.F1Academy =>
                 Match(value, GrandPrixAliases) ?? value,
             Championship.MotoGp or Championship.Moto2 or Championship.Moto3 =>
                 Match(value, GrandPrixAliases) ?? value,

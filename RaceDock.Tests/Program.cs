@@ -110,7 +110,9 @@ var tests = new (string Name, Action Run)[]
     ("NASCAR Cup race maps field timing and stages", NascarCupRaceTiming),
     ("NASCAR Cup practice and qualifying publish no lap count or clock", NascarCupTimedSessionTiming),
     ("NASCAR Cup flags and lifecycle reject what the feed cannot prove", NascarCupFlagsAndLifecycle),
+    ("NASCAR pit road follows is_on_track while the session runs", NascarPitRoad),
     ("NASCAR Cup calendar selects the next published race", NascarCupCalendarSelection),
+    ("F1 Academy calendar reads the next round and keeps unconfirmed sessions date-only", F1AcademyCalendar),
     ("NASCAR weekend feed adds published practice and qualifying", NascarWeekendCalendarSessions),
     ("NASCAR Cup settings stay hidden until chosen", NascarCupSettings),
     ("NASCAR Cup source publishes live timing", NascarCupSourceLifecycle),
@@ -131,6 +133,7 @@ var tests = new (string Name, Action Run)[]
     ("NASCAR recorded race replays one start and one chequered alert", NascarRecordedRaceAlerts),
     ("NASCAR schedule reads are shared, expire, and never cache a failure", NascarScheduleCache),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
+    ("F1 Academy array timing publishes live data", F1AcademyLiveTiming),
     ("MotoGP lite payload maps Moto3 timing", MotoGpLitePayload),
     ("MotoGP source filters categories and publishes lifecycle", MotoGpSourceLifecycle),
     ("empty MotoGP gateway responses stay connected and hidden", MotoGpEmptyResponse),
@@ -1258,6 +1261,110 @@ static void F3QualifyingSnapshot()
     Equal("TST", snapshot.Competitors[0].Code);
 }
 
+static void F1AcademyLiveTiming()
+{
+    var clock = new FakeClock();
+    Equal("https://f2f3-prod-livetiming.azurewebsites.net/streaming", F2LiveTimingSource.BaseUrlFor("F1 Academy"));
+    Equal("https://www.f1academy.com", F2LiveTimingSource.OriginFor("F1 Academy"));
+    var source = new F2LiveTimingSource(clock, new AlertArbiter(clock), "F1 Academy");
+    TimingSnapshot? snapshot = null;
+    source.SnapshotReceived += value => snapshot = value;
+    var initial = new JsonObject
+    {
+        ["data"] = new JsonArray("2026-10-24T23:00:00Z", new JsonObject { ["Series"] = "F1 Academy", ["Session"] = "Race" }, new JsonArray
+        {
+            new JsonObject
+            {
+                ["position"] = new JsonObject { ["Value"] = "1" },
+                ["driver"] = new JsonObject { ["RacingNumber"] = "14", ["FullName"] = "Test Driver", ["TLA"] = "TST" },
+                ["gap"] = new JsonObject { ["Value"] = "" },
+                ["interval"] = new JsonObject { ["Value"] = "" },
+                ["best"] = new JsonObject { ["Value"] = "1:58.100" },
+                ["last"] = new JsonObject { ["Value"] = "1:58.400" },
+                ["sectors"] = new JsonArray(
+                    new JsonObject { ["Id"] = "1", ["Value"] = "36.0", ["OverallFastest"] = 1, ["PersonalFastest"] = 1 },
+                    new JsonObject { ["Id"] = "2", ["Value"] = "51.4", ["OverallFastest"] = 0, ["PersonalFastest"] = 1 },
+                    new JsonObject { ["Id"] = "3", ["Value"] = "", ["OverallFastest"] = 0, ["PersonalFastest"] = 0 }),
+                ["laps"] = new JsonObject { ["Value"] = "8" }
+            },
+            new JsonObject
+            {
+                ["position"] = new JsonObject { ["Value"] = "2" },
+                ["driver"] = new JsonObject { ["RacingNumber"] = "3", ["FullName"] = "Second Driver (WCD)", ["TLA"] = "SEC" },
+                ["gap"] = new JsonObject { ["Value"] = "+1.2" },
+                ["interval"] = new JsonObject { ["Value"] = "+1.2" },
+                ["best"] = new JsonObject { ["Value"] = "1:58.900" },
+                ["laps"] = new JsonObject { ["Value"] = "8" }
+            }
+        }),
+        ["racedetailsfeed"] = new JsonArray("2026-10-24T23:00:00Z", new JsonObject
+        {
+            ["Season"] = "2026 F1 Academy", ["Race"] = "Austin", ["Circuit"] = "Circuit of the Americas", ["Session"] = "Reverse Grid Race"
+        }),
+        ["sessionfeed"] = new JsonArray("2026-10-24T23:00:00Z", new JsonObject { ["Value"] = "Started" })
+    };
+    source.ProcessMessage(new JsonObject { ["I"] = 1, ["R"] = initial }.ToJsonString());
+    True(snapshot is not null);
+    Equal(Championship.F1Academy, snapshot!.Championship);
+    Equal("Austin", snapshot.Meeting);
+    Equal("Reverse Grid Race", snapshot.Session);
+    Equal(SessionLifecycle.Live, snapshot.Lifecycle);
+    Equal("LEAD", snapshot.Competitors[0].GapToLeader);
+    Equal("+1.2", snapshot.Competitors[1].IntervalToPositionAhead);
+    Equal(8, snapshot.CurrentLap);
+    // The feed names no team; the 2026 entry list does, so team names and logos resolve from the car number.
+    Equal("ART Grand Prix", snapshot.Competitors[0].Team);
+    Equal("MP Motorsport", snapshot.Competitors[1].Team);
+    // The logo shown is the driver's F1 backer, as on the series' own graphics.
+    Equal("Gatorade", snapshot.Competitors[0].Manufacturer);
+    Equal("Alpine", snapshot.Competitors[1].Manufacturer);
+    // A wild-card entry's "(WCD)" tag is not part of the name the broadcast shows.
+    Equal("Second Driver", snapshot.Competitors[1].Name);
+    Equal("F1A COTA", ChampionshipDisplay.CompactEvent(snapshot));
+    // A race shows its lap like F1 does, not the countdown the feed also publishes.
+    Equal("RAC LAP 8", TaskbarSessionDisplay.Progress(snapshot with { TimeRemaining = "00:09:39" }));
+    // Best and last laps and the sectors run so far are published; a blank sector has not been run yet.
+    Equal("1:58.100", snapshot.Competitors[0].ResultTime);
+    Equal("1:58.400", snapshot.Competitors[0].LastLapTime);
+    Equal(new SectorTiming("36.0", SectorTimingState.OverallBest), snapshot.Competitors[0].CurrentSectors?.Sector1);
+    Equal(new SectorTiming("51.4", SectorTimingState.PersonalBest), snapshot.Competitors[0].CurrentSectors?.Sector2);
+    Equal(null, snapshot.Competitors[0].CurrentSectors?.Sector3);
+    Equal(null, snapshot.Competitors[1].CurrentSectors);
+
+    // A delta names only the sector that changed; the others must survive it.
+    source.ProcessMessage(new JsonObject
+    {
+        ["M"] = new JsonArray(new JsonObject
+        {
+            ["M"] = "datafeed",
+            ["A"] = new JsonArray("F1 Academy", "2026-10-24T23:00:01Z", new JsonObject
+            {
+                ["lines"] = new JsonArray(new JsonObject
+                {
+                    ["driver"] = new JsonObject { ["RacingNumber"] = "14" },
+                    ["sectors"] = new JsonArray(new JsonObject { ["Id"] = "3", ["Value"] = "41.6", ["OverallFastest"] = 0, ["PersonalFastest"] = 0 })
+                })
+            })
+        })
+    }.ToJsonString());
+    Equal(new SectorTiming("36.0", SectorTimingState.OverallBest), snapshot.Competitors[0].CurrentSectors?.Sector1);
+    Equal(new SectorTiming("41.6", SectorTimingState.Slower), snapshot.Competitors[0].CurrentSectors?.Sector3);
+
+    source.ProcessMessage(new JsonObject
+    {
+        ["M"] = new JsonArray(new JsonObject
+        {
+            ["M"] = "datafeed",
+            ["A"] = new JsonArray("F1 Academy", "2026-10-24T23:00:01Z", new JsonArray(new JsonObject
+            {
+                ["position"] = new JsonObject { ["Value"] = "2" },
+                ["driver"] = new JsonObject { ["RacingNumber"] = "14" }
+            })
+        )
+    })
+}.ToJsonString());
+    Equal(2, snapshot.Competitors[0].Position);
+}
 
 static void MotoGpLitePayload()
 {
@@ -1787,7 +1894,8 @@ static void SharedEntryNumbers()
     var standing = new CompetitorStanding("internal-guid", 1, "VAN", "Laurens Vanthoor", "Porsche", null, null,
         null, 12, false, false, false, false) { CarNumber = "006" };
     foreach (var championship in new[] { Championship.WorldEnduranceChampionship, Championship.Imsa,
-        Championship.GtWorldChallengeEurope, Championship.EuropeanLeMansSeries, Championship.MichelinLeMansCup })
+        Championship.GtWorldChallengeEurope, Championship.EuropeanLeMansSeries, Championship.MichelinLeMansCup,
+        Championship.NascarCup, Championship.NascarXfinity, Championship.NascarTrucks })
     {
         Equal("#006  Laurens Vanthoor", ChampionshipDisplay.FlyoutDriverName(championship, standing));
         Equal("#006  Driver Two", ChampionshipDisplay.FlyoutDriverName(championship, standing with { Name = "Driver Two" }));
@@ -1798,6 +1906,7 @@ static void SharedEntryNumbers()
     }
     Equal("Laurens Vanthoor", ChampionshipDisplay.FlyoutDriverName(Championship.Formula1, standing));
     Equal("Laurens Vanthoor", ChampionshipDisplay.FlyoutDriverName(Championship.Dtm, standing));
+    Equal("Laurens Vanthoor", ChampionshipDisplay.FlyoutDriverName(Championship.IndyCar, standing));
     Equal("VAN", standing.Code);
     Equal("internal-guid", standing.DriverId);
 
@@ -2127,6 +2236,15 @@ static void UserSettingsPersistence()
         False(loaded.DisplayFor(Championship.Formula2).TaskbarUseManufacturerLogos);
         False(loaded.DisplayFor(Championship.Formula2).FlyoutUseManufacturerLogos);
         False(loaded.DisplayFor(Championship.Formula2).FlyoutShowTyre);
+        False(loaded.DisplayFor(Championship.F1Academy).FlyoutShowTyre);
+        // Team logos start on for F1 Academy, including in a file written before it had a profile.
+        True(loaded.DisplayFor(Championship.F1Academy).TaskbarUseManufacturerLogos);
+        True(loaded.DisplayFor(Championship.F1Academy).FlyoutUseManufacturerLogos);
+        True(new UserSettings().Normalize().DisplayFor(Championship.F1Academy).FlyoutUseManufacturerLogos);
+        True(new UserSettings
+        {
+            ChampionshipDisplay = ChampionshipDisplayProfiles.Create(new ChampionshipDisplaySettings { FlyoutShowSectorTimes = true })
+        }.Normalize().DisplayFor(Championship.F1Academy).FlyoutShowSectorTimes);
         True(loaded.DisplayFor(Championship.Moto3).FlyoutUseManufacturerLogos);
         False(loaded.DisplayFor(Championship.Moto3).FlyoutShowTyre);
         True(loaded.DisplayFor(Championship.WorldEnduranceChampionship).FlyoutShowTyre);
@@ -2856,7 +2974,7 @@ static void TaskbarSessionProgress()
         TrackCondition.AllClear, [], now, SessionLifecycle.Live,
         TimeRemaining: "00:30:00", Championship: Championship.Formula1);
     Equal("SPR 5/19", TaskbarSessionDisplay.Progress(f1));
-    Equal("SPR 5", TaskbarSessionDisplay.Progress(f1 with { TotalLaps = null }));
+    Equal("SPR LAP 5", TaskbarSessionDisplay.Progress(f1 with { TotalLaps = null }));
     Equal("SPR 0/19", TaskbarSessionDisplay.Progress(f1 with { CurrentLap = 0 }));
     Equal("RAC 30:00", TaskbarSessionDisplay.Progress(f1 with
         { Championship = Championship.FormulaE, Session = "Race", TotalLaps = null }));
@@ -2902,6 +3020,8 @@ static void TaskbarSessionLabels()
         ("Sprint", "SPR 12/57"),
         ("Sprint Race", "SPR 12/57"),
         ("Feature Race", "FEA 12/57"),
+        ("Opening Race", "RAC 12/57"),
+        ("Reverse Grid Race", "RAC 12/57"),
         ("Unknown provider session name", "LIVE 12/57")
     ];
     foreach (var (session, text) in names)
@@ -4203,6 +4323,40 @@ static JsonObject NascarFixture(string name) => JsonNode.Parse(File.ReadAllText(
 static NascarFeedOptions TestNascarFeedOptions() => new(
     TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(30), TimeSpan.FromHours(4), TimeSpan.FromHours(6), TimeSpan.FromSeconds(30));
 
+static void F1AcademyCalendar()
+{
+    var races = F1AcademyScheduleClient.ReadRaces(File.ReadAllText(
+        Path.Combine(AppContext.BaseDirectory, "Fixtures", "F1Academy", "calendar-2026.html")));
+    var utc = TimeZoneInfo.Utc;
+
+    // During the Austin round, its remaining confirmed sessions keep their published times.
+    var austin = ChampionshipCalendars.F1AcademyRound(races, new DateTimeOffset(2026, 10, 24, 12, 0, 0, TimeSpan.Zero), utc);
+    Equal(2, austin.Count);
+    Equal("Austin", austin[0].EventName);
+    Equal("Circuit of the Americas", austin[0].Venue);
+    Equal("Reverse Grid Race", austin[0].SessionName);
+    True(austin[0].HasStartTime);
+    Equal(new DateTimeOffset(2026, 10, 24, 23, 0, 0, TimeSpan.Zero), austin[0].StartUtc);
+    Equal(Championship.F1Academy, austin[0].Championship);
+
+    // Once Austin is over, Las Vegas follows. The series has not confirmed its times (its page shows TBC), so each
+    // session keeps only its local date rather than the placeholder clock time.
+    var lasVegas = ChampionshipCalendars.F1AcademyRound(races, new DateTimeOffset(2026, 10, 29, 12, 0, 0, TimeSpan.Zero), utc);
+    Equal(4, lasVegas.Count);
+    Equal("Las Vegas", lasVegas[0].EventName);
+    Equal("Free Practice", lasVegas[0].SessionName);
+    False(lasVegas[0].HasStartTime);
+    Equal(new DateOnly(2026, 11, 19), lasVegas[0].StartDate);
+    Equal(new DateOnly(2026, 11, 21), lasVegas[^1].StartDate);
+
+    // After the final round there is nothing left to show.
+    Equal(0, ChampionshipCalendars.F1AcademyRound(races, new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), utc).Count);
+    Equal(0, ChampionshipCalendars.F1AcademyRound(null, DateTimeOffset.UtcNow, utc).Count);
+    // A page without its data block is a layout change, reported rather than read as an empty season.
+    try { F1AcademyScheduleClient.ReadRaces("<html></html>"); True(false); }
+    catch (InvalidDataException) { }
+}
+
 /// <summary>
 /// The published season list naming one race at the given time, in the shape the provider uses: the race list's own
 /// dates are US Eastern wall-clock times, and the UTC start comes from the race's <c>schedule[]</c>.
@@ -4416,6 +4570,65 @@ static void NascarCupFlagsAndLifecycle()
         ConnectionState.Connected).Lifecycle);
 }
 
+static void NascarPitRoad()
+{
+    var now = new DateTimeOffset(2026, 10, 22, 18, 35, 0, TimeSpan.Zero);
+    JsonObject Race(Action<JsonArray> change, int flag = 1)
+    {
+        var payload = NascarFixture("cup-race.json");
+        payload["flag_state"] = flag;
+        change(payload["vehicles"]!.AsArray());
+        return payload;
+    }
+    CompetitorStanding Car(TimingSnapshot snapshot, JsonObject vehicle) =>
+        snapshot.Competitors.Single(value => value.CarNumber == vehicle["vehicle_number"]!.GetValue<string>());
+
+    // A running car the feed reports off track during the session is on pit road.
+    JsonObject? pitted = null;
+    var live = NascarTiming.BuildSnapshot(Race(vehicles =>
+    {
+        pitted = vehicles.OfType<JsonObject>().First(value => JsonSupport.Int(value["status"]) == 1 &&
+            !JsonSupport.Bool(value["is_on_dvp"]) && JsonSupport.Bool(value["is_on_track"]));
+        pitted["is_on_track"] = false;
+    }), now, ConnectionState.Connected);
+    Equal(SessionLifecycle.Live, live.Lifecycle);
+    True(Car(live, pitted!).InPit);
+    Equal(null, Car(live, pitted!).StatusLabel);
+    Equal(1, live.Competitors.Count(value => value.InPit));
+
+    // DVP and out-of-session cars keep their own status even off track, and a missing flag proves nothing.
+    JsonObject? damaged = null, retired = null, unknown = null;
+    var mixed = NascarTiming.BuildSnapshot(Race(vehicles =>
+    {
+        var running = vehicles.OfType<JsonObject>()
+            .Where(value => JsonSupport.Int(value["status"]) == 1 && !JsonSupport.Bool(value["is_on_dvp"])).ToList();
+        damaged = running[0];
+        damaged["is_on_dvp"] = true;
+        damaged["is_on_track"] = false;
+        unknown = running[1];
+        unknown.Remove("is_on_track");
+        retired = vehicles.OfType<JsonObject>().First(value => JsonSupport.Int(value["status"]) == 0);
+        retired["is_on_track"] = false;
+    }), now, ConnectionState.Connected);
+    False(Car(mixed, damaged!).InPit);
+    Equal("DVP", Car(mixed, damaged!).StatusLabel);
+    False(Car(mixed, retired!).InPit);
+    Equal("OUT", Car(mixed, retired!).StatusLabel);
+    False(Car(mixed, unknown!).InPit);
+
+    // The grid forms off track before green, the field leaves the track after the stop flag, and a red flag parks it
+    // (often on pit road) while the session stays live.
+    foreach (var flag in new[] { 8, 9, 3 })
+    {
+        var parked = NascarTiming.BuildSnapshot(Race(vehicles =>
+        {
+            foreach (var vehicle in vehicles.OfType<JsonObject>()) vehicle["is_on_track"] = false;
+        }, flag), now, ConnectionState.Connected);
+        True(parked.Lifecycle != SessionLifecycle.Live || parked.TrackCondition == TrackCondition.RedFlag);
+        False(parked.Competitors.Any(value => value.InPit));
+    }
+}
+
 static JsonArray NascarCupRaceList() => JsonNode.Parse("""
     [
       { "race_name": "Daytona 500", "track_name": "Daytona International Speedway",
@@ -4493,6 +4706,31 @@ static void NascarCupSettings()
 {
     Equal(16, (int)Championship.NascarCup);
 
+    // The feed carries no tyres and no team (its only team-like field is the sponsor), so neither column shows,
+    // even for a profile that turned them on before. INDYCAR does publish tyres and keeps its column.
+    var everything = new ChampionshipDisplaySettings
+    {
+        FlyoutShowTyre = true, FlyoutShowTeamNames = true, TaskbarUseManufacturerLogos = true, FlyoutUseManufacturerLogos = true
+    };
+    var profiles = new ChampionshipDisplayProfiles();
+    foreach (var series in new[] { Championship.NascarCup, Championship.NascarXfinity, Championship.NascarTrucks, Championship.IndyCar })
+        profiles = profiles.With(series, everything);
+    var stored = new UserSettings { ChampionshipDisplay = profiles };
+    foreach (var series in new[] { Championship.NascarCup, Championship.NascarXfinity, Championship.NascarTrucks })
+    {
+        False(stored.DisplayFor(series).FlyoutShowTyre);
+        False(stored.DisplayFor(series).FlyoutShowTeamNames);
+        False(stored.DisplayFor(series).FlyoutShowSectorTimes);
+        // The car number identifies an entry; no manufacturer mark replaces or accompanies it.
+        False(stored.DisplayFor(series).TaskbarUseManufacturerLogos);
+        False(stored.DisplayFor(series).FlyoutUseManufacturerLogos);
+        True(stored.DisplayFor(series).FlyoutShowIntervals);
+        True(stored.DisplayFor(series).FlyoutShowCategoryOrLap);
+    }
+    True(stored.DisplayFor(Championship.IndyCar).FlyoutShowTyre);
+    True(stored.DisplayFor(Championship.IndyCar).FlyoutShowTeamNames);
+    True(stored.DisplayFor(Championship.IndyCar).TaskbarUseManufacturerLogos);
+
     var defaults = new UserSettings().Normalize();
     False(defaults.EnableNascarCup);
     False(defaults.IsChampionshipEnabled(Championship.NascarCup));
@@ -4512,6 +4750,7 @@ static void NascarCupSettings()
         False(upgraded.EnableNascarCup);
         False(upgraded.IsChampionshipVisible(Championship.NascarXfinity));
         False(upgraded.IsChampionshipVisible(Championship.NascarTrucks));
+        False(upgraded.IsChampionshipVisible(Championship.F1Academy));
 
         // Once the user shows and enables it, the choice survives a reload.
         store.Save(new UserSettings { EnableNascarCup = true, HiddenChampionships = [Championship.Dtm] });

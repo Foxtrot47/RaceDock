@@ -144,6 +144,60 @@ internal sealed class WrcCalendar(WrcApiClient client) : IChampionshipCalendar
 }
 
 /// <summary>
+/// F1 Academy publishes no keyless schedule API; its calendar page embeds the season as Next.js page data, which
+/// carries every round's sessions.
+/// </summary>
+internal sealed class F1AcademyCalendar(IF1AcademyScheduleClient client) : IChampionshipCalendar
+{
+    public IReadOnlyList<Championship> Championships { get; } = [Championship.F1Academy];
+
+    public async Task<IReadOnlyList<UpcomingSession>> GetUpcomingAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
+        (await GetEventScheduleAsync(now, cancellationToken)).Take(1).ToList();
+
+    public async Task<IReadOnlyList<UpcomingSession>> GetEventScheduleAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
+        ChampionshipCalendars.F1AcademyRound(await client.GetRacesAsync(cancellationToken), now, TimeZoneInfo.Local);
+}
+
+internal interface IF1AcademyScheduleClient : IDisposable
+{
+    Task<JsonArray?> GetRacesAsync(CancellationToken cancellationToken);
+}
+
+public sealed class F1AcademyScheduleClient : IF1AcademyScheduleClient
+{
+    private readonly HttpClient _http;
+
+    public F1AcademyScheduleClient(HttpClient? httpClient = null)
+    {
+        _http = httpClient ?? new HttpClient { BaseAddress = new Uri("https://www.f1academy.com/") };
+        // The site refuses a request that names no browser.
+        if (!_http.DefaultRequestHeaders.UserAgent.Any())
+            _http.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent.Value);
+    }
+
+    public async Task<JsonArray?> GetRacesAsync(CancellationToken cancellationToken)
+    {
+        using var response = await _http.GetAsync("Racing-Series/Calendar", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return ReadRaces(await response.Content.ReadAsStringAsync(cancellationToken));
+    }
+
+    /// <summary>The races in the page's <c>__NEXT_DATA__</c> block; a page without one is a layout this does not know.</summary>
+    internal static JsonArray? ReadRaces(string html)
+    {
+        const string marker = "<script id=\"__NEXT_DATA__\"";
+        var start = html.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0) throw new InvalidDataException("The F1 Academy calendar page carries no __NEXT_DATA__ block.");
+        start = html.IndexOf('>', start) + 1;
+        var end = html.IndexOf("</script>", start, StringComparison.Ordinal);
+        if (start <= 0 || end < 0) throw new InvalidDataException("The F1 Academy calendar page data is not closed.");
+        return JsonNode.Parse(html[start..end])?["props"]?["pageProps"]?["pageData"]?["Races"] as JsonArray;
+    }
+
+    public void Dispose() => _http.Dispose();
+}
+
+/// <summary>
 /// Each NASCAR series schedule is published one season at a time, so the next season is read once the current
 /// one has no race left. A season the provider has not released yet answers without a race list.
 /// </summary>
@@ -311,10 +365,12 @@ public sealed class UpcomingScheduleService : IDisposable
         var gtwc = new GtwcApiClient();
         var wrc = new WrcApiClient();
         var nascar = new CachedNascarScheduleClient(new NascarScheduleClient(), _clock, TimeSpan.FromMinutes(30));
-        _owned = [f1, motogp, dtm, wec, elms, michelinLeMansCup, gtwc, wrc, nascar];
+        var f1Academy = new F1AcademyScheduleClient();
+        _owned = [f1, motogp, dtm, wec, elms, michelinLeMansCup, gtwc, wrc, nascar, f1Academy];
         _calendars =
         [
             new Formula1Calendar(f1),
+            new F1AcademyCalendar(f1Academy),
             new MotorcycleGrandPrixCalendar(motogp),
             new WrcCalendar(wrc),
             new GriiipCalendar(dtm, GriiipSeries.Dtm),
