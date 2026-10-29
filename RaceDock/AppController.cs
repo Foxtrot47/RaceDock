@@ -275,6 +275,7 @@ public sealed class AppController : IAsyncDisposable
         if (_taskbar is { IsClosed: false } existing) return existing;
         _taskbar = null;
         var taskbar = new TaskbarWindow(_settings);
+        taskbar.SettingsRequested += ShowSettings;
         taskbar.Closed += (_, _) =>
         {
             if (ReferenceEquals(_taskbar, taskbar)) _taskbar = null;

@@ -57,6 +57,7 @@ public sealed class ClassificationFlyout : Window
     private bool _allowClose;
     public bool IsPinned { get; private set; }
     public event Action? PinChanged;
+    public event Action? SettingsRequested;
     private bool _blurred;
     private int _driverSignature;
     private int _visibleRowCount;
@@ -156,6 +157,8 @@ public sealed class ClassificationFlyout : Window
         _scheduleOverlayControls.PinChanged += SetPinned;
         _overlayControls.DragRequested += DragOverlay;
         _scheduleOverlayControls.DragRequested += DragOverlay;
+        _overlayControls.SettingsRequested += () => SettingsRequested?.Invoke();
+        _scheduleOverlayControls.SettingsRequested += () => SettingsRequested?.Invoke();
 
         _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
         _closeTimer.Tick += (_, _) =>
@@ -500,8 +503,17 @@ public sealed class ClassificationFlyout : Window
         var header = new Grid { Margin = new Thickness(2, 1, 2, 10) };
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        // Settings and pin sit in their own row above the title, so they never squeeze the event name.
+        _overlayControls.Element.Margin = new Thickness(0, 0, 0, 4);
+        _overlayControls.Element.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumnSpan(_overlayControls.Element, 2);
+        header.Children.Add(_overlayControls.Element);
 
         var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent };
+        Grid.SetRow(copy, 1);
         _overlayControls.AttachDragHandle(copy);
         _title.FontSize = 15;
         _title.FontWeight = FontWeights.SemiBold;
@@ -522,11 +534,10 @@ public sealed class ClassificationFlyout : Window
         _connectionGlyph.FontSize = 15;
         _connectionGlyph.VerticalAlignment = VerticalAlignment.Center;
         _trackBadge.Margin = new Thickness(0, 0, 6, 0);
-        _overlayControls.Element.Margin = new Thickness(0);
         _badges.Children.Add(_trackBadge);
         _badges.Children.Add(_connectionGlyph);
-        _badges.Children.Add(_overlayControls.Element);
         Grid.SetColumn(_badges, 1);
+        Grid.SetRow(_badges, 1);
         header.Children.Add(_badges);
         return header;
     }

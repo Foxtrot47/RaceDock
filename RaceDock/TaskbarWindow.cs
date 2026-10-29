@@ -108,6 +108,7 @@ public sealed class TaskbarWindow : Window
             else PositionFlyout();
         };
         _flyout.PinChanged += PositionFlyout;
+        _flyout.SettingsRequested += () => SettingsRequested?.Invoke();
         MouseLeftButtonUp += (_, _) => ShowFlyout(); MouseLeave += (_, _) => { if (_flyout.IsVisible) _flyout.ScheduleClose(); };
         _flyout.PointerEntered += (_, _) => _flyout.CancelClose();
         // The flyout resizes when columns are toggled or the field changes, so it has to be re-centred.
@@ -122,6 +123,7 @@ public sealed class TaskbarWindow : Window
     /// <summary>Whether a classification currently owns the widget, which the countdown must not displace.</summary>
     public bool ShowingSnapshot => _snapshot is not null && IsVisible;
     public bool IsClosed { get; private set; }
+    public event Action? SettingsRequested;
 
     public void ApplySettings(UserSettings settings)
     {

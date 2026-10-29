@@ -16,7 +16,8 @@ internal sealed class ScheduleView
     public const double Width = 460;
 
     private readonly StackPanel _list = new();
-    private readonly Grid _heading = Heading("NEXT ON TRACK", "LOCAL TIME");
+    // The right-hand slot carries the header controls rather than a note.
+    private readonly Grid _heading = Heading("NEXT ON TRACK", "");
     public FrameworkElement Header => _heading;
     private readonly TextBlock _empty = new()
     {
@@ -41,8 +42,8 @@ internal sealed class ScheduleView
 
     public void AddHeaderControl(FrameworkElement control)
     {
-        _heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(control, _heading.ColumnDefinitions.Count - 1);
+        control.Margin = new Thickness(0);
+        Grid.SetColumn(control, 1);
         _heading.Children.Add(control);
     }
 
@@ -138,8 +139,8 @@ internal sealed class ScheduleView
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var logo = ChampionshipLogo.Create(session.Championship, 54, 27);
-        logo.Margin = new Thickness(0, 2, 11, 0);
-        logo.VerticalAlignment = VerticalAlignment.Top;
+        logo.Margin = new Thickness(0, 0, 11, 0);
+        logo.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(logo);
 
         var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
