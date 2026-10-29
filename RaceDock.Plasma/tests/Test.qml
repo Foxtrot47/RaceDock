@@ -52,6 +52,26 @@ TestCase {
         id: testingPage
     }
 
+    // The pinned overlay is a detached top-level window created by main.qml. Declaring it here
+    // checks that the host loads, sizes itself from the flyout, and stays hidden until shown.
+    PinnedFlyout {
+        id: pinnedHost
+        client: client
+    }
+
+    function test_pinned_host() {
+        verify(!pinnedHost.visible);
+        verify(pinnedHost.width > 300);
+        verify(pinnedHost.height > 200);
+        pinnedHost.visible = true;
+        wait(200);
+        verify(pinnedHost.visible);
+        // A dismissed overlay only hides itself; the applet owns the pin state.
+        pinnedHost.visible = false;
+        wait(100);
+        verify(!pinnedHost.visible);
+    }
+
     function test_live_state() {
         client.refreshWidget();
         client.refreshFlyout();

@@ -1,6 +1,6 @@
 # RaceDock Linux / Plasma Plan
 
-Status: implementation complete for the Plasma front end. Shared Core session, the full widget/flyout, packaging, and the settings UI are in the tree, and the applet, popup, pinned dialog, and config dialog have been verified on a throwaway X11 Plasma session. Wayland, multi-monitor, and 1440p layouts are still unverified.
+Status: implementation complete for the Plasma front end. Shared Core session, the full widget/flyout, packaging, and the settings UI are in the tree, and the applet, popup, pinned overlay, and config dialog have been verified on a throwaway X11 Plasma session. Wayland, multi-monitor, and 1440p layouts are still unverified.
 
 Last updated: 2026-10-29
 
@@ -35,7 +35,13 @@ Do not assume the shell is Bash just because the workspace is Linux; check the s
 - **Sidecar IPC:** D-Bus session bus using `Tmds.DBus.Protocol` `0.95.1`.
 - **Shared orchestration:** `RaceDock.Core` owns feed selection, rotation, alerts, schedule, replay/scenario control, and presentation DTO construction.
 - **Thin front ends:** Windows WPF and Plasma QML render the same Core presentation values. Do not put feed or schedule logic in QML.
-- **One flyout body:** `FlyoutPanel.qml` is reused by the anchored applet popup and the pinned `PlasmaCore.Dialog` host. Pinning is a host/lifecycle concern, not a second UI implementation.
+- **One flyout body:** `FlyoutPanel.qml` is reused by the anchored applet popup and the pinned
+  `PinnedFlyout.qml` window. Pinning is a host/lifecycle concern, not a second UI implementation.
+- **The pinned host is a detached `Window`, not `PlasmaCore.Dialog`:** Plasma tags every dialog it
+  creates as an applet popup, transient for the panel, and KWin hides those the moment another
+  window is activated — a pinned overlay that vanishes on a desktop click is useless. `main.qml`
+  builds `PinnedFlyout.qml` through a `Component` with `createObject(null)` so the window has no
+  parent item and is a normal top-level window.
 - **Polling, not signals:** the Plasma `org.kde.plasma.workspace.dbus` QML module does not expose signal subscriptions. The widget polls `GetWidgetState`; the flyout polls `GetFlyoutState` while open or pinned.
 - **Settings are full snapshots:** `ApplySettings` accepts a complete `UserSettings` JSON document. Partial JSON must not be sent because missing properties would fall back to defaults. `resetSettings` builds the defaults in Core and applies them the same way.
 - **Settings UI is a client, not `plasmoid.configuration`:** the applet's config pages load `GetSettings`, edit a deep copy, and send the whole document back through `ApplySettings`. `main.xml` exists only so Plasma offers the Configure action; the real settings file belongs to the service so Windows and Plasma share it.
@@ -95,7 +101,11 @@ Plasma package:
 
 - `RaceDock.Plasma/package/metadata.json`
 - `RaceDock.Plasma/package/contents/ui/main.qml`
-  - `PlasmoidItem`, compact representation, anchored full representation, pinned dialog host.
+  - `PlasmoidItem`, compact representation, anchored full representation, and the pin state that
+    creates/destroys the pinned host.
+- `RaceDock.Plasma/package/contents/ui/PinnedFlyout.qml`
+  - The pinned, free-floating host: a detached top-level `Window` holding a `FlyoutPanel` with
+    `pinned: true`. Drags through `startSystemMove`, closes on Escape or the close button.
 - `RaceDock.Plasma/package/contents/ui/RaceDockClient.qml`
   - Polling D-Bus client and JSON parsing.
 - `RaceDock.Plasma/package/contents/ui/CompactWidget.qml`
@@ -223,11 +233,23 @@ Packaging and CI:
   reset `~/.local/share/RaceDock/settings.json`.
 - Verified the applet on a throwaway Plasma 6.3 X11 session (Xvfb + kwin + plasmashell, 2026-10-29):
   the two-row and single-row strips render in a real panel with logos and live scenario timing; the
-  anchored popup shows the classification; pin detaches it into a floating `PlasmaCore.Dialog` that
-  drags via `startSystemMove`, stays visible when the desktop is clicked, and unpins; the config
-  dialog opens from the flyout and its General and championship pages scroll and apply live; and the
-  panel, flyout, and config dialog hold up at 1.5× scaling. A 44 px vertical panel clips the strip,
-  so it stays declared horizontal-only.
+  anchored popup shows the classification; pin detaches it into the floating `PinnedFlyout` window
+  that drags via `startSystemMove`, stays visible when the desktop or the panel widget is clicked,
+  and unpins back into the anchored popup; the config dialog opens from the flyout and its General
+  and championship pages scroll and apply live; and the panel, flyout, and config dialog hold up at
+  1.5× scaling. A 44 px vertical panel clips the strip, so it stays declared horizontal-only.
+- Fixed the pin lifecycle (2026-10-29): the pinned host used to be a `PlasmaCore.Dialog`, which
+  Plasma tags as an applet popup and KWin hides as soon as another window activates, and clicking the
+  panel widget silently cleared `pinned`. The host is now `PinnedFlyout.qml`, a detached `Window`
+  created with `createObject(null)`, the widget click is ignored while pinned, unpinning returns to
+  the anchored popup instead of hiding the flyout, and the pin button follows the host state
+  (`window-pin`/`window-unpin` plus the checked highlight).
+- Brought the schedule surfaces back to the Windows metrics (2026-10-29): the flyout drops the
+  table rule in schedule mode, uses the Windows 12/10 padding, and `ScheduleView.qml` is now the
+  Windows composition — a featured card (72 × 34 mark, 3 px accent edge, 16/12/11 px type, 20 px
+  clock) plus a quiet `LATER` list of 54 × 27 marks with no per-row borders. The idle panel strip
+  uses the Windows idle geometry: a 210 px two-row strip with 7/2/6/2 padding, a 42 × 22 mark, and
+  17 px event/detail rows; single-row mode still sizes to its text (63 px chrome, 210–520 px).
 - Captured the single-row strip offscreen with the scenario service and the real F1 replay, with and
   without a yellow flag, plus a WEC-only idle single-row strip.
 - Captured the flyout with a yellow track condition, confirming the header badge renders from
@@ -238,15 +260,16 @@ Packaging and CI:
 
 ### In progress
 
-- None. The applet, anchored popup, pinned dialog, and config dialog have now been exercised on a
+- None. The applet, anchored popup, pinned overlay, and config dialog have now been exercised on a
   real Plasma session (throwaway Xvfb X11, 2026-10-29); the remaining gaps are Wayland, multi-monitor,
   and a 1440p run, listed below.
 
 ### Blocked / unverified
 
-- The pinned `PlasmaCore.Dialog` was verified on X11 with kwin: pin detaches the flyout, drag via
-  `startSystemMove` moves it, it stays visible when another window is clicked, and unpin hides it.
-  Wayland placement and the compositor's own move rules are still unverified.
+- The pinned `PinnedFlyout` window was verified on X11 with kwin: pin detaches the flyout, drag via
+  `startSystemMove` moves it, it survives clicking the desktop and the panel widget, unpin returns to
+  the anchored popup, and Escape/close hides it. Wayland placement and the compositor's own move
+  rules are still unverified.
 - Panel width/height behavior on a vertical panel is known to clip (the strip is horizontal-only and
   declared as such); multi-monitor and 1440p layouts are unverified. 1080p at 1.0 and 1.5 scale were
   checked.
@@ -338,13 +361,13 @@ Packaging and CI:
   The live classification, tyre badges, logos, and the anchored host were seen in a real panel. Column
   order, sectors/splits, WEC wheel ages, energy, schedule, empty/offline, and a 20-row scroll were
   verified offscreen (scrolling also works in the real config dialog).
-- [x] Verify the pinned `PlasmaCore.Dialog`:
+- [x] Verify the pinned `PinnedFlyout` window:
   - pin from anchored -> close popup -> show floating window
   - close/unpin -> hide floating window
   - drag via `startSystemMove`
   - stays on top without stealing focus incorrectly
   - restores/does not restore across Plasma restarts
-  All but the restart-restore case were checked on X11 (2026-10-29); the dialog does not persist
+  All but the restart-restore case were checked on X11 (2026-10-29); the overlay does not persist
   across a Plasma restart by design.
 - [x] Verify panel and flyout sizing at 1080p and fractional scaling. Checked at 1080p/1.0 and
   1080p/1.5 (panel, flyout, config dialog); 1440p and multi-monitor are still open.
@@ -585,6 +608,16 @@ kpackagetool6 --type Plasma/Applet --upgrade RaceDock.Plasma/package
   keep the cell detail text in one place (`detailText`) so the two layouts cannot drift.
 - **Pinned window on Wayland:** compositor placement rules differ from X11. Do not assume `x`/`y` work;
   verify `startSystemMove` and initial placement separately.
+- **Never host the pinned flyout in `PlasmaCore.Dialog`:** every Plasma dialog is created transient
+  for the panel and tagged `_KDE_NET_WM_WINDOW_TYPE_APPLET_POPUP`, and KWin hides those as soon as
+  another window is activated — the overlay disappeared on the first desktop click. A `Window`
+  declared inside `main.qml` inherits the same tag, so the host is built through a `Component` with
+  `createObject(null)` (see `PinnedFlyout.qml`) and ends up as a normal dialog window, which KWin
+  leaves alone. `Window { transientParent: null }` is not enough.
+- **A checkable pin button eats its own binding:** `AbstractButton` sets `checked` itself on click,
+  which destroys `checked: panel.pinned`. The handler re-installs the binding with
+  `checked = Qt.binding(...)`; without it the overlay came back from a re-pin showing an unchecked
+  pin while it was pinned.
 - **Config pages lay their rows out one spacing too wide:** `SimpleKCM`/`ScrollablePage` sizes the
   content before the page has its final width, and Qt Quick Layouts keeps that first-pass geometry,
   so every direct child of a page's `ColumnLayout` ends up ~19 px wider than the column and the
