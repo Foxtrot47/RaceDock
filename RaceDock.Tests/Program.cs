@@ -59,6 +59,8 @@ var tests = new (string Name, Action Run)[]
     ("a feed dump records payloads verbatim per source", FeedDumpCapture),
     ("GTWC feed dumps replay sectors with paused transport controls", FeedDumpReplayTests.GtwcTransport),
     ("WEC feed dumps replay energy tyres and sectors paused", FeedDumpReplayTests.WecTransport),
+    ("NASCAR feed dumps replay each series through recorded flags", FeedDumpReplayTests.NascarTransport),
+    ("F2, F3, and F1 Academy SignalR dumps replay through the live hub parser", FeedDumpReplayTests.FiaTransport),
     ("feed-dump routing preserves F1 and rejects invalid captures", FeedDumpReplayTests.FormatValidation),
     ("an indexed array patch keeps the fields it leaves out", IndexedArrayPatchMerge),
     ("the application log records structured rotating entries", AppLogStructuredRecords),

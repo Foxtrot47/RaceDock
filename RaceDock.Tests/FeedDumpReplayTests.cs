@@ -66,6 +66,140 @@ internal static class FeedDumpReplayTests
         finally { File.Delete(path); }
     }
 
+    public static void NascarTransport()
+    {
+        var fixture = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,
+            "Fixtures", "Nascar", "recorded-transitions.json")))!.AsObject();
+        List<FeedDumpEntry> entries = [];
+        foreach (var session in new[] { "qualifying", "race" })
+            foreach (var step in fixture[session]!.AsArray())
+                entries.Add(Raw(DateTimeOffset.Parse(step!["captured"]!.GetValue<string>()), step["payload"]!));
+        // The endpoint re-serves an assembly until it builds a new one, and answers between sessions with an empty
+        // field; neither is a frame.
+        entries.Insert(1, Raw(entries[0].Timestamp.AddSeconds(10), JsonNode.Parse(entries[0].Payload)!));
+        entries.Insert(6, Raw(entries[5].Timestamp.AddSeconds(10), new JsonObject { ["series_id"] = 1, ["vehicles"] = new JsonArray() }));
+        var path = TemporaryPath();
+        try
+        {
+            Write(path, entries);
+            var source = FeedDumpReplayLoader.CreateAsync(path, new TestClock()).GetAwaiter().GetResult();
+            List<TimingSnapshot> snapshots = [];
+            source.SnapshotReceived += snapshots.Add;
+            try
+            {
+                source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Check(source is TimingArchiveReplaySource && source.ArchiveName.StartsWith("NASCAR · ", StringComparison.Ordinal),
+                    "NASCAR dumps must use the NASCAR replay");
+                Check(source.IsPaused && source.FrameCount == 18 && source.FrameIndex == 1,
+                    "Re-served assemblies and empty fields must not become frames");
+                for (var index = 1; index < source.FrameCount; index++) source.Step();
+                Check(source.IsCompleted, "Stepping must reach the last recorded frame");
+                Check(string.Join(",", snapshots.Select(value => value.Lifecycle)) ==
+                    "Live,Ended,PreSession,Live,Ended,PreSession,Live,Live,Live,Live,Live,Live,Live,Live,Live,Live,Ended,Ended",
+                    "Recorded flags must drive the NASCAR lifecycle in replay");
+                Check(snapshots.Take(5).All(value => value.Championship == Championship.NascarCup) &&
+                    snapshots.Skip(5).All(value => value.Championship == Championship.NascarXfinity),
+                    "Each payload must replay as the series it belongs to");
+                Check(snapshots[^1].TotalLaps == 94 && snapshots[^2].StageNumber == 3 &&
+                    snapshots.All(value => value.ConnectionState == ConnectionState.Connected),
+                    "Race distance, stage, and connection must survive replay");
+            }
+            finally { source.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+            Write(path, [entries[6]]);
+            Reject(path);
+        }
+        finally { File.Delete(path); }
+    }
+
+    public static void FiaTransport()
+    {
+        var start = DateTimeOffset.Parse("2026-10-24T20:44:57Z");
+        static JsonObject Line(string number, int position, string code) => new()
+        {
+            ["position"] = new JsonObject { ["Value"] = position.ToString() },
+            ["driver"] = new JsonObject { ["RacingNumber"] = number, ["FullName"] = code, ["TLA"] = code },
+            ["laps"] = new JsonObject { ["Value"] = "3" }
+        };
+        static JsonObject Initial(string session, JsonObject lines) => new()
+        {
+            ["R"] = new JsonObject
+            {
+                ["data"] = new JsonArray("2026-10-24T20:44:58", new JsonObject { ["Series"] = "F1 Academy", ["Session"] = "Race" }, lines),
+                ["racedetailsfeed"] = new JsonArray("2026-10-24T20:44:58", new JsonObject { ["Race"] = "Austin", ["Session"] = session }),
+                ["sessionfeed"] = new JsonArray("2026-10-24T20:44:58", new JsonObject { ["Value"] = "Started" })
+            },
+            ["I"] = "1"
+        };
+        // Datafeed lines carry Number, the display slot, beside the car: slot 2 here is not car 2.
+        static JsonObject Slot(string slot, string number, int position) => new()
+        {
+            ["Number"] = slot,
+            ["driver"] = new JsonObject { ["RacingNumber"] = number },
+            ["position"] = new JsonObject { ["Value"] = position.ToString() }
+        };
+        var update = new JsonObject
+        {
+            ["M"] = new JsonArray(new JsonObject
+            {
+                ["H"] = "Streaming",
+                ["M"] = "datafeed",
+                ["A"] = new JsonArray("2026-10-24T20:45:10", 0, new JsonObject
+                {
+                    ["lines"] = new JsonArray(Slot("1", "9", 1), Slot("2", "1", 2), Slot("3", "2", 3))
+                })
+            })
+        };
+        var path = TemporaryPath();
+        try
+        {
+            Write(path,
+            [
+                // Handshakes and keep-alives come first and must not decide the format.
+                Raw(start, new JsonObject { ["C"] = "s-0", ["S"] = 1, ["M"] = new JsonArray() }),
+                Raw(start, new JsonObject()),
+                Raw(start, new JsonObject { ["I"] = "0" }),
+                Raw(start.AddSeconds(1), Initial("Opening Race", new JsonObject
+                {
+                    ["1"] = Line("1", 1, "ONE"), ["2"] = Line("2", 2, "TWO"), ["9"] = Line("9", 3, "NIN")
+                })),
+                Raw(start.AddSeconds(13), update),
+                // A reconnect into the next session resends the whole field, which replaces the lines before it.
+                Raw(start.AddHours(2), Initial("Reverse Grid Race", new JsonObject
+                {
+                    ["9"] = Line("9", 1, "NIN"), ["5"] = Line("5", 2, "FIV")
+                }))
+            ]);
+            var source = FeedDumpReplayLoader.CreateAsync(path, new TestClock()).GetAwaiter().GetResult();
+            List<TimingSnapshot> snapshots = [];
+            source.SnapshotReceived += snapshots.Add;
+            try
+            {
+                source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Check(source is TimingArchiveReplaySource && source.ArchiveName == "F1 Academy · Austin · Reverse Grid Race",
+                    "F1 Academy dumps must replay through the FIA hub parser");
+                Check(source.FrameCount == 3, "Only frames that change the field become replay frames");
+                source.Step();
+                source.Step();
+                Check(snapshots.All(value => value.Championship == Championship.F1Academy &&
+                    value.ConnectionState == ConnectionState.Connected), "The recorded series must survive replay");
+                Check(snapshots.All(value => value.Competitors.Select(c => c.Position).Distinct().Count() == value.Competitors.Count),
+                    "A display slot must never become a second car");
+                Check(string.Join(",", snapshots[1].Competitors.Select(c => c.Code)) == "NIN,ONE,TWO",
+                    "Slot updates must move the cars they name");
+                Check(string.Join(",", snapshots[^1].Competitors.Select(c => c.Code)) == "NIN,FIV" &&
+                    snapshots[^1].Session == "Reverse Grid Race", "A resent field must replace the previous session's lines");
+            }
+            finally { source.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+
+            // Without a series in the recording or the file name there is no way to choose the roster.
+            var unnamed = Initial("Race", new JsonObject { ["1"] = Line("1", 1, "ONE") });
+            unnamed["R"]!["data"]![1]!["Series"] = null;
+            Write(path, [Raw(start, unnamed)]);
+            Reject(path);
+        }
+        finally { File.Delete(path); }
+    }
+
     public static void WecTransport()
     {
         var fixture = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,

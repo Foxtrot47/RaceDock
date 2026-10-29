@@ -20,17 +20,26 @@ public static class FeedDumpReplayLoader
             {
                 FeedFormat.Gtwc => await GtwcFeedDumpReplayLoader.CreateAsync(path, clock, cancellationToken),
                 FeedFormat.Wec => await WecFeedDumpReplayLoader.CreateAsync(path, clock, cancellationToken),
+                FeedFormat.Nascar => await NascarFeedDumpReplayLoader.CreateAsync(path, clock, cancellationToken),
+                FeedFormat.Fia => await FiaFeedDumpReplayLoader.CreateAsync(path, clock, cancellationToken),
                 _ => await F1FeedDumpReplaySource.CreateAsync(path, clock, cancellationToken)
             };
         }
         catch (JsonException ex) { throw new InvalidDataException("The feed dump contains malformed payload JSON.", ex); }
     }
 
-    private enum FeedFormat { F1, Gtwc, Wec }
+    private enum FeedFormat { F1, Gtwc, Wec, Nascar, Fia }
+
+    /// <summary>The client methods the FIA F2, F3, and F1 Academy SignalR hub calls; Formula 1 uses others.</summary>
+    private static readonly HashSet<string> FiaMethods = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "datafeed", "statsfeed", "weatherfeed", "sessionfeed", "trackfeed", "timefeed", "racedetailsfeed", "commentaryfeed"
+    };
 
     private static FeedFormat Detect(string path, CancellationToken cancellationToken)
     {
-        foreach (var entry in Read(path, cancellationToken).Take(32))
+        var sawObject = false;
+        foreach (var entry in Read(path, cancellationToken).Take(64))
         {
             if (string.IsNullOrWhiteSpace(entry.Payload)) continue;
             using var document = JsonDocument.Parse(entry.Payload.Split('\u001e', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "null");
@@ -41,16 +50,47 @@ public static class FeedDumpReplayLoader
                 return FeedFormat.Wec;
             }
             if (root.ValueKind != JsonValueKind.Object) continue;
+            sawObject = true;
             if (root.TryGetProperty("content", out var content) && content.ValueKind == JsonValueKind.Object &&
                 content.TryGetProperty("full", out var full) && full.ValueKind == JsonValueKind.Object)
                 return FeedFormat.Gtwc;
             if (root.TryGetProperty("sessionInfo", out var info) && info.ValueKind == JsonValueKind.Object &&
                 root.TryGetProperty("participants", out var participants) && participants.ValueKind == JsonValueKind.Array)
                 return FeedFormat.Wec;
+            if (root.TryGetProperty("vehicles", out var vehicles) && vehicles.ValueKind == JsonValueKind.Array &&
+                root.TryGetProperty("series_id", out _))
+                return FeedFormat.Nascar;
+            if (IsFiaFrame(root)) return FeedFormat.Fia;
+            // SignalR keep-alives, handshakes, and invocation acknowledgements name no provider; read on.
+            if (IsSignalREnvelope(root)) continue;
             // F1 uses record separators within its SignalR payload. Its own loader validates these.
             return FeedFormat.F1;
         }
+        if (sawObject) return FeedFormat.F1;
         throw new InvalidDataException("No supported timing records were found in this feed dump.");
+    }
+
+    private static bool IsFiaFrame(JsonElement root)
+    {
+        if (root.TryGetProperty("R", out var response) && response.ValueKind == JsonValueKind.Object &&
+            (response.TryGetProperty("racedetailsfeed", out _) || response.TryGetProperty("sessionfeed", out _)))
+            return true;
+        return root.TryGetProperty("M", out var messages) && messages.ValueKind == JsonValueKind.Array &&
+            messages.EnumerateArray().Any(message => message.ValueKind == JsonValueKind.Object &&
+                message.TryGetProperty("M", out var method) && method.ValueKind == JsonValueKind.String &&
+                FiaMethods.Contains(method.GetString()!));
+    }
+
+    /// <summary>An ASP.NET SignalR frame that carries no hub data: <c>{}</c>, <c>{"C":..,"M":[]}</c>, <c>{"I":"0"}</c>.</summary>
+    private static bool IsSignalREnvelope(JsonElement root)
+    {
+        foreach (var property in root.EnumerateObject())
+        {
+            if (property.Name is "C" or "S" or "I" or "G" or "L") continue;
+            if (property.Name == "M" && property.Value.ValueKind == JsonValueKind.Array && property.Value.GetArrayLength() == 0) continue;
+            return false;
+        }
+        return true;
     }
 
     private static bool IsWecSession(JsonElement session) =>
@@ -344,5 +384,136 @@ internal static class WecFeedDumpReplayLoader
             }
             catch (JsonException ex) { throw new InvalidDataException("The WEC dump contains malformed payload JSON.", ex); }
         }
+    }
+}
+
+/// <summary>
+/// Replays a NASCAR live-feed dump through the live mapping. The endpoint re-serves one assembly until it builds
+/// the next, so a payload with the same series and <c>time_of_day_os</c> as the one before it is not a new frame.
+/// Between sessions it answers with an empty field, which has nothing to show and is skipped.
+/// </summary>
+internal static class NascarFeedDumpReplayLoader
+{
+    private const int MaximumRecords = 1_000_000;
+    private const int MaximumFrames = 250_000;
+    private const int MaximumCompetitors = 500;
+    private const int MaximumStandingSamples = 5_000_000;
+    private static readonly NascarSeries[] Series = [NascarSeries.Cup, NascarSeries.Xfinity, NascarSeries.Trucks];
+
+    public static Task<TimingArchiveReplaySource> CreateAsync(string path, IClock clock, CancellationToken token) =>
+        Task.Run(() => Load(Path.GetFullPath(path), clock, token), token);
+
+    private static TimingArchiveReplaySource Load(string path, IClock clock, CancellationToken token)
+    {
+        List<TimingSnapshot> snapshots = [];
+        List<DateTimeOffset> timestamps = [];
+        string? previous = null;
+        var records = 0;
+        var samples = 0;
+        foreach (var entry in FeedDumpReplayLoader.Read(path, token))
+        {
+            if (++records > MaximumRecords) throw new InvalidDataException("The NASCAR dump exceeds the 1,000,000-record limit.");
+            if (Parse(entry.Payload) is not { } payload) continue;
+            var series = Series.FirstOrDefault(value => NascarTiming.IsSeries(payload, value));
+            if (series is null || payload["vehicles"] is not JsonArray { Count: > 0 } vehicles) continue;
+            if (vehicles.Count > MaximumCompetitors) throw new InvalidDataException("The NASCAR dump exceeds the 500-competitor limit.");
+            var assembly = $"{series.SeriesId}|{JsonSupport.String(payload["time_of_day_os"])}";
+            if (assembly == previous) continue;
+            previous = assembly;
+            if (snapshots.Count >= MaximumFrames) throw new InvalidDataException("The NASCAR dump exceeds the 250,000-frame limit.");
+            var snapshot = NascarTiming.BuildSnapshot(payload, entry.Timestamp, ConnectionState.Connected, series);
+            samples += snapshot.Competitors.Count;
+            if (samples > MaximumStandingSamples) throw new InvalidDataException("The NASCAR dump exceeds the 5,000,000-standing sample limit.");
+            snapshots.Add(snapshot);
+            timestamps.Add(entry.Timestamp);
+        }
+        if (snapshots.Count == 0) throw new InvalidDataException("The NASCAR dump contains no session with a field.");
+        var first = snapshots[0];
+        return new(path, $"NASCAR · {first.Meeting} · {first.Session}", clock, snapshots, timestamps, "NASCAR");
+    }
+
+    private static JsonObject? Parse(string payload)
+    {
+        try { return JsonNode.Parse(payload) as JsonObject; }
+        catch (JsonException ex) { throw new InvalidDataException("The NASCAR dump contains malformed payload JSON.", ex); }
+    }
+}
+
+/// <summary>
+/// Replays an FIA Formula 2, Formula 3, or F1 Academy SignalR dump through the live hub parser, so the replay
+/// keeps every rule the live source applies. The series comes from the recording itself and, failing that,
+/// from the dump's file name.
+/// </summary>
+internal static class FiaFeedDumpReplayLoader
+{
+    private const int MaximumRecords = 1_000_000;
+    private const int MaximumFrames = 250_000;
+    private const int MaximumCompetitors = 500;
+    private const int MaximumStandingSamples = 5_000_000;
+
+    public static Task<TimingArchiveReplaySource> CreateAsync(string path, IClock clock, CancellationToken token) =>
+        Task.Run(() => Load(Path.GetFullPath(path), clock, token), token);
+
+    private static TimingArchiveReplaySource Load(string path, IClock clock, CancellationToken token)
+    {
+        var series = SeriesOf(path, token);
+        var recorded = new RecordedClock();
+        var source = new F2LiveTimingSource(recorded, new AlertArbiter(recorded), series);
+        List<TimingSnapshot> snapshots = [];
+        List<DateTimeOffset> timestamps = [];
+        var samples = 0;
+        source.SnapshotReceived += snapshot =>
+        {
+            if (snapshot.Competitors.Count > MaximumCompetitors)
+                throw new InvalidDataException($"The {series} dump exceeds the 500-competitor limit.");
+            if (snapshots.Count >= MaximumFrames) throw new InvalidDataException($"The {series} dump exceeds the 250,000-frame limit.");
+            samples += snapshot.Competitors.Count;
+            if (samples > MaximumStandingSamples)
+                throw new InvalidDataException($"The {series} dump exceeds the 5,000,000-standing sample limit.");
+            // The recording was received over a live connection; the parser here never opens one.
+            snapshots.Add(snapshot with { ConnectionState = ConnectionState.Connected });
+            timestamps.Add(recorded.UtcNow);
+        };
+        var records = 0;
+        foreach (var entry in FeedDumpReplayLoader.Read(path, token))
+        {
+            if (++records > MaximumRecords) throw new InvalidDataException($"The {series} dump exceeds the 1,000,000-record limit.");
+            if (string.IsNullOrWhiteSpace(entry.Payload)) continue;
+            recorded.UtcNow = entry.Timestamp;
+            try { source.ProcessMessage(entry.Payload); }
+            catch (JsonException ex) { throw new InvalidDataException($"The {series} dump contains malformed payload JSON.", ex); }
+        }
+        if (snapshots.Count == 0) throw new InvalidDataException($"The {series} dump contains no timing lines.");
+        var last = snapshots[^1];
+        return new(path, $"{series} · {last.Meeting} · {last.Session}", clock, snapshots, timestamps, series);
+    }
+
+    /// <summary>The series the hub was joined for, as its initial data names it (<c>F2</c>, <c>F3</c>, <c>F1 Academy</c>).</summary>
+    private static string SeriesOf(string path, CancellationToken token)
+    {
+        foreach (var entry in FeedDumpReplayLoader.Read(path, token).Take(1_000))
+        {
+            JsonNode? root;
+            try { root = JsonNode.Parse(entry.Payload); }
+            catch (JsonException) { continue; }
+            var named = Normalize(JsonSupport.String((root?["R"]?["data"] as JsonArray)?.ElementAtOrDefault(1)?["Series"]));
+            if (named is not null) return named;
+        }
+        return Normalize(Path.GetFileNameWithoutExtension(path)) ??
+            throw new InvalidDataException("The FIA dump does not say whether it is Formula 2, Formula 3, or F1 Academy.");
+    }
+
+    private static string? Normalize(string? value) =>
+        value?.Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant() switch
+        {
+            "F2" => "F2",
+            "F3" => "F3",
+            "F1ACADEMY" => "F1 Academy",
+            _ => null
+        };
+
+    private sealed class RecordedClock : IClock
+    {
+        public DateTimeOffset UtcNow { get; set; }
     }
 }
