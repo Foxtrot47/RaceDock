@@ -113,6 +113,24 @@ TestCase {
         wait(900);
     }
 
+    function test_archive_picker_path() {
+        // The Browse button hands the picker's file:// URL to the service, so it has to become a
+        // plain path first, and a failed load has to be visible in the card instead of the footer.
+        compare(testingPage.localPath("file:///tmp/racedock%20dump.ndjson"), "/tmp/racedock dump.ndjson");
+        compare(testingPage.localPath("/tmp/plain.ndjson"), "/tmp/plain.ndjson");
+        compare(testingPage.localPath(""), "");
+
+        // A picked file that the service cannot open surfaces the loader error in the card.
+        testingPage.loadArchive("file:///tmp/racedock-missing-pick.ndjson".substring(7));
+        wait(1500);
+        verify(testingPage.archiveFailed);
+        verify(testingPage.archiveStatus.indexOf("Could not load the archive") === 0);
+
+        // An empty path explains itself rather than leaving the button dead.
+        testingPage.loadArchive("   ");
+        verify(testingPage.archiveStatus.indexOf("Choose a file with Browse") === 0);
+    }
+
     function test_archive_replay() {
         // A missing archive must surface the loader error instead of silently switching sources.
         testingPage.loadArchive("/tmp/racedock-missing-dump.ndjson");

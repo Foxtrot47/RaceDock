@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls as QQC2
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import "."
@@ -17,6 +18,10 @@ ConfigSettingsBase {
 
     /// Last archive path accepted by the service, shown in the transport bar.
     property string archiveName: ""
+    /// Result of the last archive action, shown next to the archive card so a failed load is
+    /// visible without scrolling to the page footer.
+    property string archiveStatus: ""
+    property bool archiveFailed: false
 
     readonly property string viewMode: client.widgetState.viewMode || "live"
     /// The scenario and archive sources are playback sources; the transport controls only apply
@@ -41,31 +46,61 @@ ConfigSettingsBase {
 
     function loadArchive(path) {
         path = (path || "").trim();
-        if (path.length === 0)
+        if (path.length === 0) {
+            page.archiveStatus = "Choose a file with Browse, or paste a path first.";
+            page.archiveFailed = true;
             return;
+        }
         client.command("archive", path, result => {
             if (result.ok) {
                 page.archiveName = path.substring(path.lastIndexOf("/") + 1);
-                page.status = "Replaying '" + page.archiveName + "'.";
+                page.archiveStatus = "Replaying '" + page.archiveName + "'.";
+                page.archiveFailed = false;
+                page.status = page.archiveStatus;
             } else {
-                page.status = "Could not load the archive: " + (result.error || "unknown error");
+                page.archiveStatus = "Could not load the archive: " + (result.error || "unknown error");
+                page.archiveFailed = true;
+                page.status = page.archiveStatus;
             }
         });
+    }
+
+    /// Turns the picker's `file://` URL into a plain path the service can open.
+    function localPath(urlValue) {
+        if (!urlValue)
+            return "";
+        const text = String(urlValue);
+        if (text.indexOf("file://") !== 0)
+            return text;
+        let path = text.substring(7);
+        try {
+            path = decodeURIComponent(path);
+        } catch (error) {
+            // Leave the raw path if it is not valid percent-encoding.
+        }
+        return path;
     }
 
     function returnToLive() {
         client.command("live", "", result => {
             page.status = result.ok ? "Live streams are active." : "Could not return to live: " + (result.error || "unknown error");
+            page.archiveStatus = result.ok ? "" : page.status;
+            page.archiveFailed = !result.ok;
         });
     }
 
+    // The KCM content area sizes its children before the page has its final width, and Qt Quick
+    // Layouts keeps that first-pass geometry, so every row ends up about one spacing wider than the
+    // page column and the right edge is clipped. Capping each row at the column width pins them to
+    // the real content width without changing the layout otherwise.
     ColumnLayout {
+        id: testingColumn
         Layout.fillWidth: true
-        Layout.maximumWidth: Kirigami.Units.gridUnit * 34
         spacing: 0
 
         QQC2.Label {
             Layout.topMargin: Kirigami.Units.largeSpacing
+            Layout.maximumWidth: testingColumn.width
             text: "Testing"
             font.weight: Font.Bold
             font.pointSize: Kirigami.Theme.defaultFont.pointSize + 2
@@ -74,6 +109,7 @@ ConfigSettingsBase {
         QQC2.Label {
             Layout.bottomMargin: Kirigami.Units.largeSpacing
             Layout.fillWidth: true
+            Layout.maximumWidth: testingColumn.width
             text: "Replay a timing archive or RaceDock F1/GTWC/WEC feed dump, or drive a deterministic scenario without waiting for a live session."
             color: Kirigami.Theme.disabledTextColor
             wrapMode: Text.WordWrap
@@ -82,6 +118,7 @@ ConfigSettingsBase {
         // Transport bar: what is driving the widget, and every playback control, in one fixed place.
         Rectangle {
             Layout.fillWidth: true
+            Layout.maximumWidth: testingColumn.width
             Layout.bottomMargin: Kirigami.Units.largeSpacing
             radius: Kirigami.Units.smallSpacing
             color: Kirigami.Theme.alternateBackgroundColor
@@ -191,6 +228,7 @@ ConfigSettingsBase {
         }
 
         QQC2.Label {
+            Layout.maximumWidth: testingColumn.width
             text: "Source"
             font.weight: Font.DemiBold
             color: Kirigami.Theme.disabledTextColor
@@ -198,6 +236,7 @@ ConfigSettingsBase {
 
         QQC2.Label {
             Layout.fillWidth: true
+            Layout.maximumWidth: testingColumn.width
             text: "One source drives the widget at a time. Either option replaces the live feeds until you return to live."
             color: Kirigami.Theme.disabledTextColor
             font.pointSize: Kirigami.Theme.smallFont.pointSize
@@ -205,6 +244,7 @@ ConfigSettingsBase {
         }
 
         SettingsCard {
+            Layout.maximumWidth: testingColumn.width
             title: "Deterministic scenario"
             description: "Replace live streams with the scripted feed you drive by hand."
             QQC2.Switch {
@@ -213,36 +253,97 @@ ConfigSettingsBase {
             }
         }
 
-        SettingsCard {
-            title: "Timing archive"
-            description: "Drop a Timing71 ZIP, HAR capture, or RaceDock F1/GTWC/WEC NDJSON dump here, or paste its path."
-            // No file picker: QtQuick.Dialogs creates a window when instantiated, and plasmashell
-            // builds config pages off-scene, which crashes the config dialog. A path field is the
-            // safe equivalent.
-            RowLayout {
+        // The archive controls need the full page width, so this card does not use SettingsCard's
+        // title-left/control-right row: the path field spans the card and the buttons sit on their
+        // own row, which keeps them inside the dialog.
+        Rectangle {
+            id: archiveCard
+            Layout.fillWidth: true
+            Layout.maximumWidth: testingColumn.width
+            Layout.topMargin: Kirigami.Units.largeSpacing
+            Layout.bottomMargin: Kirigami.Units.largeSpacing
+            radius: Kirigami.Units.smallSpacing
+            color: "transparent"
+            implicitHeight: archiveColumn.implicitHeight + (Kirigami.Units.largeSpacing * 2)
+
+            ColumnLayout {
+                id: archiveColumn
+                anchors.fill: parent
+                anchors.margins: Kirigami.Units.largeSpacing
+                spacing: Kirigami.Units.smallSpacing
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    text: "Timing archive"
+                    font.weight: Font.DemiBold
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    text: "Replay a Timing71 ZIP, HAR capture, or RaceDock F1/GTWC/WEC NDJSON dump. Browse for one, or paste its path."
+                    color: Kirigami.Theme.disabledTextColor
+                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    wrapMode: Text.WordWrap
+                }
+
                 QQC2.TextField {
                     id: archiveField
                     Layout.fillWidth: true
+                    Layout.topMargin: Kirigami.Units.smallSpacing
                     placeholderText: "Path to a .ndjson, .zip, or .har file"
                     onAccepted: page.loadArchive(text)
                 }
 
-                QQC2.Button {
-                    text: "Load archive"
-                    enabled: archiveField.text.trim().length > 0
-                    onClicked: page.loadArchive(archiveField.text)
+                // The buttons get their own row so a long path can never push them past the dialog
+                // edge, which is where they ended up when they shared a row with the field.
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.smallSpacing
+
+                    Item { Layout.fillWidth: true }
+
+                    // The picker is created on first use. Instantiating a dialog while plasmashell
+                    // builds this page off-scene is what crashed the config dialog, so nothing exists
+                    // until the user asks for it.
+                    QQC2.Button {
+                        text: "Browse…"
+                        icon.name: "document-open"
+                        onClicked: archivePicker.active = true
+                    }
+
+                    QQC2.Button {
+                        text: "Load archive"
+                        enabled: archiveField.text.trim().length > 0
+                        onClicked: page.loadArchive(archiveField.text)
+                    }
+
+                    QQC2.Button {
+                        text: "Return to live"
+                        enabled: page.playbackActive
+                        onClicked: page.returnToLive()
+                    }
                 }
 
-                QQC2.Button {
-                    text: "Return to live"
-                    enabled: page.playbackActive
-                    onClicked: page.returnToLive()
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    visible: page.archiveStatus.length > 0
+                    text: page.archiveStatus
+                    color: page.archiveFailed ? "#C0392B" : Kirigami.Theme.disabledTextColor
+                    font.pointSize: Kirigami.Theme.smallFont.pointSize
+                    wrapMode: Text.WordWrap
                 }
             }
         }
 
+        Loader {
+            id: archivePicker
+            active: false
+            sourceComponent: archivePickerComponent
+        }
+
         QQC2.Label {
             Layout.topMargin: Kirigami.Units.largeSpacing
+            Layout.maximumWidth: testingColumn.width
             text: "Scenario"
             font.weight: Font.DemiBold
             color: Kirigami.Theme.disabledTextColor
@@ -250,6 +351,7 @@ ConfigSettingsBase {
 
         QQC2.Label {
             Layout.fillWidth: true
+            Layout.maximumWidth: testingColumn.width
             text: "Enable the deterministic scenario to drive track, feed, and classification states."
             color: Kirigami.Theme.disabledTextColor
             font.pointSize: Kirigami.Theme.smallFont.pointSize
@@ -257,6 +359,7 @@ ConfigSettingsBase {
         }
 
         SettingsCard {
+            Layout.maximumWidth: testingColumn.width
             title: "Track state"
             description: "One condition is active at a time."
             enabledCard: page.playbackActive
@@ -283,6 +386,7 @@ ConfigSettingsBase {
         }
 
         SettingsCard {
+            Layout.maximumWidth: testingColumn.width
             title: "Feed state"
             description: "Drive the connection badge and the stale-data guard."
             enabledCard: page.playbackActive
@@ -305,6 +409,7 @@ ConfigSettingsBase {
         }
 
         SettingsCard {
+            Layout.maximumWidth: testingColumn.width
             title: "Session events"
             description: "Fastest lap fires once; the chequered flag ends the session."
             enabledCard: page.playbackActive
@@ -323,6 +428,31 @@ ConfigSettingsBase {
                     }
                 }
             }
+        }
+    }
+
+    // Created only when the user asks to browse. plasmashell builds config pages off-scene, so a
+    // dialog instantiated at build time would open a window before the page is visible.
+    Component {
+        id: archivePickerComponent
+
+        FileDialog {
+            title: "Choose timing archive"
+            fileMode: FileDialog.OpenFile
+            nameFilters: [
+                "Timing archives (*.zip *.har *.ndjson)",
+                "Timing71 exports (*.zip)",
+                "HTTP archives (*.har)",
+                "RaceDock F1/GTWC/WEC dumps (*.ndjson)",
+                "All files (*)"
+            ]
+            onAccepted: {
+                archiveField.text = page.localPath(selectedFile);
+                page.loadArchive(archiveField.text);
+                archivePicker.active = false;
+            }
+            onRejected: archivePicker.active = false
+            Component.onCompleted: open()
         }
     }
 }
