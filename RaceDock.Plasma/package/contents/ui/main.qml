@@ -72,7 +72,11 @@ PlasmoidItem {
         client: raceDockClient
         pinned: false
         Layout.preferredWidth: implicitWidth
+        Layout.minimumWidth: implicitWidth
+        Layout.maximumWidth: implicitWidth
         Layout.preferredHeight: implicitHeight
+        Layout.minimumHeight: implicitHeight
+        Layout.maximumHeight: implicitHeight
         onCloseRequested: root.expanded = false
         onPinRequested: function (shouldPin) { root.pinFromAnchored(shouldPin); }
         onConfigureRequested: {

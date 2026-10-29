@@ -7,8 +7,7 @@ import QtQuick.Controls
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents3
 
-/// The same flyout body is used inside Plasma's anchored applet popup and inside the pinned,
-/// free-floating PlasmaCore.Dialog host.
+/// The same flyout body is used inside Plasma's anchored applet popup and the pinned top-level window.
 Item {
     id: panel
 
@@ -79,9 +78,8 @@ Item {
 
                 Text {
                     Layout.fillWidth: true
+                    visible: panel.state.mode !== "schedule"
                     text: {
-                        if (panel.state.mode === "schedule")
-                            return "Published sessions · local time";
                         const parts = [];
                         if (panel.state.session) parts.push(panel.state.session);
                         if (panel.state.circuit) parts.push(panel.state.circuit);
@@ -383,7 +381,7 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 12
                 anchors.rightMargin: 12
-                anchors.topMargin: 6
+                anchors.topMargin: 1
                 anchors.bottomMargin: 12
                 visible: panel.state.mode === "schedule"
                 schedule: panel.state.schedule || []

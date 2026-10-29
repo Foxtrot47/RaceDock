@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Shapes
 import org.kde.kirigami as Kirigami
 
 /// The "next on track" state, mirroring the Windows schedule view: one featured card for the
@@ -15,10 +16,9 @@ ColumnLayout {
     property var schedule: []
 
     readonly property int laterCount: Math.max(0, schedule.length - 1)
-    readonly property real headingHeight: 24
     readonly property real featuredHeight: 80
-    readonly property real laterHeadingHeight: 34
-    readonly property real laterRowHeight: 48
+    readonly property real laterHeadingHeight: 25
+    readonly property real laterRowHeight: 34
     readonly property color secondaryColor: Qt.rgba(Kirigami.Theme.textColor.r,
         Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.72)
     /// The featured card is a tint of the text colour, not a white wash: the Windows card uses
@@ -27,35 +27,10 @@ ColumnLayout {
         Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.05)
 
     implicitHeight: schedule.length === 0
-        ? headingHeight + 40
-        : headingHeight + featuredHeight
+        ? 40
+        : featuredHeight
             + (laterCount > 0 ? laterHeadingHeight + (laterCount * laterRowHeight) : 0)
     spacing: 0
-
-    RowLayout {
-        Layout.fillWidth: true
-        Layout.leftMargin: 2
-        Layout.rightMargin: 2
-        Layout.topMargin: 1
-        Layout.bottomMargin: 7
-        Layout.preferredHeight: 16
-        spacing: 8
-
-        Text {
-            Layout.fillWidth: true
-            text: "NEXT ON TRACK"
-            color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: 9
-            font.bold: true
-        }
-
-        Text {
-            text: "LOCAL TIME"
-            color: Kirigami.Theme.disabledTextColor
-            font.pixelSize: 9
-            font.bold: true
-        }
-    }
 
     // The first session is the answer, so it gets the card treatment.
     Repeater {
@@ -72,14 +47,49 @@ ColumnLayout {
             radius: 7
             color: scheduleView.cardColor
 
-            // The Windows card carries the championship colour as a left edge, not a full outline.
-            Rectangle {
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: 3
-                radius: 1.5
-                color: featuredCard.session ? featuredCard.session.accent : "#7E8798"
+            // Follow the same 7 px corner arc as the card itself. This is a true left border,
+            // not an inset pill with a gap at either rounded corner.
+            Shape {
+                id: accentBorder
+                anchors.fill: parent
+                readonly property real cornerRadius: featuredCard.radius
+                readonly property real stripeWidth: 3
+                // Cubic control distance for a quarter-circle.
+                readonly property real bezierOffset: cornerRadius * 0.55228475
+                readonly property real cornerControl: cornerRadius - bezierOffset
+                readonly property real innerControl: cornerRadius + stripeWidth - bezierOffset
+
+                ShapePath {
+                    fillColor: featuredCard.session ? featuredCard.session.accent : "#7E8798"
+                    strokeColor: "transparent"
+                    startX: accentBorder.cornerRadius
+                    startY: 0
+
+                    PathLine { x: accentBorder.cornerRadius + accentBorder.stripeWidth; y: 0 }
+                    PathCubic {
+                        control1X: accentBorder.innerControl; control1Y: 0
+                        control2X: accentBorder.stripeWidth; control2Y: accentBorder.cornerControl
+                        x: accentBorder.stripeWidth; y: accentBorder.cornerRadius
+                    }
+                    PathLine { x: accentBorder.stripeWidth; y: accentBorder.height - accentBorder.cornerRadius }
+                    PathCubic {
+                        control1X: accentBorder.stripeWidth; control1Y: accentBorder.height - accentBorder.cornerControl
+                        control2X: accentBorder.innerControl; control2Y: accentBorder.height
+                        x: accentBorder.cornerRadius + accentBorder.stripeWidth; y: accentBorder.height
+                    }
+                    PathLine { x: accentBorder.cornerRadius; y: accentBorder.height }
+                    PathCubic {
+                        control1X: accentBorder.cornerControl; control1Y: accentBorder.height
+                        control2X: 0; control2Y: accentBorder.height - accentBorder.cornerControl
+                        x: 0; y: accentBorder.height - accentBorder.cornerRadius
+                    }
+                    PathLine { x: 0; y: accentBorder.cornerRadius }
+                    PathCubic {
+                        control1X: 0; control1Y: accentBorder.cornerControl
+                        control2X: accentBorder.cornerControl; control2Y: 0
+                        x: accentBorder.cornerRadius; y: 0
+                    }
+                }
             }
 
             RowLayout {
@@ -90,20 +100,12 @@ ColumnLayout {
                 anchors.bottomMargin: 11
                 spacing: 12
 
-                Rectangle {
+                ChampionshipMark {
                     Layout.preferredWidth: 72
                     Layout.preferredHeight: 34
-                    radius: 6
-                    color: featuredCard.session ? featuredCard.session.accent : "#7E8798"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: featuredCard.session ? featuredCard.session.logoText : ""
-                        color: "#FFFFFF"
-                        font.pixelSize: 10
-                        font.bold: true
-                        maximumLineCount: 1
-                    }
+                    championship: featuredCard.session ? featuredCard.session.championship : ""
+                    shortName: featuredCard.session ? featuredCard.session.logoText : ""
+                    accent: featuredCard.session ? featuredCard.session.accent : "#7E8798"
                 }
 
                 ColumnLayout {
@@ -186,8 +188,8 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.leftMargin: 2
         Layout.rightMargin: 2
-        Layout.topMargin: 15
-        Layout.bottomMargin: 7
+        Layout.topMargin: 8
+        Layout.bottomMargin: 4
         Layout.preferredHeight: 12
         visible: scheduleView.laterCount > 0
         spacing: 8
@@ -221,26 +223,18 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.leftMargin: 2
             Layout.rightMargin: 2
-            Layout.bottomMargin: index === scheduleView.laterCount - 1 ? 2 : 10
+            Layout.bottomMargin: index === scheduleView.laterCount - 1 ? 1 : 4
             Layout.preferredHeight: scheduleView.laterRowHeight
             spacing: 11
 
-            Rectangle {
+            ChampionshipMark {
                 Layout.preferredWidth: 54
                 Layout.preferredHeight: 27
                 Layout.alignment: Qt.AlignTop
                 Layout.topMargin: 2
-                radius: 5
-                color: laterRow.session ? laterRow.session.accent : "#7E8798"
-
-                Text {
-                    anchors.centerIn: parent
-                    text: laterRow.session ? laterRow.session.logoText : ""
-                    color: "#FFFFFF"
-                    font.pixelSize: 8
-                    font.bold: true
-                    maximumLineCount: 1
-                }
+                championship: laterRow.session ? laterRow.session.championship : ""
+                shortName: laterRow.session ? laterRow.session.logoText : ""
+                accent: laterRow.session ? laterRow.session.accent : "#7E8798"
             }
 
             ColumnLayout {

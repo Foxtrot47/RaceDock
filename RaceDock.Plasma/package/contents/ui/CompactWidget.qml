@@ -18,6 +18,13 @@ MouseArea {
     /// Mirrors the Windows taskbar's single-row mode: the position card folds into the driver line and
     /// the event and progress share one line, so the whole strip stays one line tall.
     readonly property bool singleRow: display.singleRow === true
+    readonly property string idleHeadline: {
+        const idle = widget.state.idle || {};
+        const title = idle.headline || "";
+        const mark = idle.championshipShort || idle.logoText || "";
+        const prefix = mark ? mark + " · " : "";
+        return prefix && title.indexOf(prefix) === 0 ? title.slice(prefix.length) : title;
+    }
     /// The idle strip grows to fit "event detail" side by side in single-row mode, like the Windows view.
     /// Windows reserves 210 px for the two-row strip and 63 px of chrome (padding, logo, gap) plus
     /// the natural text widths for the single line.
@@ -55,7 +62,7 @@ MouseArea {
                 + (widget.state.session ? ", " + widget.state.session : "")
                 + (widget.state.progress ? ", " + widget.state.progress : "");
         if (widget.state.mode === "idle" && widget.state.idle)
-            return widget.state.idle.headline + ", " + widget.state.idle.detail;
+            return widget.idleHeadline + ", " + widget.state.idle.detail;
         return "RaceDock";
     }
     Accessible.description: widget.state.alert ? widget.state.alert.title
@@ -304,20 +311,12 @@ MouseArea {
         spacing: widget.singleRow ? 8 : 10
         visible: widget.idle
 
-        Rectangle {
+        ChampionshipMark {
             implicitWidth: 42
             implicitHeight: 22
-            radius: 4
-            color: widget.state.idle ? widget.state.idle.accent : "#7E8798"
-
-            Text {
-                anchors.centerIn: parent
-                text: widget.state.idle ? widget.state.idle.logoText : ""
-                color: "#FFFFFF"
-                font.pixelSize: 9
-                font.bold: true
-                elide: Text.ElideRight
-            }
+            championship: widget.state.idle ? widget.state.idle.championship : ""
+            shortName: widget.state.idle ? widget.state.idle.logoText : ""
+            accent: widget.state.idle ? widget.state.idle.accent : "#7E8798"
         }
 
         ColumnLayout {
@@ -328,7 +327,7 @@ MouseArea {
             Text {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 17
-                text: widget.state.idle ? widget.state.idle.headline : ""
+                text: widget.idleHeadline
                 color: Kirigami.Theme.textColor
                 font.pixelSize: 11
                 elide: Text.ElideRight
@@ -355,7 +354,7 @@ MouseArea {
 
             Text {
                 id: idleEventInline
-                text: widget.state.idle ? widget.state.idle.headline : ""
+                text: widget.idleHeadline
                 color: Kirigami.Theme.textColor
                 font.pixelSize: 11
                 elide: Text.ElideRight
