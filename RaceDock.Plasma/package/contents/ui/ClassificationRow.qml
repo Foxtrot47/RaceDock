@@ -2,6 +2,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents3
 
@@ -36,7 +37,7 @@ Item {
     }
 
     implicitWidth: totalWidth
-    implicitHeight: 40
+    implicitHeight: 50
     opacity: row.opacity !== undefined ? row.opacity : 1
 
     Rectangle {
@@ -56,8 +57,8 @@ Item {
 
             Rectangle {
                 anchors.centerIn: parent
-                width: 25
-                height: 25
+                width: 28
+                height: 28
                 radius: 4
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
@@ -65,11 +66,11 @@ Item {
                     GradientStop { position: 1; color: rowItem.row.positionColorEnd || "#535864" }
                 }
 
-                Text {
+                RaceDockText {
                     anchors.centerIn: parent
                     text: rowItem.row.positionLabel || ""
                     color: "#FFFFFF"
-                    font.pixelSize: 10
+                    font.pixelSize: 12
                     font.bold: true
                     maximumLineCount: 1
                 }
@@ -92,33 +93,37 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: rowItem.logoVisible
                     source: rowItem.logoVisible ? "logos/" + rowItem.row.manufacturerLogo : ""
-                    width: 14
-                    height: 14
+                    width: 18
+                    height: 18
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
+                    smooth: true
+                    mipmap: true
+                    sourceSize: Qt.size(Math.ceil(18 * Screen.devicePixelRatio),
+                        Math.ceil(18 * Screen.devicePixelRatio))
                 }
 
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - (rowItem.logoVisible ? 18 : 0)
+                    width: parent.width - (rowItem.logoVisible ? 22 : 0)
                     spacing: 0
 
-                    Text {
+                    RaceDockText {
                         width: parent.width
                         text: rowItem.row.name || rowItem.row.code || ""
                         color: rowItem.row.isOverallFastest ? "#C457FF" : rowItem.textColor
-                        font.pixelSize: 11
+                        font.pixelSize: 13
                         font.bold: rowItem.row.isOverallFastest
                         elide: Text.ElideRight
                         maximumLineCount: 1
                     }
 
-                    Text {
+                    RaceDockText {
                         width: parent.width
                         visible: text.length > 0
                         text: rowItem.row.team || ""
                         color: rowItem.mutedColor
-                        font.pixelSize: 8
+                        font.pixelSize: 10
                         elide: Text.ElideRight
                         maximumLineCount: 1
                     }
@@ -137,10 +142,10 @@ Item {
                 height: parent.height
                 visible: width > 0
 
-                Text {
+                RaceDockText {
                     anchors.fill: parent
-                    anchors.leftMargin: 4
-                    anchors.rightMargin: 4
+                    anchors.leftMargin: 1.5
+                    anchors.rightMargin: 1.5
                     visible: cell.column.key === "gap" || cell.column.key === "interval" || cell.column.key === "lapTime"
                     text: {
                         if (cell.column.key === "gap") return rowItem.row.gap || "—";
@@ -148,7 +153,7 @@ Item {
                         return rowItem.row.lapTime || "—";
                     }
                     color: rowItem.textColor
-                    font.pixelSize: 10
+                    font.pixelSize: 12
                     font.family: "monospace"
                     horizontalAlignment: cell.column.align === "center" ? Text.AlignHCenter
                         : cell.column.align === "right" ? Text.AlignRight : Text.AlignLeft
@@ -159,8 +164,8 @@ Item {
 
                 Row {
                     anchors.fill: parent
-                    anchors.leftMargin: 2
-                    anchors.rightMargin: 2
+                    anchors.leftMargin: 0.75
+                    anchors.rightMargin: 0.75
                     visible: cell.column.key === "sectors"
 
                     Repeater {
@@ -176,11 +181,11 @@ Item {
                                 anchors.centerIn: parent
                                 spacing: 1
 
-                                Text {
+                                RaceDockText {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: sectorCell.modelData.value || "—"
                                     color: sectorCell.modelData.color || rowItem.textColor
-                                    font.pixelSize: 9
+                                    font.pixelSize: 11
                                     font.family: "monospace"
                                     maximumLineCount: 1
                                 }
@@ -208,20 +213,20 @@ Item {
 
                 Row {
                     anchors.fill: parent
-                    anchors.leftMargin: 3
-                    anchors.rightMargin: 3
+                    anchors.leftMargin: 1.125
+                    anchors.rightMargin: 1.125
                     visible: cell.column.key === "splits"
 
                     Repeater {
                         model: rowItem.row.splits || []
 
-                        delegate: Text {
+                        delegate: RaceDockText {
                             required property var modelData
                             width: cell.width / Math.max(1, (rowItem.row.splits || []).length)
                             height: cell.height
                             text: modelData.value || "—"
                             color: rowItem.textColor
-                            font.pixelSize: 9
+                            font.pixelSize: 11
                             font.family: "monospace"
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
@@ -237,12 +242,12 @@ Item {
                     Rectangle {
                         anchors.centerIn: parent
                         visible: !!rowItem.row.tyre && !rowItem.row.tyre.showAges
-                        width: 28
-                        height: 20
+                        width: 32
+                        height: 23
                         radius: 3
                         color: rowItem.row.tyre ? rowItem.row.tyre.color : "#5C606A"
 
-                        Text {
+                        RaceDockText {
                             anchors.centerIn: parent
                             text: {
                                 if (!rowItem.row.tyre) return "—";
@@ -251,7 +256,7 @@ Item {
                                 return letter + (age !== null && age !== undefined ? " " + age : "");
                             }
                             color: rowItem.contrastText(rowItem.row.tyre ? rowItem.row.tyre.color : "#5C606A")
-                            font.pixelSize: 9
+                            font.pixelSize: 10
                             font.bold: true
                             maximumLineCount: 1
                         }
@@ -269,14 +274,14 @@ Item {
                             delegate: Rectangle {
                                 id: wheelCell
                                 required property var modelData
-                                width: 23
-                                height: 16
+                                width: 26
+                                height: 19
                                 radius: 2
                                 color: wheelCell.modelData.color || "#5C606A"
 
-                                // The cell is 23px wide, so a wheel shows the compound letter and its age
+                                // The cell shows the compound letter and its age
                                 // rather than "MEDIUM 12" clipping into nonsense.
-                                Text {
+                                RaceDockText {
                                     anchors.centerIn: parent
                                     text: {
                                         const compound = (wheelCell.modelData.compound || "").toUpperCase();
@@ -286,7 +291,7 @@ Item {
                                             : letter;
                                     }
                                     color: rowItem.contrastText(wheelCell.modelData.color || "#5C606A")
-                                    font.pixelSize: 7
+                                    font.pixelSize: 9
                                     font.bold: true
                                     maximumLineCount: 1
                                 }
@@ -310,12 +315,12 @@ Item {
                     }
                 }
 
-                Text {
+                RaceDockText {
                     anchors.fill: parent
                     visible: cell.column.key === "category"
                     text: rowItem.row.category || "—"
                     color: rowItem.textColor
-                    font.pixelSize: 9
+                    font.pixelSize: 11
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     maximumLineCount: 1
@@ -325,16 +330,16 @@ Item {
                     anchors.centerIn: parent
                     visible: cell.column.key === "status" && rowItem.row.status && rowItem.row.status.text.length > 0
                     width: Math.min(cell.width - 8, statusLabel.implicitWidth + 10)
-                    height: 17
+                    height: 20
                     radius: 3
                     color: rowItem.row.status ? rowItem.row.status.color : "transparent"
 
-                    Text {
+                    RaceDockText {
                         id: statusLabel
                         anchors.centerIn: parent
                         text: rowItem.row.status ? rowItem.row.status.text : ""
                         color: Kirigami.Theme.textColor
-                        font.pixelSize: 8
+                        font.pixelSize: 10
                         font.bold: true
                         maximumLineCount: 1
                     }
@@ -346,18 +351,18 @@ Item {
                     visible: cell.column.key === "energy"
                     spacing: 2
 
-                    Text {
+                    RaceDockText {
                         width: parent.width
                         text: rowItem.row.energy ? rowItem.row.energy.text : "—"
                         color: rowItem.row.energy ? rowItem.row.energy.color : rowItem.mutedColor
-                        font.pixelSize: 8
+                        font.pixelSize: 10
                         horizontalAlignment: Text.AlignHCenter
                         maximumLineCount: 1
                     }
 
                     Rectangle {
                         width: parent.width
-                        height: 3
+                        height: 4
                         radius: 1
                         color: Qt.rgba(1, 1, 1, 0.12)
 

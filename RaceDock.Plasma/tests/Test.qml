@@ -14,6 +14,7 @@
 //
 // This lives outside the shipped package: `kpackagetool6` installs everything under contents/.
 import QtQuick
+import QtQuick.Window
 import QtTest
 import "../package/contents/ui"
 
@@ -72,6 +73,14 @@ TestCase {
         verify(!pinnedHost.visible);
     }
 
+    function test_pinned_host_detaches_anchor() {
+        pinnedHost.anchorWindow = Window.window;
+        pinnedHost.visible = true;
+        tryVerify(function() { return pinnedHost.anchorWindow === null; }, 1000);
+        verify(pinnedHost.transientParent === null);
+        pinnedHost.visible = false;
+    }
+
     function test_live_state() {
         client.refreshWidget();
         client.refreshFlyout();
@@ -86,6 +95,35 @@ TestCase {
         // profile asks for it; the widget uses the same field.
         verify(client.widgetState.competitors.length > 0);
         verify(!!client.widgetState.competitors[0].manufacturerLogo);
+    }
+
+    function test_flyout_archive_geometry() {
+        const originalState = client.flyoutState;
+        client.flyoutState = {
+            mode: "live",
+            viewMode: "archive",
+            width: 600,
+            height: 589,
+            rows: Array(20).fill({
+                name: "Driver",
+                code: "DRV",
+                team: "Team",
+                isOverallFastest: false
+            }),
+            driverColumnWidth: 260,
+            columns: [
+                { visible: true, width: 210 },
+                { visible: true, width: 120 },
+                { visible: true, width: 65 }
+            ],
+            schedule: []
+        };
+
+        compare(flyout.implicitWidth, 703);
+        compare(flyout.implicitHeight, 668);
+        compare(flyout.rowHeight, 50);
+
+        client.flyoutState = originalState;
     }
 
     function test_settings_and_commands() {

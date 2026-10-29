@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Window
 import org.kde.kirigami as Kirigami
 
 /// The compact panel strip. It deliberately mirrors the Windows taskbar widget: a series context,
@@ -118,7 +119,7 @@ MouseArea {
                 }
             }
 
-            Text {
+            RaceDockText {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 18
                 visible: !widget.singleRow
@@ -201,6 +202,10 @@ MouseArea {
                             source: cell.logoVisible ? "logos/" + cell.competitor.manufacturerLogo : ""
                             fillMode: Image.PreserveAspectFit
                             asynchronous: true
+                            smooth: true
+                            mipmap: true
+                            sourceSize: Qt.size(Math.ceil(26 * Screen.devicePixelRatio),
+                                Math.ceil(26 * Screen.devicePixelRatio))
                         }
 
                         Rectangle {
@@ -225,7 +230,7 @@ MouseArea {
                                 }
                             }
 
-                            Text {
+                            RaceDockText {
                                 anchors.centerIn: parent
                                 text: cell.competitor ? cell.competitor.positionLabel : "—"
                                 color: "#FFFFFF"
@@ -239,7 +244,7 @@ MouseArea {
                             Layout.fillHeight: true
                             spacing: 0
 
-                            Text {
+                            RaceDockText {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 18
                                 text: cell.competitor ? cell.competitor.code : ""
@@ -251,7 +256,7 @@ MouseArea {
                                 maximumLineCount: 1
                             }
 
-                            Text {
+                            RaceDockText {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 18
                                 text: cell.detailText
@@ -269,7 +274,7 @@ MouseArea {
                         spacing: 4
                         visible: widget.singleRow
 
-                        Text {
+                        RaceDockText {
                             text: cell.competitor ? cell.competitor.positionLabel : "—"
                             color: Kirigami.Theme.disabledTextColor
                             font.pixelSize: 9
@@ -277,7 +282,7 @@ MouseArea {
                             verticalAlignment: Text.AlignVCenter
                         }
 
-                        Text {
+                        RaceDockText {
                             text: cell.competitor ? cell.competitor.code : ""
                             color: Kirigami.Theme.textColor
                             font.pixelSize: 10
@@ -285,7 +290,7 @@ MouseArea {
                             verticalAlignment: Text.AlignVCenter
                         }
 
-                        Text {
+                        RaceDockText {
                             Layout.fillWidth: true
                             text: cell.detailText
                             color: Kirigami.Theme.disabledTextColor
@@ -324,7 +329,7 @@ MouseArea {
             spacing: 0
             visible: !widget.singleRow
 
-            Text {
+            RaceDockText {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 17
                 text: widget.idleHeadline
@@ -335,7 +340,7 @@ MouseArea {
                 maximumLineCount: 1
             }
 
-            Text {
+            RaceDockText {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 17
                 text: widget.state.idle ? widget.state.idle.detail : ""
@@ -352,7 +357,7 @@ MouseArea {
             spacing: 8
             visible: widget.singleRow
 
-            Text {
+            RaceDockText {
                 id: idleEventInline
                 text: widget.idleHeadline
                 color: Kirigami.Theme.textColor
@@ -362,7 +367,7 @@ MouseArea {
                 maximumLineCount: 1
             }
 
-            Text {
+            RaceDockText {
                 id: idleDetailInline
                 // Windows drops the separator in the single line so the two segments do not read as
                 // one run of dots next to the headline's own " · ".
@@ -392,7 +397,7 @@ MouseArea {
         radius: 3
         color: flag ? flag.color : "transparent"
 
-        Text {
+        RaceDockText {
             id: chipLabel
             anchors.centerIn: parent
             text: parent.flag ? parent.flag.label : ""

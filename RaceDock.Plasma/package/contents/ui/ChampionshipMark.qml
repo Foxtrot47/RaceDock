@@ -42,7 +42,7 @@ Item {
         radius: Math.min(width, height) * 0.15
         color: mark.accent
 
-        Text {
+        RaceDockText {
             anchors.centerIn: parent
             width: parent.width - 6
             text: mark.shortName

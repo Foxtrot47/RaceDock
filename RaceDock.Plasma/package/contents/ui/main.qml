@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Window
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 
@@ -47,10 +48,16 @@ PlasmoidItem {
         root.expanded = !root.expanded;
     }
 
-    function pinFromAnchored(shouldPin) {
+    function pinFromAnchored(shouldPin, popupPosition, popupWindow) {
         if (shouldPin) {
-            root.expanded = false;
+            const creatingPinnedWindow = !pinnedWindow;
+            if (creatingPinnedWindow) {
+                pinnedPosition = popupPosition;
+                popupAnchorWindow = popupWindow;
+            }
             root.pinned = true;
+            if (!creatingPinnedWindow)
+                root.expanded = false;
         } else {
             root.pinned = false;
         }
@@ -69,6 +76,7 @@ PlasmoidItem {
     }
 
     fullRepresentation: FlyoutPanel {
+        id: anchoredFlyout
         client: raceDockClient
         pinned: false
         Layout.preferredWidth: implicitWidth
@@ -78,29 +86,43 @@ PlasmoidItem {
         Layout.minimumHeight: implicitHeight
         Layout.maximumHeight: implicitHeight
         onCloseRequested: root.expanded = false
-        onPinRequested: function (shouldPin) { root.pinFromAnchored(shouldPin); }
+        onPinRequested: function (shouldPin) {
+            root.pinFromAnchored(shouldPin, anchoredFlyout.mapToGlobal(Qt.point(0, 0)),
+                anchoredFlyout.Window.window);
+        }
         onConfigureRequested: {
             root.expanded = false;
             Plasmoid.internalAction("configure").trigger();
         }
     }
 
-    // The pinned host is created on demand with no parent item, so it is not transient for the
-    // panel. See PinnedFlyout.qml for why that matters.
+    // Create the host detached from the applet. It temporarily uses the popup as a transient parent
+    // for placement, then PinnedFlyout clears that relationship before the popup closes.
     Component {
         id: pinnedComponent
         PinnedFlyout {
             onDismissed: root.pinned = false
             onUnpinRequested: root.unpinToFlyout()
             onConfigureRequested: Plasmoid.internalAction("configure").trigger()
+            onAnchorDetached: {
+                root.popupAnchorWindow = null;
+                root.expanded = false;
+            }
         }
     }
 
     property var pinnedWindow: null
+    property point pinnedPosition: Qt.point(0, 0)
+    property var popupAnchorWindow: null
 
     function showPinnedWindow() {
         if (!pinnedWindow) {
-            pinnedWindow = pinnedComponent.createObject(null, { client: raceDockClient });
+            pinnedWindow = pinnedComponent.createObject(null, {
+                client: raceDockClient,
+                initialX: pinnedPosition.x,
+                initialY: pinnedPosition.y,
+                anchorWindow: popupAnchorWindow
+            });
             if (!pinnedWindow)
                 return;
         }

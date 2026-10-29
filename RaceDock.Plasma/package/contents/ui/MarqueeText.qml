@@ -33,7 +33,7 @@ Item {
             label.x = 0;
     }
 
-    Text {
+    RaceDockText {
         id: label
         y: (parent.height - height) / 2
         text: marquee.text

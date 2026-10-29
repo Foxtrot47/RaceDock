@@ -112,7 +112,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 0
 
-                    Text {
+                    RaceDockText {
                         Layout.fillWidth: true
                         text: featuredCard.session ? featuredCard.session.event : ""
                         color: Kirigami.Theme.textColor
@@ -122,7 +122,7 @@ ColumnLayout {
                         maximumLineCount: 1
                     }
 
-                    Text {
+                    RaceDockText {
                         Layout.fillWidth: true
                         Layout.topMargin: 2
                         visible: featuredCard.session && !!featuredCard.session.session
@@ -133,7 +133,7 @@ ColumnLayout {
                         maximumLineCount: 1
                     }
 
-                    Text {
+                    RaceDockText {
                         Layout.fillWidth: true
                         Layout.topMargin: 3
                         visible: featuredCard.session && !!featuredCard.session.venue
@@ -150,7 +150,7 @@ ColumnLayout {
                     Layout.minimumWidth: 72
                     spacing: 1
 
-                    Text {
+                    RaceDockText {
                         Layout.fillWidth: true
                         text: featuredCard.clock.length > 0 ? featuredCard.clock : "TIME TBA"
                         color: Kirigami.Theme.textColor
@@ -160,7 +160,7 @@ ColumnLayout {
                         maximumLineCount: 1
                     }
 
-                    Text {
+                    RaceDockText {
                         Layout.fillWidth: true
                         text: featuredCard.session ? featuredCard.session.date : ""
                         color: scheduleView.secondaryColor
@@ -169,7 +169,7 @@ ColumnLayout {
                         maximumLineCount: 1
                     }
 
-                    Text {
+                    RaceDockText {
                         Layout.fillWidth: true
                         Layout.topMargin: 5
                         text: featuredCard.session ? (featuredCard.session.lead || "").toUpperCase() : ""
@@ -194,7 +194,7 @@ ColumnLayout {
         visible: scheduleView.laterCount > 0
         spacing: 8
 
-        Text {
+        RaceDockText {
             Layout.fillWidth: true
             text: "LATER"
             color: Kirigami.Theme.disabledTextColor
@@ -202,7 +202,7 @@ ColumnLayout {
             font.bold: true
         }
 
-        Text {
+        RaceDockText {
             text: scheduleView.laterCount + " MORE"
             color: Kirigami.Theme.disabledTextColor
             font.pixelSize: 8
@@ -242,7 +242,7 @@ ColumnLayout {
                 Layout.alignment: Qt.AlignVCenter
                 spacing: 0
 
-                Text {
+                RaceDockText {
                     Layout.fillWidth: true
                     text: laterRow.session ? laterRow.session.event : ""
                     color: Kirigami.Theme.textColor
@@ -252,7 +252,7 @@ ColumnLayout {
                     maximumLineCount: 1
                 }
 
-                Text {
+                RaceDockText {
                     Layout.fillWidth: true
                     Layout.topMargin: 1
                     visible: laterRow.session && !!laterRow.session.subtitle
@@ -268,7 +268,7 @@ ColumnLayout {
                 Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                 spacing: 0
 
-                Text {
+                RaceDockText {
                     Layout.fillWidth: true
                     text: laterRow.session ? laterRow.session.date : ""
                     color: scheduleView.secondaryColor
@@ -277,7 +277,7 @@ ColumnLayout {
                     maximumLineCount: 1
                 }
 
-                Text {
+                RaceDockText {
                     Layout.fillWidth: true
                     Layout.topMargin: 1
                     text: laterRow.clock.length > 0 ? laterRow.clock : "TBA"
@@ -291,7 +291,7 @@ ColumnLayout {
         }
     }
 
-    Text {
+    RaceDockText {
         Layout.fillWidth: true
         Layout.leftMargin: 2
         Layout.rightMargin: 2

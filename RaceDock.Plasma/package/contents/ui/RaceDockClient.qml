@@ -30,7 +30,7 @@ Item {
         schedule: [],
         splitPoints: [],
         width: 460,
-        height: 320
+        height: 420
     })
     property var settings: ({})
     property bool connected: false

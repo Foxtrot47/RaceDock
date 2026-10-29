@@ -21,14 +21,18 @@ Item {
     signal configureRequested()
 
     readonly property int tableHeaderHeight: 24
-    readonly property real rowHeight: 40
+    readonly property real rowHeight: 50
+    readonly property real classificationWidth: 48 + (state.driverColumnWidth || 180)
+        + (state.columns || []).reduce((sum, column) => sum + (column.visible ? column.width : 0), 0)
 
-    implicitWidth: Math.max(430, state.width || 460)
+    implicitWidth: Math.max(430, state.width || 460, classificationWidth)
     // The schedule sizes itself: 1 px frame + 58 px header + 6 px gap + list + 12 px bottom + 1 px.
     // Core's height is tuned for the classification rows, which the schedule does not have.
     implicitHeight: state.mode === "schedule"
         ? Math.max(230, 78 + scheduleView.implicitHeight)
-        : Math.max(230, state.height || 320)
+        // Account for the QML frame/header and the larger live rows while preserving the WinUI
+        // limit of twelve visible rows before scrolling.
+        : Math.max(230, (state.height || 420) - 17 + Math.min(12, (state.rows || []).length) * 8)
 
     focus: true
     Keys.onEscapePressed: function (event) {
@@ -55,7 +59,7 @@ Item {
         Item {
             id: header
             Layout.fillWidth: true
-            Layout.preferredHeight: 58
+            Layout.preferredHeight: panel.state.mode === "live" ? 39 : 58
 
             // Event name with the session info directly under it, in the same column. The name
             // scrolls when it is wider than the available width.
@@ -76,7 +80,7 @@ Item {
                     bold: true
                 }
 
-                Text {
+                RaceDockText {
                     Layout.fillWidth: true
                     visible: panel.state.mode !== "schedule"
                     text: {
@@ -87,7 +91,7 @@ Item {
                         return parts.join(" · ");
                     }
                     color: Kirigami.Theme.disabledTextColor
-                    font.pixelSize: 9
+                    font.pixelSize: 11
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
@@ -158,7 +162,7 @@ Item {
                                 ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.negativeTextColor
                         }
 
-                        Text {
+                        RaceDockText {
                             anchors.verticalCenter: parent.verticalCenter
                             text: {
                                 if (!(panel.client && panel.client.connected))
@@ -181,7 +185,7 @@ Item {
                     radius: 4
                     color: panel.state.trackColor || "#5C606A"
 
-                    Text {
+                    RaceDockText {
                         id: trackLabel
                         anchors.centerIn: parent
                         text: panel.state.trackLabel || ""
@@ -226,16 +230,6 @@ Item {
             }
         }
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 1
-            implicitHeight: 1
-            // The schedule already separates its heading with spacing; a rule here would be a
-            // second divider the Windows flyout does not have.
-            visible: panel.state.mode !== "schedule"
-            color: Qt.rgba(1, 1, 1, 0.08)
-        }
-
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -244,7 +238,7 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 6
                 anchors.rightMargin: 6
-                anchors.topMargin: 5
+                anchors.topMargin: 1
                 anchors.bottomMargin: 2
                 spacing: 0
                 visible: panel.state.mode === "live"
@@ -260,7 +254,7 @@ Item {
                         Item {
                             width: 34
                             height: parent.height
-                            Text {
+                            RaceDockText {
                                 anchors.centerIn: parent
                                 text: "POS"
                                 color: Kirigami.Theme.disabledTextColor
@@ -272,9 +266,9 @@ Item {
                         Item {
                             width: panel.state.driverColumnWidth || 180
                             height: parent.height
-                            Text {
+                            RaceDockText {
                                 anchors.left: parent.left
-                                anchors.leftMargin: 4
+                                anchors.leftMargin: 2
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "DRIVER"
                                 color: Kirigami.Theme.disabledTextColor
@@ -294,14 +288,14 @@ Item {
                                 height: parent.height
                                 visible: width > 0
 
-                                Text {
+                                RaceDockText {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 4
-                                    anchors.rightMargin: 4
+                                    anchors.leftMargin: 1.5
+                                    anchors.rightMargin: 1.5
                                     visible: columnCell.column.key !== "sectors"
                                     text: columnCell.column.label || ""
                                     color: Kirigami.Theme.disabledTextColor
-                                    font.pixelSize: 8
+                                    font.pixelSize: 9
                                     font.bold: true
                                     horizontalAlignment: columnCell.column.align === "center" ? Text.AlignHCenter
                                         : columnCell.column.align === "right" ? Text.AlignRight : Text.AlignLeft
@@ -318,7 +312,7 @@ Item {
                                     Repeater {
                                         model: ["S1", "S2", "S3"]
 
-                                        delegate: Text {
+                                        delegate: RaceDockText {
                                             required property string modelData
                                             required property int index
                                             // Size from the Row's id, not `parent`: a delegate can
@@ -327,7 +321,7 @@ Item {
                                             height: sectorHeader.height
                                             text: modelData
                                             color: Kirigami.Theme.disabledTextColor
-                                            font.pixelSize: 8
+                                            font.pixelSize: 9
                                             font.bold: true
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignVCenter
@@ -365,7 +359,7 @@ Item {
                     }
                 }
 
-                Text {
+                RaceDockText {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 36
                     visible: !panel.state.rows || panel.state.rows.length === 0
@@ -393,7 +387,7 @@ Item {
                 spacing: 8
                 visible: panel.state.mode === "hidden"
 
-                Text {
+                RaceDockText {
                     width: parent.width
                     text: panel.client && panel.client.serviceAvailable
                         ? "No session is on track right now."
@@ -405,7 +399,7 @@ Item {
                     wrapMode: Text.Wrap
                 }
 
-                Text {
+                RaceDockText {
                     width: parent.width
                     text: panel.client && panel.client.serviceAvailable
                         ? "The panel will show the next published session when one is available."

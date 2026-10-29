@@ -4,28 +4,46 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Window
 
-/// The pinned, free-floating flyout host. This is a detached top-level window on purpose: a
-/// Window declared inside the applet is automatically transient for the panel, and the window
-/// manager tags that as an applet popup and dismisses it whenever another window is activated.
-/// main.qml creates this through a Component with no parent, so it is a real overlay.
+/// Detached top-level host for the pinned flyout. It briefly uses the anchored popup as its
+/// transient parent for compositor placement, then detaches before that popup closes.
 Window {
     id: host
 
     required property var client
+    property real initialX: 0
+    property real initialY: 0
+    property var anchorWindow: null
 
     signal dismissed()
     signal unpinRequested()
     signal configureRequested()
+    signal anchorDetached()
 
     visible: false
     title: "RaceDockPinned"
-    transientParent: null
+    transientParent: anchorWindow
     flags: Qt.Dialog | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
     color: "transparent"
     width: panel.implicitWidth
     height: panel.implicitHeight
-    x: Math.max(0, Screen.desktopAvailableWidth - width - 32)
-    y: Math.max(0, 48)
+    x: initialX
+    y: initialY
+
+    onVisibleChanged: {
+        if (visible && anchorWindow)
+            detachAnchorTimer.restart();
+        else
+            detachAnchorTimer.stop();
+    }
+
+    Timer {
+        id: detachAnchorTimer
+        interval: 150
+        onTriggered: {
+            host.anchorWindow = null;
+            host.anchorDetached();
+        }
+    }
 
     onClosing: function (close) {
         close.accepted = true;
