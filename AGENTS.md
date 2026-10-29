@@ -211,6 +211,13 @@ Packaging and CI:
 - Added `ManufacturerLogos` coverage to `RaceDock.Tests`: exact aliases, case/punctuation/diacritic
   folding, substring fallback, unknown → null, the embedded manifest, and the builder's
   manufacturer-before-team fallback.
+- Fixed the Testing page's archive card (2026-10-29): it promised a drop zone it never had, its
+  buttons overflowed the config dialog, and there was no way to pick a file. The card now has a
+  `Browse…` button that opens a `QtQuick.Dialogs.FileDialog`, created on first use through a
+  `Loader` so plasmashell is never asked to build a dialog off-scene, plus a path field, a
+  `Load archive` button, and an inline status line that reports loader errors in the card instead
+  of the page footer. Config page rows are capped at the page column width, which stops the right
+  edge of every row from being clipped.
 - Isolated the QML harnesses from the real settings file: `Test.qml`, `Screenshots.qml`,
   `Startup.qml`, and `Reconnect.qml` all document and use `--settings`, so a test run can no longer
   reset `~/.local/share/RaceDock/settings.json`.
@@ -578,6 +585,16 @@ kpackagetool6 --type Plasma/Applet --upgrade RaceDock.Plasma/package
   keep the cell detail text in one place (`detailText`) so the two layouts cannot drift.
 - **Pinned window on Wayland:** compositor placement rules differ from X11. Do not assume `x`/`y` work;
   verify `startSystemMove` and initial placement separately.
+- **Config pages lay their rows out one spacing too wide:** `SimpleKCM`/`ScrollablePage` sizes the
+  content before the page has its final width, and Qt Quick Layouts keeps that first-pass geometry,
+  so every direct child of a page's `ColumnLayout` ends up ~19 px wider than the column and the
+  right edge is clipped. `Layout.fillWidth` alone does not fix it; cap each row with
+  `Layout.maximumWidth: <pageColumn>.width` (as `ConfigTesting.qml` does). Verify with the offscreen
+  harness at a 594 px content width, not with a full-width standalone window.
+- **Config pages must not build dialogs while loading:** `QtQuick.Dialogs.FileDialog` opens a window
+  when it is instantiated, and plasmashell builds config pages off-scene, so a dialog created at page
+  build crashes the config dialog. Declare it inside a `Component` and create it on demand through a
+  `Loader { active: false }` that the button flips on (`ConfigTesting.qml`).
 - **`ConfigModel` is not a QML file:** Plasma registers `org.kde.plasma.configuration` inside
   plasmashell, so `qmllint`/`qmltestrunner` report `ConfigCategory` as unresolved and cannot instantiate
   `config.qml`. That warning is expected; the pages themselves are testable.
