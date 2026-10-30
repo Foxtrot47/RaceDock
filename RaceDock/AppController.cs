@@ -24,7 +24,6 @@ public sealed class AppController : IAsyncDisposable
     private readonly Dictionary<Championship, TimingSnapshot> _feedSnapshots = [];
     private readonly ConcurrentQueue<TimingSnapshot> _feedUpdates = new();
     private IReadOnlyList<LiveFeedStatus> _liveFeeds = [];
-    private Championship? _overlayFeed;
     private TimingSnapshot? _lastRotation;
     private TaskbarWindow? _taskbar;
     private SettingsWindow? _settingsWindow;
@@ -36,6 +35,9 @@ public sealed class AppController : IAsyncDisposable
     private bool _scheduleRefreshRunning;
     private UserSettings _settings;
     private bool _snapshotLogged;
+    private readonly Lock _failureGate = new();
+    private readonly Dictionary<string, DateTimeOffset> _recentFailures = [];
+    private static readonly TimeSpan FailureRepeatWindow = TimeSpan.FromSeconds(1);
     private string? _wrcTransitionKey;
     private bool _disposed;
     public event Action<ConnectionState>? StatusChanged;
@@ -171,11 +173,7 @@ public sealed class AppController : IAsyncDisposable
         _feedUpdates.Clear();
         _liveFeeds = [];
         _lastRotation = null;
-        if (resetOverlay)
-        {
-            _overlayFeed = null;
-            _taskbar?.ResetOverlayFeed();
-        }
+        if (resetOverlay) _taskbar?.ResetOverlayFeed();
         _taskbar?.ResetLiveFeeds();
         _settingsWindow?.ClearTimingStatuses();
         _pending = null;
@@ -266,7 +264,22 @@ public sealed class AppController : IAsyncDisposable
         Log($"WRC stage transition: {code} ({name}) stage {id} -> {status}");
     }
     private void OnConnection(ConnectionState state) { StatusChanged?.Invoke(state); Log($"Connection: {state}"); }
-    private void OnFailure(FeedFailure failure) => AppLog.Warning("Feed", failure.Message, failure.Exception);
+    /// <summary>
+    /// One shared failure reaches the controller once per subscribed source, so an identical message inside the
+    /// repeat window is logged once. Each source still resets its own session and connection state.
+    /// </summary>
+    private void OnFailure(FeedFailure failure)
+    {
+        var now = _clock.UtcNow;
+        lock (_failureGate)
+        {
+            foreach (var stale in _recentFailures.Where(pair => now - pair.Value >= FailureRepeatWindow).Select(pair => pair.Key).ToList())
+                _recentFailures.Remove(stale);
+            if (_recentFailures.ContainsKey(failure.Message)) return;
+            _recentFailures[failure.Message] = now;
+        }
+        AppLog.Warning("Feed", failure.Message, failure.Exception);
+    }
     private void RenderPending()
     {
         if (_disposed) return;
@@ -286,7 +299,6 @@ public sealed class AppController : IAsyncDisposable
         taskbar.UpdateSnapshot(snapshot);
         // A held flyout refuses every other championship, which is what keeps a pinned panel still.
         taskbar.UpdateOverlaySnapshot(snapshot);
-        _overlayFeed = taskbar.OverlayFeed;
         taskbar.SetAlert(_alerts.Current);
         if (!taskbar.IsVisible) taskbar.Show();
     }
@@ -297,6 +309,7 @@ public sealed class AppController : IAsyncDisposable
     /// </summary>
     private void DrainFeedUpdates()
     {
+        var overlayFeed = _taskbar?.OverlayFeed;
         var overlayUpdated = false;
         while (_feedUpdates.TryDequeue(out var snapshot))
         {
@@ -304,9 +317,9 @@ public sealed class AppController : IAsyncDisposable
             if (snapshot.Lifecycle == SessionLifecycle.Live) _feedSnapshots[snapshot.Championship] = snapshot;
             else if (snapshot.Lifecycle == SessionLifecycle.OffSession) _feedSnapshots.Remove(snapshot.Championship);
             // An ended snapshot keeps the last live classification, mirroring the composite's retention window.
-            if (snapshot.Championship == _overlayFeed) overlayUpdated = true;
+            if (snapshot.Championship == overlayFeed) overlayUpdated = true;
         }
-        if (!overlayUpdated || _overlayFeed is not { } feed) return;
+        if (!overlayUpdated || overlayFeed is not { } feed) return;
         if (_feedSnapshots.TryGetValue(feed, out var overlay)) _taskbar?.UpdateOverlaySnapshot(overlay);
     }
 
@@ -323,7 +336,6 @@ public sealed class AppController : IAsyncDisposable
     /// <summary>The flyout changed feeds by itself: a chip was picked, a pin froze it, or it returned to rotation.</summary>
     private void OnOverlayFeedChanged(Championship? feed)
     {
-        _overlayFeed = feed;
         if (feed is { } championship)
         {
             if (_feedSnapshots.TryGetValue(championship, out var overlay)) _taskbar?.UpdateOverlaySnapshot(overlay);
@@ -356,7 +368,6 @@ public sealed class AppController : IAsyncDisposable
         taskbar.SettingsRequested += ShowSettings;
         taskbar.OverlayFeedChanged += OnOverlayFeedChanged;
         // A recreated widget starts following rotation and reuses the feed choices already known.
-        _overlayFeed = null;
         taskbar.UpdateLiveFeeds(_liveFeeds);
         taskbar.Closed += (_, _) =>
         {

@@ -286,8 +286,10 @@ public sealed class NascarScheduleClient(HttpClient? httpClient = null) : INasca
 /// Shares NASCAR schedule reads across the three series calendars and across the upcoming and event-schedule
 /// queries, which would otherwise each request the same race lists and weekend feeds. An answer, including a
 /// season the provider has not released, is reused for <c>lifetime</c>; a failed or cancelled request is not
-/// kept, so the next refresh retries it. Callers only read the returned nodes, and the schedule service runs one
-/// refresh at a time, so a cached node is never read concurrently.
+/// kept, so the next refresh retries it. The shared read belongs to the cache rather than to whichever caller
+/// started it, so it runs without a caller's token; each caller waits with its own cancellation and leaving only
+/// cancels that wait. Callers only read the returned nodes, and the schedule service runs one refresh at a time,
+/// so a cached node is never read concurrently.
 /// </summary>
 internal sealed class CachedNascarScheduleClient(INascarScheduleClient inner, IClock clock, TimeSpan lifetime)
     : INascarScheduleClient
@@ -296,14 +298,17 @@ internal sealed class CachedNascarScheduleClient(INascarScheduleClient inner, IC
     private readonly Dictionary<string, (Task<JsonNode?> Request, DateTimeOffset At)> _entries = [];
 
     public Task<JsonArray?> GetRaceListAsync(int seriesId, int year, CancellationToken cancellationToken) =>
-        GetAsync($"races/{year}/{seriesId}", () => inner.GetRaceListAsync(seriesId, year, cancellationToken));
+        GetAsync($"races/{year}/{seriesId}", () => inner.GetRaceListAsync(seriesId, year, CancellationToken.None), cancellationToken);
 
     public Task<JsonObject?> GetWeekendFeedAsync(int year, int seriesId, int? raceId, CancellationToken cancellationToken) =>
         raceId is not > 0
             ? Task.FromResult<JsonObject?>(null)
-            : GetAsync($"weekend/{year}/{seriesId}/{raceId}", () => inner.GetWeekendFeedAsync(year, seriesId, raceId, cancellationToken));
+            : GetAsync(
+                $"weekend/{year}/{seriesId}/{raceId}",
+                () => inner.GetWeekendFeedAsync(year, seriesId, raceId, CancellationToken.None),
+                cancellationToken);
 
-    private async Task<T?> GetAsync<T>(string key, Func<Task<T?>> load) where T : JsonNode
+    private async Task<T?> GetAsync<T>(string key, Func<Task<T?>> load, CancellationToken cancellationToken) where T : JsonNode
     {
         Task<JsonNode?> request;
         lock (_gate)
@@ -318,7 +323,12 @@ internal sealed class CachedNascarScheduleClient(INascarScheduleClient inner, IC
         }
         try
         {
-            return (T?)await request;
+            return (T?)await request.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (!request.IsCompleted)
+        {
+            // Only this caller gave up; the shared read stays cached for the next one.
+            throw;
         }
         catch
         {

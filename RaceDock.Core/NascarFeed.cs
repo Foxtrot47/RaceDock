@@ -280,6 +280,9 @@ internal sealed class NascarFeed : IDisposable
         if (_disposed) return;
         _disposed = true;
         _run.Cancel();
+        // The worker owns the HTTP client, the schedule client, and the wake signal, so it has to finish before
+        // any of them goes away. Disposing underneath it would surface as a spurious failure during shutdown.
+        WaitForWorker();
         _http.Dispose();
         _schedule.Dispose();
         _wake.Dispose();
@@ -288,6 +291,24 @@ internal sealed class NascarFeed : IDisposable
     }
 
     private sealed record CachedSchedule(JsonArray? Races, DateTimeOffset At);
+    /// <summary>
+    /// Gives the worker a bounded moment to observe the cancellation that was just requested. A feed parked on
+    /// its wake signal or on a delay returns as soon as the token fires, so this normally completes at once.
+    /// </summary>
+    private void WaitForWorker()
+    {
+        try
+        {
+            if (!_worker.Wait(TimeSpan.FromSeconds(5)))
+                AppLog.Warning("NASCAR", "The live feed did not stop within five seconds of shutdown.");
+        }
+        catch (AggregateException failure)
+        {
+            // The worker reports its own failures; a fault raised while stopping is not a shutdown error.
+            AppLog.Warning("NASCAR", "The live feed failed while stopping.", failure.Flatten().InnerException);
+        }
+    }
+
     private sealed record CachedWeekend(JsonObject? Feed, DateTimeOffset At);
 
     private sealed class Subscription(NascarFeed feed, NascarSeries series, Action<JsonObject, ConnectionState> handler)

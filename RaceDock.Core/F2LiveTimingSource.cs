@@ -297,7 +297,21 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
 
     private void MergeLine(string? key, JsonObject update)
     {
+        // One car, one standing: the payload key is only the fallback, because F1 Academy keys its lines by
+        // display slot while deltas name the car, and Publish emits one standing per stored line.
+        var car = LineKey(update);
+        key = car ?? key;
         if (string.IsNullOrWhiteSpace(key)) return;
+        // A line stored under its payload key before this path named the car is adopted rather than duplicated.
+        if (car is not null && _lines[car] is null)
+        {
+            var adopted = _lines.FirstOrDefault(pair => pair.Value is JsonObject stored && LineKey(stored) == car);
+            if (adopted.Value is JsonObject candidate)
+            {
+                _lines.Remove(adopted.Key);
+                _lines[car] = candidate;
+            }
+        }
         if (_lines[key] is not JsonObject line) _lines[key] = line = [];
         // A delta sends only the sectors that changed, each naming its Id, so they are kept keyed by Id rather
         // than as the array the feed sends, which a merge would otherwise replace whole.

@@ -137,8 +137,10 @@ var tests = new (string Name, Action Run)[]
     ("NASCAR feed wakes from an idle sleep for a newly enabled series", NascarFeedWakesForNewSeries),
     ("NASCAR recorded race and qualifying transitions map lifecycle flags and stages", NascarRecordedTransitions),
     ("NASCAR recorded race replays one start and one chequered alert", NascarRecordedRaceAlerts),
+    ("a cancelled schedule caller leaves the shared read running", NascarScheduleCacheSurvivesCallerCancellation),
     ("NASCAR schedule reads are shared, expire, and never cache a failure", NascarScheduleCache),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
+    ("F1 Academy slot-keyed and car-keyed lines share one standing", F1AcademyLinesConvergeOnCarNumber),
     ("F1 Academy array timing publishes live data", F1AcademyLiveTiming),
     ("MotoGP lite payload maps Moto3 timing", MotoGpLitePayload),
     ("MotoGP source filters categories and publishes lifecycle", MotoGpSourceLifecycle),
@@ -1461,6 +1463,77 @@ static void F1AcademyLiveTiming()
     })
 }.ToJsonString());
     Equal(2, snapshot.Competitors[0].Position);
+}
+
+/// <summary>F1 Academy keys a full field by display slot while deltas name the car: both must land on one line.</summary>
+static void F1AcademyLinesConvergeOnCarNumber()
+{
+    var clock = new FakeClock();
+    var source = new F2LiveTimingSource(clock, new AlertArbiter(clock), "F1 Academy");
+    TimingSnapshot? snapshot = null;
+    source.SnapshotReceived += value => snapshot = value;
+
+    // A full field keyed by display slot, each line naming its car.
+    source.ProcessMessage(new JsonObject
+    {
+        ["M"] = new JsonArray(new JsonObject
+        {
+            ["M"] = "datafeed",
+            ["A"] = new JsonArray("F1 Academy", "2026-10-24T23:00:01Z", new JsonObject
+            {
+                ["lines"] = new JsonObject
+                {
+                    ["1"] = new JsonObject
+                    {
+                        ["position"] = new JsonObject { ["Value"] = "1" },
+                        ["driver"] = new JsonObject { ["RacingNumber"] = "14", ["TLA"] = "TST", ["FullName"] = "Test Driver" }
+                    },
+                    ["2"] = new JsonObject
+                    {
+                        ["position"] = new JsonObject { ["Value"] = "2" },
+                        ["driver"] = new JsonObject { ["RacingNumber"] = "3", ["TLA"] = "SEC", ["FullName"] = "Second Driver" }
+                    }
+                }
+            })
+        })
+    }.ToJsonString());
+    Equal(2, snapshot!.Competitors.Count);
+
+    // A pair delta keyed by a display slot still carries the car, so it merges onto that car's standing.
+    source.ProcessMessage(new JsonObject
+    {
+        ["M"] = new JsonArray(new JsonObject
+        {
+            ["M"] = "datafeed",
+            ["A"] = new JsonArray("F1 Academy", "2026-10-24T23:00:02Z", new JsonObject
+            {
+                ["lines"] = new JsonArray(new JsonArray("1", new JsonObject
+                {
+                    ["driver"] = new JsonObject { ["RacingNumber"] = "14" },
+                    ["position"] = new JsonObject { ["Value"] = "3" }
+                }))
+            })
+        })
+    }.ToJsonString());
+    Equal(2, snapshot!.Competitors.Count);
+    Equal("14", snapshot.Competitors[1].DriverId);
+    Equal(3, snapshot.Competitors[1].Position);
+
+    // A car-keyed delta lands on the same line again.
+    source.ProcessMessage(new JsonObject
+    {
+        ["M"] = new JsonArray(new JsonObject
+        {
+            ["M"] = "datafeed",
+            ["A"] = new JsonArray("F1 Academy", "2026-10-24T23:00:03Z", new JsonArray(new JsonObject
+            {
+                ["driver"] = new JsonObject { ["RacingNumber"] = "14" },
+                ["last"] = new JsonObject { ["Value"] = "1:59.000" }
+            }))
+        })
+    }.ToJsonString());
+    Equal(2, snapshot!.Competitors.Count);
+    Equal("1:59.000", snapshot.Competitors.Single(standing => standing.DriverId == "14").LastLapTime);
 }
 
 static void MotoGpLitePayload()
@@ -5201,6 +5274,29 @@ static void NascarScheduleCache()
     Equal(3, schedule.WeekendRequests.Count);
 }
 
+/// <summary>A cached read belongs to the cache: the first caller giving up must not cancel it for the next.</summary>
+static void NascarScheduleCacheSurvivesCallerCancellation()
+{
+    var clock = new FakeClock(new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero));
+    var inner = new HeldNascarScheduleClient();
+    using var cached = new CachedNascarScheduleClient(inner, clock, TimeSpan.FromMinutes(30));
+
+    using var first = new CancellationTokenSource();
+    var abandoned = cached.GetRaceListAsync(NascarSeries.Cup.SeriesId, 2026, first.Token);
+    first.Cancel();
+    var cancelled = false;
+    try { abandoned.GetAwaiter().GetResult(); }
+    catch (OperationCanceledException) { cancelled = true; }
+    True(cancelled);
+
+    // The shared read outlives that caller, so the next one waits for it instead of asking the provider again.
+    var shared = cached.GetRaceListAsync(NascarSeries.Cup.SeriesId, 2026, CancellationToken.None);
+    True(!shared.IsCompleted);
+    inner.Release([]);
+    Equal(0, shared.GetAwaiter().GetResult()!.Count);
+    Equal(1, inner.Calls);
+}
+
 static void NascarSeriesIdentifiers()
 {
     Equal(Championship.NascarCup, NascarSeries.Cup.Championship);
@@ -6018,6 +6114,22 @@ sealed class NascarFakeHttp(string path, string body) : HttpMessageHandler
         if (FailLiveFeed) throw new HttpRequestException("relay refused");
         return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(Body) });
     }
+}
+
+/// <summary>A race-list read that stays pending until the test releases it.</summary>
+sealed class HeldNascarScheduleClient : INascarScheduleClient
+{
+    private readonly TaskCompletionSource<JsonArray?> _races = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public int Calls { get; private set; }
+    public Task<JsonArray?> GetRaceListAsync(int seriesId, int year, CancellationToken cancellationToken)
+    {
+        Calls++;
+        return _races.Task;
+    }
+    public Task<JsonObject?> GetWeekendFeedAsync(int year, int seriesId, int? raceId, CancellationToken cancellationToken) =>
+        Task.FromResult<JsonObject?>(null);
+    public void Release(JsonArray races) => _races.SetResult(races);
+    public void Dispose() { }
 }
 
 sealed class FakeNascarScheduleClient(JsonArray? races) : INascarScheduleClient
