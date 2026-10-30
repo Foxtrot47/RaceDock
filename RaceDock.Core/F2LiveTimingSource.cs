@@ -10,7 +10,7 @@ using System.Text.Json.Serialization;
 namespace RaceDock.Core;
 
 /// <summary>Streams the official FIA Formula 2 or Formula 3 live-timing SignalR hub.</summary>
-public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, string series = "F2") : ILiveTimingSource
+public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, string series = "F2", string? streamBase = null) : ILiveTimingSource
 {
     private const string ConnectionData = "[{\"name\":\"streaming\"}]";
     private static readonly string[] JoinedFeeds = ["data", "stats", "weather", "status", "time", "racedetails"];
@@ -65,7 +65,7 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
     };
 
     private readonly JsonObject _lines = [];
-    private readonly string _baseUrl = BaseUrlFor(series);
+    private readonly string _baseUrl = streamBase ?? BaseUrlFor(series);
     private readonly Championship _championship = series switch
     {
         "F3" => Championship.Formula3,
@@ -139,7 +139,7 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
         _socket.Options.Cookies = cookies;
         _socket.Options.SetRequestHeader("Origin", origin);
         _socket.Options.SetRequestHeader("User-Agent", BrowserUserAgent.Value);
-        var webSocketBaseUrl = _baseUrl.Replace("https://", "wss://", StringComparison.Ordinal);
+        var webSocketBaseUrl = WebSocketBase(_baseUrl);
         await _socket.ConnectAsync(new Uri($"{webSocketBaseUrl}/connect?{query}&tid={Random.Shared.Next(0, 11)}"), ct);
 
         await SendInvocationAsync(0, "JoinFeeds", [series, JoinedFeeds], ct);
@@ -463,6 +463,12 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
         "F1 Academy" => "https://www.f1academy.com",
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Only F2, F3, and F1 Academy are supported.")
     };
+
+    /// <summary>The same hub base over the WebSocket scheme its <c>/connect</c> call needs.</summary>
+    internal static string WebSocketBase(string value) =>
+        value.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? "wss://" + value["https://".Length..]
+        : value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ? "ws://" + value["http://".Length..]
+        : value;
 
     private void ApplyTimeFeed(JsonArray? pair)
     {

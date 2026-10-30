@@ -22,8 +22,8 @@ public sealed class GtwcLiveTimingSource : ILiveTimingSource
     private string? _lastFingerprint;
     private bool _disposed;
 
-    public GtwcLiveTimingSource(IClock clock, IAlertArbiter alerts)
-        : this(new GtwcApiClient(), clock, new SystemAsyncDelay(), alerts, GtwcPollingOptions.Default) { }
+    public GtwcLiveTimingSource(IClock clock, IAlertArbiter alerts, Uri? apiBase = null)
+        : this(new GtwcApiClient(apiBase: apiBase), clock, new SystemAsyncDelay(), alerts, GtwcPollingOptions.Default) { }
 
     internal GtwcLiveTimingSource(GtwcApiClient api, IClock clock, IAsyncDelay delay, IAlertArbiter alerts, GtwcPollingOptions options)
     {

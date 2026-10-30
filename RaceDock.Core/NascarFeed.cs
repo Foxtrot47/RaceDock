@@ -49,13 +49,14 @@ internal sealed class NascarFeed : IDisposable
         NascarFeedOptions? options = null,
         IAsyncDelay? delay = null,
         INascarScheduleClient? schedule = null,
-        HttpClient? httpClient = null)
+        HttpClient? httpClient = null,
+        Uri? apiBase = null)
     {
         _clock = clock;
         _options = options ?? NascarFeedOptions.Default;
         _delay = delay ?? new SystemAsyncDelay();
-        _schedule = schedule ?? new NascarScheduleClient();
-        _http = httpClient ?? CreateHttpClient();
+        _schedule = schedule ?? new NascarScheduleClient(baseUri: apiBase);
+        _http = httpClient ?? CreateHttpClient(apiBase);
         _worker = Task.Run(() => RunAsync(_run.Token));
     }
 
@@ -264,11 +265,11 @@ internal sealed class NascarFeed : IDisposable
         }
     }
 
-    private static HttpClient CreateHttpClient()
+    private static HttpClient CreateHttpClient(Uri? apiBase)
     {
         var client = new HttpClient
         {
-            BaseAddress = new Uri("https://cf.nascar.com/"),
+            BaseAddress = apiBase ?? FeedEndpoints.NascarDefaultBase,
             Timeout = TimeSpan.FromSeconds(15)
         };
         client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent.Value);

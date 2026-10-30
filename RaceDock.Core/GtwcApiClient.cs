@@ -8,15 +8,17 @@ internal sealed record GtwcCacheSnapshot(string? Hash, JsonObject Full);
 
 internal sealed class GtwcApiClient : IDisposable
 {
-    private const string ApiBase = "https://ps-cache.web.swisstiming.com/node/db/RAC_PROD/";
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
+    private readonly string _apiBase;
     private long _requestId;
 
-    public GtwcApiClient(HttpClient? httpClient = null)
+    public GtwcApiClient(HttpClient? httpClient = null, Uri? apiBase = null)
     {
         _ownsHttp = httpClient is null;
         _http = httpClient ?? new HttpClient(CreateDefaultHandler()) { Timeout = TimeSpan.FromSeconds(30) };
+        // The provider serves RAC_PROD under the swisstiming cache root; a feed server mirrors that layout.
+        _apiBase = new Uri(apiBase ?? FeedEndpoints.GtwcDefaultBase, "node/db/RAC_PROD/").ToString();
         if (!_http.DefaultRequestHeaders.UserAgent.Any())
             _http.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent.Value);
     }
@@ -41,7 +43,7 @@ internal sealed class GtwcApiClient : IDisposable
     private async Task<GtwcCacheSnapshot> GetFullAsync(string key, CancellationToken ct)
     {
         var requestId = Interlocked.Increment(ref _requestId);
-        var uri = new Uri($"{ApiBase}{key}.json?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}-{requestId}");
+        var uri = new Uri($"{_apiBase}{key}.json?v={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}-{requestId}");
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();

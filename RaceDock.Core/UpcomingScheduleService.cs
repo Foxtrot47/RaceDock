@@ -258,9 +258,12 @@ internal interface INascarScheduleClient : IDisposable
         Task.FromResult<JsonObject?>(null);
 }
 
-public sealed class NascarScheduleClient(HttpClient? httpClient = null) : INascarScheduleClient
+public sealed class NascarScheduleClient(HttpClient? httpClient = null, Uri? baseUri = null) : INascarScheduleClient
 {
-    private readonly HttpClient _http = httpClient ?? new HttpClient { BaseAddress = new Uri("https://cf.nascar.com/") };
+    private readonly HttpClient _http = httpClient ?? new HttpClient
+    {
+        BaseAddress = baseUri ?? FeedEndpoints.NascarDefaultBase
+    };
 
     public async Task<JsonArray?> GetRaceListAsync(int seriesId, int year, CancellationToken cancellationToken)
     {

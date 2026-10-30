@@ -10,8 +10,14 @@ public static class LaunchArguments
 {
     public const string StartupFlag = "--startup";
     public const string ReplayFlag = "--replay";
+    public const string FeedServerFlag = "--feed-server";
 
-    public static string? ReplayPath(IEnumerable<string>? arguments)
+    public static string? ReplayPath(IEnumerable<string>? arguments) => FlagValue(arguments, ReplayFlag);
+
+    /// <summary>The local feed server the session should point every adapter at, when one was requested.</summary>
+    public static string? FeedServerUrl(IEnumerable<string>? arguments) => FlagValue(arguments, FeedServerFlag);
+
+    private static string? FlagValue(IEnumerable<string>? arguments, string flag)
     {
         if (arguments is null) return null;
         var values = arguments.ToArray();
@@ -19,11 +25,12 @@ public static class LaunchArguments
         {
             var argument = values[index]?.Trim();
             if (string.IsNullOrEmpty(argument)) continue;
-            if (string.Equals(argument, ReplayFlag, StringComparison.OrdinalIgnoreCase))
-                return index + 1 < values.Length && !string.IsNullOrWhiteSpace(values[index + 1])
-                    ? values[index + 1].Trim()
-                    : null;
-            var prefix = ReplayFlag + "=";
+            if (string.Equals(argument, flag, StringComparison.OrdinalIgnoreCase))
+            {
+                var next = index + 1 < values.Length ? values[index + 1] : null;
+                return string.IsNullOrWhiteSpace(next) ? null : next.Trim().Trim('"');
+            }
+            var prefix = flag + "=";
             if (argument.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 return argument[prefix.Length..].Trim().Trim('"');
         }

@@ -29,7 +29,9 @@ public sealed class AppController : IAsyncDisposable
     private SettingsWindow? _settingsWindow;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly UpcomingScheduleService _schedule = new();
-    private readonly NascarFeed _nascarFeed;
+    private NascarFeed? _nascarFeed;
+    private FeedEndpoints _feedEndpoints = FeedEndpoints.Live;
+    private IReadOnlySet<Championship>? _feedServerChampionships;
     private readonly DispatcherTimer _idleTimer;
     private IReadOnlyList<UpcomingSession> _upcoming = [];
     private bool _scheduleRefreshRunning;
@@ -50,7 +52,6 @@ public sealed class AppController : IAsyncDisposable
     public AppController(Dispatcher dispatcher)
     {
         _dispatcher = dispatcher; _alerts = new(_clock); _processor = new(_clock, _alerts);
-        _nascarFeed = new(_clock);
         _settingsStore = new(legacyPath: WindowsStartupRegistration.LegacySettingsPath);
         _settings = _settingsStore.Load();
         try { WindowsStartupRegistration.Apply(_settings.AutoStartOnWindowsBoot); }
@@ -99,6 +100,21 @@ public sealed class AppController : IAsyncDisposable
         finally { _sourceSwitch.Release(); }
     }
 
+    /// <summary>
+    /// Points every live adapter at a local feed server and enables the championships that server advertises.
+    /// The widget and flyout then exercise the real transports and mapping against recorded payloads.
+    /// </summary>
+    public async Task ConnectFeedServerAsync(Uri server)
+    {
+        _feedEndpoints = FeedEndpoints.ForServer(server);
+        var served = FeedServerCatalog.Championships(
+            await FeedServerCatalog.GetStreamIdsAsync(server, _lifetime.Token));
+        // The flag means "do not reach providers", so an unreachable server leaves the emulated adapters
+        // retrying rather than quietly opening live connections because no stream list came back.
+        _feedServerChampionships = served.Count > 0 ? served : FeedServerCatalog.EmulatedChampionships;
+        Log($"Feed server {server}: {string.Join(", ", _feedServerChampionships.OrderBy(value => value))}");
+    }
+
     public Task ReturnToLiveAsync() => SwitchSourceAsync(TimingSourceMode.Live, resetOverlay: true);
 
     private async Task SwitchSourceAsync(TimingSourceMode mode, bool force = false, bool resetOverlay = false)
@@ -121,15 +137,15 @@ public sealed class AppController : IAsyncDisposable
 
     private static readonly LiveFeed[] LiveFeeds =
     [
-        new(Championship.Formula1, "F1", owner => new F1LiveTimingSource(owner._processor, owner._clock)),
-        new(Championship.Formula2, "F2", owner => new F2LiveTimingSource(owner._clock, owner._alerts)),
-        new(Championship.Formula3, "F3", owner => new F2LiveTimingSource(owner._clock, owner._alerts, "F3")),
-        new(Championship.F1Academy, "F1 Academy", owner => new F2LiveTimingSource(owner._clock, owner._alerts, "F1 Academy")),
+        new(Championship.Formula1, "F1", owner => new F1LiveTimingSource(owner._processor, owner._clock, owner._feedEndpoints.Formula1WebSocket)),
+        new(Championship.Formula2, "F2", owner => new F2LiveTimingSource(owner._clock, owner._alerts, "F2", owner._feedEndpoints.Formula2Base)),
+        new(Championship.Formula3, "F3", owner => new F2LiveTimingSource(owner._clock, owner._alerts, "F3", owner._feedEndpoints.Formula3Base)),
+        new(Championship.F1Academy, "F1 Academy", owner => new F2LiveTimingSource(owner._clock, owner._alerts, "F1 Academy", owner._feedEndpoints.F1AcademyBase)),
         new(Championship.MotoGp, "MotoGP", owner => new MotoGpLiveTimingSource(owner._clock, owner._alerts, Championship.MotoGp)),
         new(Championship.Moto2, "Moto2", owner => new MotoGpLiveTimingSource(owner._clock, owner._alerts, Championship.Moto2)),
         new(Championship.Moto3, "Moto3", owner => new MotoGpLiveTimingSource(owner._clock, owner._alerts, Championship.Moto3)),
-        new(Championship.GtWorldChallengeEurope, "GTWC", owner => new GtwcLiveTimingSource(owner._clock, owner._alerts)),
-        new(Championship.WorldEnduranceChampionship, "WEC", owner => new WecLiveTimingSource(owner._clock, owner._alerts)),
+        new(Championship.GtWorldChallengeEurope, "GTWC", owner => new GtwcLiveTimingSource(owner._clock, owner._alerts, owner._feedEndpoints.GtwcBase)),
+        new(Championship.WorldEnduranceChampionship, "WEC", owner => new WecLiveTimingSource(owner._clock, owner._alerts, owner._feedEndpoints.GriiipBase)),
         new(Championship.EuropeanLeMansSeries, "ELMS", owner => new ElmsLiveTimingSource(owner._clock, owner._alerts)),
         new(Championship.MichelinLeMansCup, "Le Mans Cup", owner => new MichelinLeMansCupLiveTimingSource(owner._clock, owner._alerts)),
         new(Championship.WorldRallyChampionship, "WRC", owner => new WrcLiveTimingSource(owner._clock, owner._alerts)),
@@ -137,13 +153,18 @@ public sealed class AppController : IAsyncDisposable
         new(Championship.FormulaE, "Formula E", owner => new FormulaELiveTimingSource(owner._clock, owner._alerts)),
         new(Championship.Dtm, "DTM", owner => new DtmLiveTimingSource(owner._clock, owner._alerts)),
         new(Championship.IndyCar, "INDYCAR", owner => new IndyCarLiveTimingSource(owner._clock, owner._alerts)),
-        new(Championship.NascarCup, "NASCAR Cup", owner => new NascarLiveTimingSource(owner._nascarFeed, NascarSeries.Cup, owner._clock, owner._alerts)),
-        new(Championship.NascarXfinity, "NASCAR Xfinity", owner => new NascarLiveTimingSource(owner._nascarFeed, NascarSeries.Xfinity, owner._clock, owner._alerts)),
-        new(Championship.NascarTrucks, "NASCAR Trucks", owner => new NascarLiveTimingSource(owner._nascarFeed, NascarSeries.Trucks, owner._clock, owner._alerts)),
+        new(Championship.NascarCup, "NASCAR Cup", owner => new NascarLiveTimingSource(owner.NascarFeedSource(), NascarSeries.Cup, owner._clock, owner._alerts)),
+        new(Championship.NascarXfinity, "NASCAR Xfinity", owner => new NascarLiveTimingSource(owner.NascarFeedSource(), NascarSeries.Xfinity, owner._clock, owner._alerts)),
+        new(Championship.NascarTrucks, "NASCAR Trucks", owner => new NascarLiveTimingSource(owner.NascarFeedSource(), NascarSeries.Trucks, owner._clock, owner._alerts)),
     ];
+
+    /// <summary>The one NASCAR request scheduler, created against whichever endpoint the session configured.</summary>
+    private NascarFeed NascarFeedSource() => _nascarFeed ??= new(_clock, apiBase: _feedEndpoints.NascarBase);
 
     private IEnumerable<LiveFeed> EnabledFeeds()
     {
+        if (_feedServerChampionships is { } served)
+            return LiveFeeds.Where(feed => served.Contains(feed.Championship));
         var enabled = EnabledChampionships(_settings);
         return LiveFeeds.Where(feed => enabled.Contains(feed.Championship));
     }
@@ -285,7 +306,10 @@ public sealed class AppController : IAsyncDisposable
         var snapshot = Interlocked.Exchange(ref _pending, null); if (snapshot is null) return;
         _lastRotation = snapshot;
         // Live feeds never start for a hidden championship, but archive playback can still produce one.
-        if (snapshot.Championship != Championship.Unknown && !_settings.IsChampionshipVisible(snapshot.Championship)) return;
+        // A feed-server session is an explicit test of the streams the server advertises, so it renders them
+        // even when the user hid that championship from normal rotation.
+        if (snapshot.Championship != Championship.Unknown && _feedServerChampionships is null &&
+            !_settings.IsChampionshipVisible(snapshot.Championship)) return;
         UpdateTimingStatuses(snapshot);
         if (snapshot.Lifecycle == SessionLifecycle.OffSession || (snapshot.Lifecycle == SessionLifecycle.Ended && Archive is null))
         {
@@ -404,6 +428,9 @@ public sealed class AppController : IAsyncDisposable
     private async Task RefreshNextSessionAsync()
     {
         if (_scheduleRefreshRunning) return;
+        // A feed-server session exists to exercise recorded streams; asking provider calendars would be live
+        // traffic, and the widget's idle state is not what the session is testing.
+        if (_feedServerChampionships is not null) return;
         _scheduleRefreshRunning = true;
         try
         {
@@ -525,7 +552,7 @@ public sealed class AppController : IAsyncDisposable
         _taskbar?.Close();
         _settingsWindow?.ClosePermanently();
         _schedule.Dispose();
-        _nascarFeed.Dispose();
+        _nascarFeed?.Dispose();
         _sourceSwitch.Dispose();
         _lifetime.Dispose();
     }

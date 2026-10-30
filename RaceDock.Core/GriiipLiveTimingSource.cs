@@ -46,9 +46,9 @@ internal interface IGriiipApiClient : IDisposable
     Task<JsonObject> GetBootstrapAsync(int sessionId, CancellationToken cancellationToken);
 }
 
-internal sealed class GriiipApiClient(GriiipSeries series) : IGriiipApiClient
+internal sealed class GriiipApiClient(GriiipSeries series, Uri? baseUri = null) : IGriiipApiClient
 {
-    private readonly HttpClient _http = CreateHttpClient();
+    private readonly HttpClient _http = CreateHttpClient(baseUri);
 
     public async Task<JsonArray> GetSessionsAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -70,11 +70,11 @@ internal sealed class GriiipApiClient(GriiipSeries series) : IGriiipApiClient
             throw new InvalidDataException($"{series.Label} live timing returned invalid JSON.");
     }
 
-    private static HttpClient CreateHttpClient()
+    private static HttpClient CreateHttpClient(Uri? baseUri)
     {
         var client = new HttpClient
         {
-            BaseAddress = new Uri("https://insights.griiip.com/"),
+            BaseAddress = baseUri ?? FeedEndpoints.GriiipDefaultBase,
             Timeout = TimeSpan.FromSeconds(15)
         };
         client.DefaultRequestHeaders.UserAgent.ParseAdd(BrowserUserAgent.Value);

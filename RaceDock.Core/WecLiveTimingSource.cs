@@ -4,7 +4,7 @@ namespace RaceDock.Core;
 
 public sealed class WecLiveTimingSource : GriiipLiveTimingSource
 {
-    public WecLiveTimingSource(IClock clock, IAlertArbiter alerts)
-        : base(new GriiipApiClient(GriiipSeries.Wec), GriiipSeries.Wec, clock, new SystemAsyncDelay(), alerts,
+    public WecLiveTimingSource(IClock clock, IAlertArbiter alerts, Uri? apiBase = null)
+        : base(new GriiipApiClient(GriiipSeries.Wec, apiBase), GriiipSeries.Wec, clock, new SystemAsyncDelay(), alerts,
             GriiipPollingOptions.Default) { }
 }

@@ -32,7 +32,7 @@ public partial class App : System.Windows.Application
         _secondInstanceSignal = SecondInstanceSignal.Listen(() => Dispatcher.Invoke(() => _controller?.ShowSettings()));
         // Windows starts the app silently at sign-in; every other launch has to show something.
         if (!automaticStartup) _controller.ShowSettings();
-        _ = StartFeedAsync(LaunchArguments.ReplayPath(e.Args));
+        _ = StartFeedAsync(LaunchArguments.ReplayPath(e.Args), LaunchArguments.FeedServerUrl(e.Args));
     }
 
     private void InstallCrashHandlers()
@@ -62,14 +62,23 @@ public partial class App : System.Windows.Application
             $"The last session ended with: {summary}", System.Windows.Forms.ToolTipIcon.Warning);
     }
 
-    private async Task StartFeedAsync(string? replayPath)
+    private async Task StartFeedAsync(string? replayPath, string? feedServerUrl)
     {
         // Nothing awaits this task, so it has to report its own failure.
         try
         {
             if (_controller is null) return;
-            if (string.IsNullOrWhiteSpace(replayPath)) await _controller.StartLiveAsync();
-            else await _controller.LoadArchiveReplayAsync(replayPath);
+            if (!string.IsNullOrWhiteSpace(replayPath)) { await _controller.LoadArchiveReplayAsync(replayPath); return; }
+            if (!string.IsNullOrWhiteSpace(feedServerUrl))
+            {
+                if (!Uri.TryCreate(feedServerUrl, UriKind.Absolute, out var server))
+                {
+                    AppLog.Error("App", $"The feed server address '{feedServerUrl}' is not an absolute URI.");
+                    return;
+                }
+                await _controller.ConnectFeedServerAsync(server);
+            }
+            await _controller.StartLiveAsync();
         }
         catch (OperationCanceledException) when (Dispatcher.HasShutdownStarted) { }
         catch (Exception exception) { AppLog.Error("App", "Timing source failed to start.", exception); }

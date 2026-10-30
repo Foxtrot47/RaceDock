@@ -7,9 +7,9 @@ using System.Text.Json.Nodes;
 
 namespace RaceDock.Core;
 
-public sealed class F1LiveTimingSource(TimingStateProcessor processor, IClock clock) : ILiveTimingSource
+public sealed class F1LiveTimingSource(TimingStateProcessor processor, IClock clock, string? webSocketUrl = null) : ILiveTimingSource
 {
-    private const string WsUrl = "wss://livetiming.formula1.com/signalrcore";
+    private readonly string _webSocketUrl = webSocketUrl ?? FeedEndpoints.Formula1DefaultWebSocket;
     private const char RecordSeparator = '\u001e';
     private static readonly string[] Topics = ["TimingData", "TimingAppData", "DriverList", "RaceControlMessages", "SessionInfo", "TrackStatus", "LapCount", "SessionData", "SessionStatus", "ExtrapolatedClock"];
     private CancellationTokenSource? _runCts;
@@ -69,7 +69,7 @@ public sealed class F1LiveTimingSource(TimingStateProcessor processor, IClock cl
         _socket = new ClientWebSocket();
         _socket.Options.SetRequestHeader("Origin", "https://www.formula1.com");
         _socket.Options.SetRequestHeader("User-Agent", BrowserUserAgent.Value);
-        await _socket.ConnectAsync(new Uri(WsUrl), ct);
+        await _socket.ConnectAsync(new Uri(_webSocketUrl), ct);
         await SendAsync(JsonSerializer.Serialize(new { protocol = "json", version = 1 }) + RecordSeparator, ct);
         var handshake = await ReceiveTextAsync(ct) ?? throw new WebSocketException("F1 live-timing handshake closed.");
         var handshakeMessage = handshake.Split(RecordSeparator, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
