@@ -27,7 +27,7 @@ public sealed partial class TestingPage : Page
         ScenarioCommand.RedFlag
     ];
 
-    private static readonly string[] ArchiveExtensions = [".zip", ".har", ".ndjson"];
+    private static readonly string[] ArchiveExtensions = [".ndjson"];
 
     private readonly AppController _controller;
     private readonly Dictionary<ScenarioCommand, ToggleButton> _commandButtons;
@@ -95,7 +95,7 @@ public sealed partial class TestingPage : Page
 
         ArchiveSummaryText.Text = _controller.Archive is { } archive
             ? $"{archive.ArchiveName} · {archive.FrameCount} frames"
-            : "Drop a Timing71 ZIP, HAR capture, or RaceDock NDJSON feed dump here, or browse for one.";
+            : "Drop a RaceDock NDJSON feed dump here, or browse for one.";
         UpdateTransportState();
     }
 
@@ -158,8 +158,8 @@ public sealed partial class TestingPage : Page
     {
         var picker = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "Choose timing archive",
-            Filter = "Timing archives (*.zip;*.har;*.ndjson)|*.zip;*.har;*.ndjson|Timing71 exports (*.zip)|*.zip|HTTP archives (*.har)|*.har|RaceDock feed dumps: F1, F2, F3, F1 Academy, GTWC, WEC, NASCAR (*.ndjson)|*.ndjson",
+            Title = "Choose feed dump",
+            Filter = "RaceDock feed dumps (*.ndjson)|*.ndjson",
             CheckFileExists = true,
             Multiselect = false
         };
@@ -200,7 +200,7 @@ public sealed partial class TestingPage : Page
         }
         catch (Exception ex)
         {
-            ShowError($"Could not load archive: {ex.Message}");
+            ShowError($"Could not load feed dump: {ex.Message}");
         }
         SyncMode();
     }

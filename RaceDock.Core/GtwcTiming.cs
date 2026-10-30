@@ -216,7 +216,7 @@ internal static class GtwcTiming
         var value = JsonSupport.String(sector["Time"]);
         var seconds = ParseLapSeconds(value);
         if (seconds is not > 0 || !double.IsFinite(seconds.Value)) return null;
-        // Swiss Timing states are normal, personal best, and session best (also used by Timing71's importer).
+        // Swiss Timing states are normal, personal best, and session best.
         var state = JsonSupport.Int(sector["TimeState"]) switch
         {
             0 => SectorTimingState.Slower,

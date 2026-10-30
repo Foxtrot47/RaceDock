@@ -93,9 +93,7 @@ public sealed class AppController : IAsyncDisposable
         await _sourceSwitch.WaitAsync(_lifetime.Token);
         try
         {
-            ITimingArchiveSource replay = string.Equals(Path.GetExtension(fullPath), ".ndjson", StringComparison.OrdinalIgnoreCase)
-                ? await FeedDumpReplayLoader.CreateAsync(fullPath, _clock, _lifetime.Token)
-                : await TimingArchiveReplaySource.CreateAsync(fullPath, _clock, _lifetime.Token);
+            ITimingArchiveSource replay = await FeedDumpReplayLoader.CreateAsync(fullPath, _clock, _lifetime.Token);
             await SwitchSourceCoreAsync(TimingSourceMode.ArchiveReplay, replay, resetOverlay: true);
         }
         finally { _sourceSwitch.Release(); }

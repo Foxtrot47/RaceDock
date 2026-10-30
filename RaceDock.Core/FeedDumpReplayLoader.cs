@@ -163,7 +163,7 @@ internal static class GtwcFeedDumpReplayLoader
         if (frames.Snapshots.Count == 0)
             throw new InvalidDataException("The GTWC dump contains no matching timing and competitor-detail records.");
         var first = frames.Snapshots[0];
-        return new(path, $"GTWC · {first.Meeting} · {first.Session}", clock, frames.Snapshots, frames.Timestamps, "GTWC");
+        return new(path, $"GTWC · {first.Meeting} · {first.Session}", clock, frames.Snapshots, frames.Timestamps);
     }
 
     private sealed class SnapshotBuilder(Metadata metadata)
@@ -296,8 +296,7 @@ internal static class WecFeedDumpReplayLoader
         foreach (var entry in FeedDumpReplayLoader.Read(path, token)) builder.Accept(entry);
         builder.Complete();
         var first = builder.Snapshots[0];
-        return new(path, $"WEC · {first.Meeting} · {first.Session}", clock,
-            builder.Snapshots, builder.Timestamps, "WEC");
+        return new(path, $"WEC · {first.Meeting} · {first.Session}", clock, builder.Snapshots, builder.Timestamps);
     }
 
     private sealed class SnapshotBuilder
@@ -429,7 +428,7 @@ internal static class NascarFeedDumpReplayLoader
         }
         if (snapshots.Count == 0) throw new InvalidDataException("The NASCAR dump contains no session with a field.");
         var first = snapshots[0];
-        return new(path, $"NASCAR · {first.Meeting} · {first.Session}", clock, snapshots, timestamps, "NASCAR");
+        return new(path, $"NASCAR · {first.Meeting} · {first.Session}", clock, snapshots, timestamps);
     }
 
     private static JsonObject? Parse(string payload)
@@ -485,7 +484,7 @@ internal static class FiaFeedDumpReplayLoader
         }
         if (snapshots.Count == 0) throw new InvalidDataException($"The {series} dump contains no timing lines.");
         var last = snapshots[^1];
-        return new(path, $"{series} · {last.Meeting} · {last.Session}", clock, snapshots, timestamps, series);
+        return new(path, $"{series} · {last.Meeting} · {last.Session}", clock, snapshots, timestamps);
     }
 
     /// <summary>The series the hub was joined for, as its initial data names it (<c>F2</c>, <c>F3</c>, <c>F1 Academy</c>).</summary>

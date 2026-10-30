@@ -8,7 +8,7 @@
                 HorizontalScrollBarVisibility="Disabled">
     <StackPanel Style="{StaticResource SettingsPagePanelStyle}">
       <TextBlock Text="Testing" Style="{StaticResource SettingsPageTitleStyle}" />
-      <TextBlock Text="Replay a timing archive or RaceDock feed dump, or drive a deterministic scenario without waiting for a live session."
+      <TextBlock Text="Replay a RaceDock feed dump, or drive a deterministic scenario without waiting for a live session."
                  Style="{StaticResource SettingsPageDescriptionStyle}" />
 
       <!--  Transport bar: what is driving the widget, and every playback control, in one fixed place.  -->
@@ -128,14 +128,14 @@
                       DragOver="ArchiveCard_DragOver">
         <ui:CardControl.Header>
           <StackPanel HorizontalAlignment="Left">
-            <TextBlock Text="Timing archive" Style="{StaticResource SettingsCardTitleStyle}" />
+            <TextBlock Text="Feed dump" Style="{StaticResource SettingsCardTitleStyle}" />
             <TextBlock x:Name="ArchiveSummaryText"
-                       Text="Drop a Timing71 ZIP, HAR capture, or RaceDock NDJSON feed dump here, or browse for one."
+                       Text="Drop a RaceDock NDJSON feed dump here, or browse for one."
                        Style="{StaticResource SettingsCardDescriptionStyle}" />
           </StackPanel>
         </ui:CardControl.Header>
         <StackPanel Orientation="Horizontal">
-          <ui:Button Content="Choose archive…"
+          <ui:Button Content="Choose dump…"
                      Icon="{ui:SymbolIcon DocumentSearch20}"
                      Click="ChooseArchiveButton_Click" />
           <ui:Button x:Name="ReturnToLiveButton"
