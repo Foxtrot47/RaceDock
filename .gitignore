@@ -9,6 +9,9 @@ artifacts/
 *.user
 *.suo
 
+# Raw live-feed captures (curated copies live under RaceDock.Tests/Fixtures)
+captures/
+
 # Runtime state
 Logs/
 **/Logs/

@@ -13,6 +13,15 @@ dotnet run --project RaceDock.Tests -c Release
 
 To see the interface without waiting for a live session, run the app and use **Settings → Testing**, which offers deterministic scenarios and archive replay.
 
+To test several championships at once, point the app at the local feed server and give it your recordings:
+
+```powershell
+dotnet run --project RaceDock.FeedServer -- --root <folder-containing-feed-dump-recordings> --speed 4
+dotnet run --project RaceDock -- --feed-server http://127.0.0.1:8099
+```
+
+The server answers the same HTTP and WebSocket endpoints the providers expose, so the app's real adapters, transports, and mapping run unchanged. It serves F1, F2, F3, F1 Academy, GTWC, WEC, and NASCAR. `--root` selects the newest recording per feed that contains a running session; repeat `--dump <feed>=<path>` to choose a specific one. Streams advance on their recorded cadence, loop by default, and are listed at `/streams`.
+
 ## Before opening a pull request
 
 1. Keep the change focused and explain which event, series, or feed state it covers.
@@ -33,6 +42,7 @@ CI runs the same build and test commands on `main` and on every pull request.
 | Path | Purpose |
 | --- | --- |
 | `RaceDock.Core` | Timing sources, normalization, domain model, settings, logging |
+| `RaceDock.FeedServer` | Replays recorded dumps as the providers' own endpoints for multi-stream testing |
 | `RaceDock` | WPF application, taskbar widget, classification flyout, settings UI |
 | `RaceDock.Tests` | Regression suite (plain console runner) |
 | `RaceDock.Package` | MSIX manifest and App Installer templates |

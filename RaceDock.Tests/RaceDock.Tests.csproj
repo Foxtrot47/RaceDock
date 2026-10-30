@@ -5,6 +5,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-  <ItemGroup><ProjectReference Include="..\RaceDock.Core\RaceDock.Core.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\RaceDock.Core\RaceDock.Core.csproj" />
+    <ProjectReference Include="..\RaceDock.FeedServer\RaceDock.FeedServer.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
   <ItemGroup><Content Include="Fixtures\Wrc\*.json;Fixtures\Sectors\*.json;Fixtures\Nascar\*.json;Fixtures\F1Academy\*.html" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>

@@ -59,6 +59,12 @@ var tests = new (string Name, Action Run)[]
     ("NASCAR feed dumps replay each series through recorded flags", FeedDumpReplayTests.NascarTransport),
     ("F2, F3, and F1 Academy SignalR dumps replay through the live hub parser", FeedDumpReplayTests.FiaTransport),
     ("feed-dump routing preserves F1 and rejects invalid captures", FeedDumpReplayTests.FormatValidation),
+    ("the feed server selects live recordings and honours explicit dumps", FeedServerTests.CatalogSelectsLiveRecordings),
+    ("the feed-server flag resolves without disturbing replay", FeedServerTests.FeedServerFlag),
+    ("the feed server advertises streams the application can enable", FeedServerTests.StreamAdvertisement),
+    ("the feed server replays Formula 1 through the live adapter", FeedServerTests.F1Transport),
+    ("the feed server replays GTWC, WEC, and NASCAR over their HTTP endpoints", FeedServerTests.HttpPollTransports),
+    ("the feed server streams every championship at once", FeedServerTests.ConcurrentStreams),
     ("an indexed array patch keeps the fields it leaves out", IndexedArrayPatchMerge),
     ("the application log records structured rotating entries", AppLogStructuredRecords),
     ("a failing application log never throws into its caller", AppLogNeverThrows),
@@ -154,7 +160,7 @@ var tests = new (string Name, Action Run)[]
     ("WRC stage settles when a WRC1 crew retires on the road", WrcRetiredWrc1CrewSettlesStage),
     ("WRC completed to running reopens the stage", WrcCompletedToRunningReopens),
     ("WRC poll failure recovers with confirmation delay", WrcFailureRecoveryConfirmation),
-    ("WRC production handler has bounded connection lifetime", WrcHandlerBounds)
+    ("WRC production handler has bounded connection lifetime", WrcHandlerBounds),
 };
 var failures = 0;
 foreach (var test in tests)
