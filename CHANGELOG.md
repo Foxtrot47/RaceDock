@@ -2,12 +2,31 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
-## [Unreleased]
+## [1.5.0] — 2026-10-30
 
 ### Added
 
+- NASCAR Cup Series, Xfinity Series and CRAFTSMAN Truck Series live timing, with stage progress, playoff eligibility, and PIT, DVP and OUT statuses.
+- F1 Academy live timing and its season calendar, with lap and sector times and the F1 team each driver races for.
 - The classification flyout lists every live series and switches between them on demand instead of only when the rotation reaches them.
 - A pinned classification holds the series it was pinned to, and a feed that ends is left in place as finished with its tab disabled instead of being replaced by another stream.
+- Settings opens from the flyout and from the schedule.
+- NASCAR and F1 Academy publish schedules, so the idle taskbar counts down to their next session.
+
+### Changed
+
+- The four new series start disabled on an existing install, so nothing begins polling them unasked.
+- INDYCAR Chevrolet entries show the Chevrolet bowtie; sportscar Chevrolet entries keep the Corvette mark.
+- Flyout buttons sit on their own row above the event title, and series marks are trimmed of their padding.
+
+### Fixed
+
+- The taskbar widget is rebuilt after Windows closes it instead of staying gone until RaceDock restarts.
+- A flyout opened from a taskbar at the top of the screen is anchored inside the monitor's work area instead of above it.
+- A classification that has finished is dropped when its feed goes off, instead of staying on the taskbar.
+- A car is no longer listed twice when a timing hub sends a position update keyed by display slot rather than by car number.
+- A pinned classification updates as soon as its own feed does, instead of waiting for the rotation to come back around.
+- Flyout badges are centred on the title row rather than crowding the settings and pin buttons.
 
 ## [1.4.0] — 2026-10-22
 

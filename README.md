@@ -31,7 +31,7 @@ The leaders stay visible in a small strip on the taskbar. Click it and the full 
 - Optional one-row taskbar presentation with inline positions, driver codes, and intervals.
 - A countdown to the next session of the championships you follow while nothing is running.
 - Lap, stage, gap, tyre, class, pit, status, and flag details when the series publishes them.
-- 15 championships: F1, F2, F3, Formula E, DTM, INDYCAR, MotoGP, Moto2, Moto3, WEC, ELMS, Michelin Le Mans Cup, GT World Challenge Europe, IMSA WeatherTech, and WRC.
+- 19 championships: F1, F2, F3, F1 Academy, Formula E, DTM, INDYCAR, NASCAR Cup, NASCAR Xfinity, NASCAR Trucks, MotoGP, Moto2, Moto3, WEC, ELMS, Michelin Le Mans Cup, GT World Challenge Europe, IMSA WeatherTech, and WRC.
 - Follow several series at once — RaceDock rotates between the ones currently live, and the flyout lists every live series so you can switch on your own.
 - Pin the full classification as an overlay above other windows and it stays on the series you chose instead of following the rotation.
 - Position cards or team and manufacturer logos, in a light or dark look that follows Windows.
@@ -68,9 +68,11 @@ Settings and logs are stored in `%LocalAppData%\RaceDock`. Deleting that folder 
 | --- | --- |
 | Formula 1 | Official Formula 1 live-timing stream |
 | Formula 2 & Formula 3 | Official FIA timing hubs |
+| F1 Academy | Official FIA timing hub and the series' published calendar |
 | Formula E | Official Al Kamel Formula E timing stream |
 | DTM | Public Griiip Insights timing feed |
 | NTT INDYCAR SERIES | Public INDYCAR race-control timing feed |
+| NASCAR Cup, Xfinity, Trucks | Public NASCAR live-feed and schedule endpoints |
 | MotoGP, Moto2, Moto3 | Official MotoGP live-timing gateway |
 | World Endurance Championship | Public Griiip Insights timing feed |
 | European Le Mans Series & Michelin Le Mans Cup | Public Griiip Insights timing feed |
