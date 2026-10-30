@@ -640,7 +640,8 @@ public sealed class ClassificationFlyout : Window
         _badges = new StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Top
+            // Centred on the title and session line, clear of the settings and pin buttons.
+            VerticalAlignment = VerticalAlignment.Center
         };
         ConfigureBadge(_trackBadge, _trackText);
         _connectionGlyph.FontSize = 15;
