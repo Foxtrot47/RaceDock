@@ -29,6 +29,7 @@ public sealed class ClassificationFlyout : Window
     private readonly SymbolIcon _connectionGlyph = new();
     private readonly TextBlock _trackText = new();
     private readonly Border _trackBadge = new();
+    private readonly Border _chequeredBadge = new() { Visibility = Visibility.Collapsed };
     private Grid _sessionHeader = null!;
     private StackPanel _badges = null!;
     private Grid _columnHeader = null!;
@@ -309,6 +310,7 @@ public sealed class ClassificationFlyout : Window
 
         UpdateConnectionBadge(snapshot.ConnectionState);
         UpdateTrackBadge(snapshot.TrackCondition);
+        UpdateChequeredBadge(snapshot.Lifecycle == SessionLifecycle.Ended);
 
         UpdateRows(snapshot, new ClassificationRowFormat(rally, endurance, lapTimeMode, PlayoffFormat(snapshot)));
         return true;
@@ -653,7 +655,9 @@ public sealed class ClassificationFlyout : Window
         ConfigureBadge(_trackBadge, _trackText);
         _connectionGlyph.FontSize = 15;
         _connectionGlyph.VerticalAlignment = VerticalAlignment.Center;
+        ConfigureChequeredBadge();
         _trackBadge.Margin = new Thickness(0, 0, 6, 0);
+        _badges.Children.Add(_chequeredBadge);
         _badges.Children.Add(_trackBadge);
         _badges.Children.Add(_connectionGlyph);
         Grid.SetColumn(_badges, 1);
@@ -702,6 +706,21 @@ public sealed class ClassificationFlyout : Window
         _connectionGlyph.Foreground = new SolidColorBrush(tint);
         _connectionGlyph.ToolTip = state.ToString();
     }
+
+    /// <summary>A chequered strip, sized and rounded like the status badges it sits beside.</summary>
+    private void ConfigureChequeredBadge()
+    {
+        _chequeredBadge.Width = 72;
+        _chequeredBadge.Height = 24;
+        _chequeredBadge.CornerRadius = new CornerRadius(7);
+        _chequeredBadge.VerticalAlignment = VerticalAlignment.Center;
+        _chequeredBadge.Background = ChequeredFlag.Brush(4);
+        _chequeredBadge.ToolTip = "Chequered flag";
+        System.Windows.Automation.AutomationProperties.SetName(_chequeredBadge, "Chequered flag");
+    }
+
+    private void UpdateChequeredBadge(bool finished) =>
+        _chequeredBadge.Visibility = finished ? Visibility.Visible : Visibility.Collapsed;
 
     private void UpdateTrackBadge(TrackCondition condition)
     {
