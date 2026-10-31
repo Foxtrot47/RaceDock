@@ -24,7 +24,8 @@ public static class EventNameShortener
             ["Motul Petit Le Mans"] = "Petit Le Mans",
             ["Motul SportsCar Endurance Grand Prix"] = "SportsCar Endurance Grand Prix",
             ["FIA WEC - Bapco Energies 8 Hours of Bahrain"] = "8 Hours of Bahrain",
-            ["Circuit of the Americas"] = "COTA"
+            ["Circuit of the Americas"] = "COTA",
+            ["Bahrain Grand Prix in Malaysia"] = "Bahrain Grand Prix"
         };
 
     // Longer and localized markers come first where one title could otherwise match another.
@@ -76,6 +77,7 @@ public static class EventNameShortener
         ("GRAND PRIX OF CATALUNYA", "Catalan Grand Prix"),
         ("GRAND PRIX OF ITALY", "Italian Grand Prix"),
         ("GRAND PRIX OF HUNGARY", "Hungarian Grand Prix"),
+        ("GRAND PRIX OF CZECHIA", "Czech Grand Prix"),
         ("GRAND PRIX OF THE CZECH REPUBLIC", "Czech Grand Prix"),
         ("GRAND PRIX OF THE NETHERLANDS", "Dutch Grand Prix"),
         ("GRAND PRIX OF GERMANY", "German Grand Prix"),
@@ -135,15 +137,62 @@ public static class EventNameShortener
     ];
 
     /// <summary>
-    /// Cup race names are long sponsor titles ("YellaWood 500", "EchoPark Automotive Grand Prix"). Only the
-    /// rounds whose sponsor name hides the venue are mapped; the rest keep their published name.
+    /// The 2026 NASCAR rounds whose published title is a sponsor name too long for a schedule row. Each season
+    /// publishes new titles, so this table is replaced when the next schedule is out.
     /// </summary>
     private static readonly (string Marker, string Name)[] NascarAliases =
     [
-        ("ECHOPARK AUTOMOTIVE GRAND PRIX", "COTA 400"),
-        ("FOOD CITY 500", "Bristol 500"),
-        ("BANK OF AMERICA ROVAL 400", "Charlotte Roval 400"),
-        ("YELLAWOOD 500", "Talladega 500"),
+        ("COOK OUT CLASH AT BOWMAN GRAY", "Bowman Gray Clash"),
+        ("AMERICA 250 FLORIDA DUEL AT DAYTONA", "Daytona Duel"),
+        ("DURAMAX TEXAS GRAND PRIX POWERED BY RELADYNE", "DuraMAX Texas Grand Prix"),
+        ("PENNZOIL 400 PRESENTED BY JIFFY LUBE", "Pennzoil 400"),
+        ("WÜRTH 400 PRESENTED BY LIQUI MOLY", "Würth 400"),
+        ("GREAT AMERICAN GETAWAY 400 PRESENTED BY VISITPA", "Great American Getaway 400"),
+        ("QUAKER STATE 400 AVAILABLE AT WALMART", "Quaker State 400"),
+        ("BRICKYARD 400 PRESENTED BY PPG", "Brickyard 400"),
+        ("IOWA CORN 350 POWERED BY ETHANOL", "Iowa Corn 350"),
+        ("BENNETT TRANSPORTATION & LOGISTICS 250", "Atlanta 250"),
+        ("SPORT CLIPS HAIRCUTS VFW HELP A HERO 200", "Darlington 200"),
+        ("NORTH CAROLINA EDUCATION LOTTERY 250 PRESENTED BY BLACK\'S TIRE", "Rockingham 250"),
+        ("SPORTS ILLUSTRATED RESORTS 250", "Nashville 250"),
+        ("MILLERTECH BATTERY 250 PRESENTED BY KOA", "MillerTech Battery 250"),
+        ("UNITED RENTALS DRIVEN TO SERVE 250", "San Diego 250"),
+        ("PENNZOIL 250 PRESENTED BY TAKE 5 OIL CHANGE", "Pennzoil 250"),
+        ("WINN-DIXIE 250 POWERED BY COCA-COLA", "Winn-Dixie 250"),
+        ("NU WAY 225 POWERED BY BOBCAT AND SAUCED BY BLUES HOG", "Nu Way 225"),
+        ("NASCAR O\'REILLY AUTO PARTS SERIES CHAMPIONSHIP RACE", "Homestead Championship"),
+        ("ONLYBULLS GREEN FLAG 150 AT ST. PETERSBURG", "St. Petersburg 150"),
+        ("BUCKLE UP SOUTH CAROLINA 200", "Darlington 200"),
+        ("TENNESSEE ARMY NATIONAL GUARD 250", "Bristol 250"),
+        ("BULLY HILL VINEYARDS 176 AT THE GLEN", "Watkins Glen 176"),
+        ("NORTH CAROLINA EDUCATION LOTTERY 200", "Charlotte 200"),
+        ("DQS SOLUTIONS & STAFFING 250 POWERED BY PRECISION VEHICLE LOGISTICS", "Michigan 250"),
+        ("LIUNA 150 AT LIME ROCK PARK", "Lime Rock Park 150"),
+        ("FAITHFEST 250 PRESENTED BY MERCER TRANSPORTATION", "FaithFest 250"),
+        ("TSPORT 200 PRESENTED BY WARN INDUSTRIES", "TSport 200"),
+        ("BLACK\'S TIRE 250 PRESENTED BY BTS REWARDS", "Black\'s Tire 250"),
+        ("UNOH 250 PRESENTED BY OHIO LOGISTICS", "UNOH 250"),
+        ("ZERO CARBON BIOETHANOL 150 POWERED BY POET", "Zero Carbon Bioethanol 150"),
+        ("BLACK\'S TIRE 200 PRESENTED BY DOWN EAST HEATING & AIR CONDITIONING", "Black\'s Tire 200"),
+        ("NASCAR CRAFTSMAN TRUCK SERIES CHAMPIONSHIP RACE", "Homestead Championship"),
+    ];
+
+    // Endurance rounds carry a sponsor and a duration in the title, which only the venue and hours matter for.
+    private static readonly (string Marker, string Name)[] WecAliases =
+    [
+        ("8 HOURS OF BAHRAIN", "8 Hours of Bahrain"),
+        ("6 HOURS OF SPA", "6 Hours of Spa"),
+        ("TEST DAY", "Le Mans Test Day")
+    ];
+
+    private static readonly (string Marker, string Name)[] ElmsAliases =
+    [
+        ("4 HOURS OF SPA-FRANCORCHAMPS", "4 Hours of Spa")
+    ];
+
+    private static readonly (string Marker, string Name)[] DtmAliases =
+    [
+        ("MOTORSPORT ARENA OSCHERSLEBEN", "Oschersleben")
     ];
 
     private static readonly (string Marker, string Name)[] IndyCarAliases =
@@ -193,10 +242,10 @@ public static class EventNameShortener
             Championship.NascarCup or Championship.NascarXfinity or Championship.NascarTrucks => Match(value, NascarAliases) ?? value,
             Championship.Imsa => Match(value, ImsaAliases) ?? value,
             Championship.GtWorldChallengeEurope => ShortenGtWorldChallenge(value),
-            Championship.WorldEnduranceChampionship => StripPrefix(value, "FIA WEC - "),
-            Championship.EuropeanLeMansSeries => StripPrefix(value, "ELMS - "),
+            Championship.WorldEnduranceChampionship => Match(value, WecAliases) ?? StripWecPrefix(value),
+            Championship.EuropeanLeMansSeries => Match(value, ElmsAliases) ?? StripPrefix(value, "ELMS - "),
             Championship.MichelinLeMansCup => StripPrefix(value, "MLMC - "),
-            Championship.Dtm => StripDtmRound(value),
+            Championship.Dtm => Match(value, DtmAliases) ?? StripDtmRound(value),
             _ => value
         };
     }
@@ -218,6 +267,14 @@ public static class EventNameShortener
     {
         var separator = value.IndexOf(' ');
         return separator > 0 && int.TryParse(value[..separator], out _) ? value[(separator + 1)..] : value;
+    }
+
+    private static string StripWecPrefix(string value)
+    {
+        foreach (var prefix in new[] { "FIA WEC - ", "FIA WEC- ", "FIA WEC -", "FIA WEC-" })
+            if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return value[prefix.Length..].Trim();
+        return value;
     }
 
     private static string StripPrefix(string value, string prefix) =>

@@ -138,6 +138,7 @@ var tests = new (string Name, Action Run)[]
     ("NASCAR recorded race replays one start and one chequered alert", NascarRecordedRaceAlerts),
     ("a cancelled schedule caller leaves the shared read running", NascarScheduleCacheSurvivesCallerCancellation),
     ("NASCAR schedule reads are shared, expire, and never cache a failure", NascarScheduleCache),
+    ("published event titles fit the schedule and countdown widths", ChampionshipEventNames),
     ("F3 qualifying publishes aborted live data", F3QualifyingSnapshot),
     ("F1 Academy slot-keyed and car-keyed lines share one standing", F1AcademyLinesConvergeOnCarNumber),
     ("F1 Academy array timing publishes live data", F1AcademyLiveTiming),
@@ -5013,6 +5014,30 @@ static void NascarScheduleCache()
     // A race without an id has no weekend feed to read.
     Equal(null, cached.GetWeekendFeedAsync(2026, 1, null, CancellationToken.None).GetAwaiter().GetResult());
     Equal(3, schedule.WeekendRequests.Count);
+}
+
+/// <summary>
+/// Every published title the calendars can deliver, shortened the way the schedule and countdown draw it. The
+/// fixture is the 2026 schedule of each series that publishes one, so a title that stops fitting fails here
+/// instead of arriving in the app clipped. Series whose calendar is not published are covered by their own tests.
+/// </summary>
+static void ChampionshipEventNames()
+{
+    var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "EventNames", "published-2026.json");
+    var entries = JsonNode.Parse(File.ReadAllText(fixture))!.AsArray();
+    True(entries.Count > 170);
+    foreach (var entry in entries.OfType<JsonObject>())
+    {
+        var series = entry["series"]!.GetValue<string>();
+        var championship = Enum.Parse<Championship>(series);
+        var raw = entry["event"]!.GetValue<string>();
+        var shown = ChampionshipDisplay.ShortEventName(championship, raw);
+        Equal(entry["shown"]!.GetValue<string>(), shown);
+        if (shown.Length > 26) throw new Exception($"{series}: {raw} -> {shown} ({shown.Length} chars) does not fit the schedule.");
+    }
+    // A title no table covers is left as published rather than guessed at.
+    Equal("Mystery 500 presented by Nobody",
+        ChampionshipDisplay.ShortEventName(Championship.NascarCup, "Mystery 500 presented by Nobody"));
 }
 
 /// <summary>A cached read belongs to the cache: the first caller giving up must not cancel it for the next.</summary>

@@ -1,0 +1,902 @@
+[
+  {
+    "series": "Dtm",
+    "event": "03 Dekra Lausitzring",
+    "shown": "Dekra Lausitzring"
+  },
+  {
+    "series": "Dtm",
+    "event": "04 Norisring",
+    "shown": "Norisring"
+  },
+  {
+    "series": "Dtm",
+    "event": "05 Motorsport Arena Oschersleben",
+    "shown": "Oschersleben"
+  },
+  {
+    "series": "Dtm",
+    "event": "06 Nürburgring",
+    "shown": "Nürburgring"
+  },
+  {
+    "series": "Dtm",
+    "event": "07 Sachsenring",
+    "shown": "Sachsenring"
+  },
+  {
+    "series": "Dtm",
+    "event": "08 Hockenheimring",
+    "shown": "Hockenheimring"
+  },
+  {
+    "series": "EuropeanLeMansSeries",
+    "event": "ELMS - 4 hours of Imola",
+    "shown": "4 hours of Imola"
+  },
+  {
+    "series": "EuropeanLeMansSeries",
+    "event": "ELMS - 4 hours of Portimão",
+    "shown": "4 hours of Portimão"
+  },
+  {
+    "series": "EuropeanLeMansSeries",
+    "event": "ELMS - 4 hours of Spa-Francorchamps",
+    "shown": "4 Hours of Spa"
+  },
+  {
+    "series": "EuropeanLeMansSeries",
+    "event": "ELMS - Silverstone Circuit",
+    "shown": "Silverstone Circuit"
+  },
+  {
+    "series": "Formula1",
+    "event": "Abu Dhabi Grand Prix",
+    "shown": "Abu Dhabi Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Australian Grand Prix",
+    "shown": "Australian Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Austrian Grand Prix",
+    "shown": "Austrian Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Azerbaijan Grand Prix",
+    "shown": "Azerbaijan Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Bahrain Grand Prix in Malaysia",
+    "shown": "Bahrain Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Barcelona Grand Prix",
+    "shown": "Barcelona Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Belgian Grand Prix",
+    "shown": "Belgian Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Brazilian Grand Prix",
+    "shown": "Brazilian Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "British Grand Prix",
+    "shown": "British Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Canadian Grand Prix",
+    "shown": "Canadian Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Chinese Grand Prix",
+    "shown": "Chinese Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Dutch Grand Prix",
+    "shown": "Dutch Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Hungarian Grand Prix",
+    "shown": "Hungarian Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Italian Grand Prix",
+    "shown": "Italian Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Japanese Grand Prix",
+    "shown": "Japanese Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Las Vegas Grand Prix",
+    "shown": "Las Vegas Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Mexico City Grand Prix",
+    "shown": "Mexico City Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Miami Grand Prix",
+    "shown": "Miami Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Monaco Grand Prix",
+    "shown": "Monaco Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Qatar Grand Prix",
+    "shown": "Qatar Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Singapore Grand Prix",
+    "shown": "Singapore Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "Spanish Grand Prix",
+    "shown": "Spanish Grand Prix"
+  },
+  {
+    "series": "Formula1",
+    "event": "United States Grand Prix",
+    "shown": "United States Grand Prix"
+  },
+  {
+    "series": "MichelinLeMansCup",
+    "event": "MLMC - Portimão Round",
+    "shown": "Portimão Round"
+  },
+  {
+    "series": "MichelinLeMansCup",
+    "event": "MLMC - Road To Le Mans",
+    "shown": "Road To Le Mans"
+  },
+  {
+    "series": "MichelinLeMansCup",
+    "event": "MLMC - Silverstone Round",
+    "shown": "Silverstone Round"
+  },
+  {
+    "series": "MichelinLeMansCup",
+    "event": "MLMC - Spa-Francorchamps Round",
+    "shown": "Spa-Francorchamps Round"
+  },
+  {
+    "series": "MotoGp",
+    "event": "BREMBO GRAND PRIX OF ITALY ",
+    "shown": "Italian Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "ESTRELLA GALICIA 0,0 GRAND PRIX OF BRAZIL ",
+    "shown": "Brazilian Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "ESTRELLA GALICIA 0,0 GRAND PRIX OF SPAIN ",
+    "shown": "Spanish Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "GRAND PRIX OF HUNGARY ",
+    "shown": "Hungarian Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "LIQUI MOLY GRAND PRIX OF GERMANY ",
+    "shown": "German Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "MICHELIN® GRAND PRIX OF ARAGON ",
+    "shown": "Aragón Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "MICHELIN® GRAND PRIX OF FRANCE ",
+    "shown": "French Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "MONSTER ENERGY GRAND PRIX OF CATALUNYA ",
+    "shown": "Catalan Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "MONSTER ENERGY GRAND PRIX OF CZECHIA ",
+    "shown": "Czech Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "MOTUL GRAND PRIX OF JAPAN ",
+    "shown": "Japanese Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "MOTUL GRAND PRIX OF VALENCIA",
+    "shown": "Valencia Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "PERTAMINA GRAND PRIX OF INDONESIA ",
+    "shown": "Indonesian Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "PETRONAS GRAND PRIX OF MALAYSIA ",
+    "shown": "Malaysian Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "PT GRAND PRIX OF THAILAND ",
+    "shown": "Thai Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "QATAR AIRWAYS GRAND PRIX OF AUSTRIA ",
+    "shown": "Austrian Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "QATAR AIRWAYS GRAND PRIX OF GREAT BRITAIN ",
+    "shown": "British Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "QATAR AIRWAYS GRAND PRIX OF QATAR ",
+    "shown": "Qatar Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "RED BULL GRAND PRIX OF AUSTRALIA",
+    "shown": "Australian Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "RED BULL GRAND PRIX OF SAN MARINO AND THE RIMINI RIVIERA ",
+    "shown": "San Marino Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "RED BULL GRAND PRIX OF THE UNITED STATES ",
+    "shown": "United States Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "REPSOL GRAND PRIX OF PORTUGAL ",
+    "shown": "Portuguese Grand Prix"
+  },
+  {
+    "series": "MotoGp",
+    "event": "TISSOT GRAND PRIX OF THE NETHERLANDS ",
+    "shown": "Dutch Grand Prix"
+  },
+  {
+    "series": "NascarCup",
+    "event": "AdventHealth 400",
+    "shown": "AdventHealth 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "America 250 Florida Duel at DAYTONA",
+    "shown": "Daytona Duel"
+  },
+  {
+    "series": "NascarCup",
+    "event": "America 250 Florida Duel at DAYTONA",
+    "shown": "Daytona Duel"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Anduril 250",
+    "shown": "Anduril 250"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Autotrader 400",
+    "shown": "Autotrader 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Bank of America 400",
+    "shown": "Bank of America 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Bass Pro Shops Night Race",
+    "shown": "Bass Pro Shops Night Race"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Brickyard 400 presented by PPG",
+    "shown": "Brickyard 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Coca-Cola 600",
+    "shown": "Coca-Cola 600"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Coke Zero Sugar 400",
+    "shown": "Coke Zero Sugar 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Cook Out 400",
+    "shown": "Cook Out 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Cook Out 400",
+    "shown": "Cook Out 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Cook Out Clash at Bowman Gray",
+    "shown": "Bowman Gray Clash"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Cook Out Southern 500",
+    "shown": "Cook Out Southern 500"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Cracker Barrel 400",
+    "shown": "Cracker Barrel 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "DAYTONA 500",
+    "shown": "DAYTONA 500"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Dollar Tree 301",
+    "shown": "Dollar Tree 301"
+  },
+  {
+    "series": "NascarCup",
+    "event": "DuraMAX Texas Grand Prix Powered by RelaDyne",
+    "shown": "DuraMAX Texas Grand Prix"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Enjoy Illinois 300",
+    "shown": "Enjoy Illinois 300"
+  },
+  {
+    "series": "NascarCup",
+    "event": "FireKeepers Casino 400",
+    "shown": "FireKeepers Casino 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Food City 500",
+    "shown": "Food City 500"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Freeway Insurance 500",
+    "shown": "Freeway Insurance 500"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Go Bowling at The Glen",
+    "shown": "Go Bowling at The Glen"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Goodyear 400",
+    "shown": "Goodyear 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Great American Getaway 400 presented by VISITPA",
+    "shown": "Great American Getaway 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Hollywood Casino 400",
+    "shown": "Hollywood Casino 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Iowa Corn 350 Powered by Ethanol",
+    "shown": "Iowa Corn 350"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Jack Link's 500",
+    "shown": "Jack Link's 500"
+  },
+  {
+    "series": "NascarCup",
+    "event": "NASCAR All-Star Race",
+    "shown": "NASCAR All-Star Race"
+  },
+  {
+    "series": "NascarCup",
+    "event": "NASCAR Championship Race",
+    "shown": "NASCAR Championship Race"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Pennzoil 400 presented by Jiffy Lube",
+    "shown": "Pennzoil 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Quaker State 400 Available at Walmart",
+    "shown": "Quaker State 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "South Point 400",
+    "shown": "South Point 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Straight Talk Wireless 500",
+    "shown": "Straight Talk Wireless 500"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Toyota / Save Mart 350",
+    "shown": "Toyota / Save Mart 350"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Window World 450",
+    "shown": "Window World 450"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Würth 400 presented by LIQUI MOLY",
+    "shown": "Würth 400"
+  },
+  {
+    "series": "NascarCup",
+    "event": "Xfinity 500",
+    "shown": "Xfinity 500"
+  },
+  {
+    "series": "NascarCup",
+    "event": "YellaWood 500",
+    "shown": "YellaWood 500"
+  },
+  {
+    "series": "NascarCup",
+    "event": "eero 400",
+    "shown": "eero 400"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Allegiance 200",
+    "shown": "Allegiance 200"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Black's Tire 200",
+    "shown": "Black's Tire 200"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Black's Tire 200 presented by Down East Heating & Air Conditioning",
+    "shown": "Black's Tire 200"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Black's Tire 250 presented by BTS Rewards",
+    "shown": "Black's Tire 250"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Buckle Up South Carolina 200",
+    "shown": "Darlington 200"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Bully Hill Vineyards 176 at The Glen",
+    "shown": "Watkins Glen 176"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "DQS Solutions & Staffing 250 powered by Precision Vehicle Logistics",
+    "shown": "Michigan 250"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "ECOSAVE 200",
+    "shown": "ECOSAVE 200"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Ecosave 200",
+    "shown": "Ecosave 200"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "FaithFest 250 presented by Mercer Transportation",
+    "shown": "FaithFest 250"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Fr8 Racing 208",
+    "shown": "Fr8 Racing 208"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Fresh From Florida 250",
+    "shown": "Fresh From Florida 250"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Liuna 150 at Lime Rock Park",
+    "shown": "Lime Rock Park 150"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Love's RV Stop 225",
+    "shown": "Love's RV Stop 225"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "NASCAR CRAFTSMAN Truck Series Championship Race",
+    "shown": "Homestead Championship"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Navy 250",
+    "shown": "Navy 250"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "North Carolina Education Lottery 200",
+    "shown": "Charlotte 200"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "OnlyBulls Green Flag 150 at St. Petersburg",
+    "shown": "St. Petersburg 150"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Race to Stop Suicide 200",
+    "shown": "Race to Stop Suicide 200"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "SpeedyCash.com 250",
+    "shown": "SpeedyCash.com 250"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "TSport 200 presented by Warn Industries",
+    "shown": "TSport 200"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Team EJP 175",
+    "shown": "Team EJP 175"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Tennessee Army National Guard 250",
+    "shown": "Bristol 250"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "UNOH 250 presented by Ohio Logistics",
+    "shown": "UNOH 250"
+  },
+  {
+    "series": "NascarTrucks",
+    "event": "Zero Carbon Bioethanol 150 Powered by POET",
+    "shown": "Zero Carbon Bioethanol 150"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "AG-PRO 300",
+    "shown": "AG-PRO 300"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Andy's Frozen Custard 340",
+    "shown": "Andy's Frozen Custard 340"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Bennett Transportation & Logistics 250",
+    "shown": "Atlanta 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "BetRivers 200",
+    "shown": "BetRivers 200"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Blue Cross NC 300",
+    "shown": "Blue Cross NC 300"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Charbroil 300",
+    "shown": "Charbroil 300"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Cuervo 300",
+    "shown": "Cuervo 300"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Fleetio 200",
+    "shown": "Fleetio 200"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Focused Health 250",
+    "shown": "Focused Health 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Focused Health 250",
+    "shown": "Focused Health 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Focused Health 302",
+    "shown": "Focused Health 302"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Food City 300",
+    "shown": "Food City 300"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "GOVX 200",
+    "shown": "GOVX 200"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "HyVee Perks 250",
+    "shown": "HyVee Perks 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Kansas Lottery 300",
+    "shown": "Kansas Lottery 300"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "MillerTech Battery 250 presented by KOA",
+    "shown": "MillerTech Battery 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Mission 200 at The Glen",
+    "shown": "Mission 200 at The Glen"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "NASCAR O'Reilly Auto Parts Series Championship Race",
+    "shown": "Homestead Championship"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "NFPA 250",
+    "shown": "NFPA 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "National Debt Relief 250",
+    "shown": "National Debt Relief 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "North Carolina Education Lottery 250 Presented by Black's Tire",
+    "shown": "Rockingham 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Nu Way 225 Powered by Bobcat and Sauced by Blues Hog",
+    "shown": "Nu Way 225"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Pennzoil 250 presented by Take 5 Oil Change",
+    "shown": "Pennzoil 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Pit Boss/FoodMaxx 250",
+    "shown": "Pit Boss/FoodMaxx 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Sport Clips Haircuts VFW Help a Hero 200",
+    "shown": "Darlington 200"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Sports Illustrated Resorts 250",
+    "shown": "Nashville 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Suburban Propane 300",
+    "shown": "Suburban Propane 300"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "The LiUNA",
+    "shown": "The LiUNA"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "The Progress Group 250",
+    "shown": "The Progress Group 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Timberland PRO 200",
+    "shown": "Timberland PRO 200"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "United Rentals 300",
+    "shown": "United Rentals 300"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "United Rentals Driven to Serve 250",
+    "shown": "San Diego 250"
+  },
+  {
+    "series": "NascarXfinity",
+    "event": "Winn-Dixie 250 Powered by Coca-Cola",
+    "shown": "Winn-Dixie 250"
+  },
+  {
+    "series": "WorldEnduranceChampionship",
+    "event": "Bapco Energies 8 Hours of Bahrain",
+    "shown": "8 Hours of Bahrain"
+  },
+  {
+    "series": "WorldEnduranceChampionship",
+    "event": "FIA WEC - 24 Hours of Le Mans Test Day",
+    "shown": "Le Mans Test Day"
+  },
+  {
+    "series": "WorldEnduranceChampionship",
+    "event": "FIA WEC - 6 Hours of Imola",
+    "shown": "6 Hours of Imola"
+  },
+  {
+    "series": "WorldEnduranceChampionship",
+    "event": "FIA WEC - 6 Hours of Imola Prologue",
+    "shown": "6 Hours of Imola Prologue"
+  },
+  {
+    "series": "WorldEnduranceChampionship",
+    "event": "FIA WEC - Lone Star Le Mans",
+    "shown": "Lone Star Le Mans"
+  },
+  {
+    "series": "WorldEnduranceChampionship",
+    "event": "FIA WEC - ROLEX 6 Hours of São Paulo",
+    "shown": "ROLEX 6 Hours of São Paulo"
+  },
+  {
+    "series": "WorldEnduranceChampionship",
+    "event": "FIA WEC - TotalEnergies 6 Hours of Spa-Francorchamps",
+    "shown": "6 Hours of Spa"
+  },
+  {
+    "series": "WorldEnduranceChampionship",
+    "event": "FIA WEC- 24 Hours of Le Mans",
+    "shown": "24 Hours of Le Mans"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Croatia Rally",
+    "shown": "Croatia Rally"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Delfi Rally Estonia",
+    "shown": "Rally Estonia"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "EKO Acropolis Rally Greece",
+    "shown": "Acropolis Rally"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "FORUM8 Rally Japan",
+    "shown": "Rally Japan"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Rally Chile Biobío",
+    "shown": "Rally Chile"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Rally Islas Canarias",
+    "shown": "Rally Islas Canarias"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Rally Saudi Arabia",
+    "shown": "Rally Saudi Arabia"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Rally Scotland",
+    "shown": "Rally Scotland"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Rally Sweden",
+    "shown": "Rally Sweden"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Rally US",
+    "shown": "Rally US"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Rally d'Italia",
+    "shown": "Rally d'Italia"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Rallye Monte-Carlo",
+    "shown": "Rallye Monte-Carlo"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Safari Rally Kenya",
+    "shown": "Safari Rally Kenya"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "Secto Rally Finland",
+    "shown": "Rally Finland"
+  },
+  {
+    "series": "WorldRallyChampionship",
+    "event": "ueno Rally del Paraguay",
+    "shown": "Rally Paraguay"
+  }
+]

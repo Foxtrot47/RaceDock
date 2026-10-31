@@ -12,5 +12,5 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
-  <ItemGroup><Content Include="Fixtures\Wrc\*.json;Fixtures\Sectors\*.json;Fixtures\Nascar\*.json;Fixtures\F1Academy\*.html" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+  <ItemGroup><Content Include="Fixtures\Wrc\*.json;Fixtures\Sectors\*.json;Fixtures\Nascar\*.json;Fixtures\F1Academy\*.html;Fixtures\EventNames\*.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>
