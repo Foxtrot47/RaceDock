@@ -1115,7 +1115,7 @@ static void F1AcademyLiveTiming()
     source.ProcessMessage(new JsonObject { ["I"] = 1, ["R"] = initial }.ToJsonString());
     True(snapshot is not null);
     Equal(Championship.F1Academy, snapshot!.Championship);
-    Equal("Austin", snapshot.Meeting);
+    Equal("United States Grand Prix", snapshot.Meeting);
     Equal("Reverse Grid Race", snapshot.Session);
     Equal(SessionLifecycle.Live, snapshot.Lifecycle);
     Equal("LEAD", snapshot.Competitors[0].GapToLeader);
@@ -4218,7 +4218,7 @@ static void F1AcademyCalendar()
     // During the Austin round, its remaining confirmed sessions keep their published times.
     var austin = ChampionshipCalendars.F1AcademyRound(races, new DateTimeOffset(2026, 10, 24, 12, 0, 0, TimeSpan.Zero), utc);
     Equal(2, austin.Count);
-    Equal("Austin", austin[0].EventName);
+    Equal("United States Grand Prix", austin[0].EventName);
     Equal("Circuit of the Americas", austin[0].Venue);
     Equal("Reverse Grid Race", austin[0].SessionName);
     True(austin[0].HasStartTime);
@@ -4229,11 +4229,25 @@ static void F1AcademyCalendar()
     // session keeps only its local date rather than the placeholder clock time.
     var lasVegas = ChampionshipCalendars.F1AcademyRound(races, new DateTimeOffset(2026, 10, 29, 12, 0, 0, TimeSpan.Zero), utc);
     Equal(4, lasVegas.Count);
-    Equal("Las Vegas", lasVegas[0].EventName);
+    Equal("Las Vegas Grand Prix", lasVegas[0].EventName);
     Equal("Free Practice", lasVegas[0].SessionName);
     False(lasVegas[0].HasStartTime);
     Equal(new DateOnly(2026, 11, 19), lasVegas[0].StartDate);
     Equal(new DateOnly(2026, 11, 21), lasVegas[^1].StartDate);
+
+    // Every round of the published season names its grand prix rather than its circuit.
+    foreach (var (circuit, grandPrix) in new[]
+    {
+        ("Shanghai", "Chinese Grand Prix"),
+        ("Montreal", "Canadian Grand Prix"),
+        ("Silverstone", "British Grand Prix"),
+        ("Zandvoort", "Dutch Grand Prix"),
+        ("Austin", "United States Grand Prix"),
+        ("Las Vegas", "Las Vegas Grand Prix")
+    })
+        Equal(grandPrix, ChampionshipCalendars.F1AcademyGrandPrixName(circuit));
+    Equal(null, ChampionshipCalendars.F1AcademyGrandPrixName("Sepang"));
+    Equal(null, ChampionshipCalendars.F1AcademyGrandPrixName(null));
 
     // After the final round there is nothing left to show.
     Equal(0, ChampionshipCalendars.F1AcademyRound(races, new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero), utc).Count);

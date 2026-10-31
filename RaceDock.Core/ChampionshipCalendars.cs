@@ -423,13 +423,39 @@ public static class ChampionshipCalendars
             : session.StartUtc;
 
     /// <summary>The remaining sessions of the next F1 Academy round.</summary>
+    /// <summary>
+    /// F1 Academy rounds run at Formula 1 venues, so each carries that grand prix's name rather than the circuit's
+    /// ("United States Grand Prix", not "Austin"). A round at a venue without a row keeps its published name.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> F1AcademyGrandPrix =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Shanghai"] = "Chinese Grand Prix",
+            ["Montreal"] = "Canadian Grand Prix",
+            ["Silverstone"] = "British Grand Prix",
+            ["Zandvoort"] = "Dutch Grand Prix",
+            ["Austin"] = "United States Grand Prix",
+            ["Las Vegas"] = "Las Vegas Grand Prix"
+        };
+
+    /// <summary>
+    /// The grand prix an F1 Academy round belongs to. Both the calendar page and the live hub identify a round by its
+    /// circuit's short name ("Austin"), which is what this table is keyed on.
+    /// </summary>
+    internal static string? F1AcademyGrandPrixName(string? circuitShortName) =>
+        string.IsNullOrWhiteSpace(circuitShortName)
+            ? null
+            : F1AcademyGrandPrix.GetValueOrDefault(circuitShortName.Trim());
+
     public static IReadOnlyList<UpcomingSession> F1AcademyRound(JsonArray? races, DateTimeOffset now, TimeZoneInfo timeZone)
     {
         // Each round runs over a few days, and later rounds sit ahead of it, so the first round with a session still
         // to come is the one being followed.
         foreach (var round in (races?.OfType<JsonObject>() ?? []).OrderBy(race => JsonSupport.String(race["RaceStartDate"])))
         {
-            var name = JsonSupport.String(round["CircuitShortName"]) ?? JsonSupport.String(round["CountryName"]) ?? "F1 Academy";
+            var shortName = JsonSupport.String(round["CircuitShortName"]);
+            var name = F1AcademyGrandPrixName(shortName)
+                ?? shortName ?? JsonSupport.String(round["CountryName"]) ?? "F1 Academy";
             var venue = JsonSupport.String(round["CircuitName"]);
             var sessions = (round["Sessions"] as JsonArray)?.OfType<JsonObject>()
                 .Select(session => F1AcademySession(session, name, venue))

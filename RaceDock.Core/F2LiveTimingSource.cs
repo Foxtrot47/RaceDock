@@ -343,10 +343,21 @@ public sealed class F2LiveTimingSource(IClock clock, IAlertArbiter alerts, strin
     private void ApplyRaceDetails(JsonObject value)
     {
         _season = JsonSupport.String(value["Season"]) ?? _season;
-        _meeting = JsonSupport.String(value["Race"]) ?? _meeting;
+        _meeting = MeetingName(value) ?? _meeting;
         _circuit = JsonSupport.String(value["Circuit"]) ?? _circuit;
         _session = JsonSupport.String(value["Session"]) ?? _session;
         if (_session.Contains("race", StringComparison.OrdinalIgnoreCase)) _timingSessionType = "Race";
+    }
+
+    /// <summary>
+    /// The round's name. F1 Academy publishes the circuit, so the round carries the grand prix it belongs to; every
+    /// other series names the event itself.
+    /// </summary>
+    private string? MeetingName(JsonObject details)
+    {
+        var race = JsonSupport.String(details["Race"]);
+        if (_championship != Championship.F1Academy) return race;
+        return ChampionshipCalendars.F1AcademyGrandPrixName(race) ?? race;
     }
 
     private void ApplySessionStatus(JsonObject value)

@@ -175,7 +175,7 @@ internal static class FeedDumpReplayTests
             try
             {
                 source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
-                Check(source is TimingArchiveReplaySource && source.ArchiveName == "F1 Academy · Austin · Reverse Grid Race",
+                Check(source is TimingArchiveReplaySource && source.ArchiveName == "F1 Academy · United States Grand Prix · Reverse Grid Race",
                     "F1 Academy dumps must replay through the FIA hub parser");
                 Check(source.FrameCount == 3, "Only frames that change the field become replay frames");
                 source.Step();
