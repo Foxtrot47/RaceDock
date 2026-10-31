@@ -205,7 +205,8 @@ internal sealed class TaskbarCell
     {
         _markerColumn.Width = new GridLength(30);
         _markerHost.Visibility = Visibility.Visible;
-        _container.Margin = new Thickness(2);
+        // One pixel a side: the strip hands the difference to the event text, which needs it more than the gaps do.
+        _container.Margin = new Thickness(1);
         _details.Margin = new Thickness(5, 0, 0, 0);
         _details.HorizontalAlignment = HorizontalAlignment.Stretch;
         _inlinePositionColumn.Width = GridLength.Auto;

@@ -18,7 +18,7 @@ public sealed class TaskbarWindow : Window
     private readonly Grid _root = new();
     private readonly IdleTaskbarView _idle = new();
     private readonly Border _hoverSurface;
-    private readonly ColumnDefinition _contextColumn = new() { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 100 };
+    private readonly ColumnDefinition _contextColumn = new() { Width = GridLength.Auto, MinWidth = 72, MaxWidth = 130 };
     private readonly ColumnDefinition _stripColumn = new() { Width = new GridLength(1, GridUnitType.Star) };
     private readonly UniformGrid _strip = new() { Rows = 1, Columns = 5, Margin = new(2) };
     private readonly Grid _raceContext = new() { Margin = new(6, 2, 4, 2), VerticalAlignment = VerticalAlignment.Center };
@@ -27,27 +27,26 @@ public sealed class TaskbarWindow : Window
     private readonly ScrollingTextBlock _raceText = new() { FontSize = 12, FontWeight = FontWeights.Normal };
     private readonly TextBlock _lapText = new() { FontSize = 12, FontWeight = FontWeights.Normal, Opacity = 0.5, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _eventHeader = new() { MaxWidth = 150 };
-    private readonly Border _alert = new()
+    /// <summary>The widget's left edge carries the flag in a column of its own, out of the event text.</summary>
+    private const double FlagStripWidth = 11;
+    private readonly ColumnDefinition _flagColumn = new() { Width = GridLength.Auto };
+    private readonly TextBlock _flagLabel = new()
     {
-        Visibility = Visibility.Collapsed,
-        Width = 18,
-        Height = 18,
-        Margin = new(4, 0, 0, 0),
+        FontSize = 9,
+        FontWeight = FontWeights.SemiBold,
+        TextAlignment = TextAlignment.Center,
+        HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
-        SnapsToDevicePixels = true
+        LineHeight = 12,
+        LineStackingStrategy = LineStackingStrategy.BlockLineHeight
     };
-    private readonly Canvas _flagCanvas = new() { Width = 18, Height = 18 };
-    private readonly System.Windows.Shapes.Rectangle _flagPole = new() { Width = 1.5, Height = 15, Fill = Brushes.Black };
-    private readonly Polygon _flagShape = new()
+    private readonly Border _flagStrip = new()
     {
-        Points = new PointCollection { new(3, 2), new(16, 3), new(14, 10), new(3, 9) },
-        Fill = Brushes.Gold
-    };
-    private readonly Polygon _secondFlagShape = new()
-    {
+        Width = FlagStripWidth,
         Visibility = Visibility.Collapsed,
-        Points = new PointCollection { new(3, 8), new(16, 9), new(14, 16), new(3, 15) },
-        Fill = Brushes.Gold
+        VerticalAlignment = VerticalAlignment.Stretch,
+        CornerRadius = new CornerRadius(2, 0, 0, 2),
+        SnapsToDevicePixels = true
     };
     private readonly NativeTaskbar _host;
     private readonly ClassificationFlyout _flyout;
@@ -74,22 +73,20 @@ public sealed class TaskbarWindow : Window
         RenderOptions.SetEdgeMode(this, EdgeMode.Unspecified);
         FontFamily = TaskbarFont;
         _root.Background = Brushes.Transparent;
-        _flagCanvas.Children.Add(_flagPole); Canvas.SetLeft(_flagPole, 1); Canvas.SetTop(_flagPole, 1);
-        _flagCanvas.Children.Add(_flagShape); _flagCanvas.Children.Add(_secondFlagShape);
-        _alert.Child = _flagCanvas;
+        _flagStrip.Child = _flagLabel;
+        _root.ColumnDefinitions.Add(_flagColumn);
         _root.ColumnDefinitions.Add(_contextColumn);
         _root.ColumnDefinitions.Add(_stripColumn);
         _raceContext.RowDefinitions.Add(_contextFirstRow);
         _raceContext.RowDefinitions.Add(_contextSecondRow);
+        // The flag reads before the event name, and the column takes no room while none is up.
         _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _eventHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(_raceText, 0); Grid.SetColumn(_alert, 1);
-        _eventHeader.Children.Add(_raceText); _eventHeader.Children.Add(_alert);
+        _eventHeader.Children.Add(_raceText);
         Grid.SetRow(_eventHeader, 0); Grid.SetRow(_lapText, 1);
         _raceContext.Children.Add(_eventHeader); _raceContext.Children.Add(_lapText);
-        Grid.SetColumn(_raceContext, 0); Grid.SetColumn(_strip, 1);
-        _root.Children.Add(_raceContext); _root.Children.Add(_strip);
-        Grid.SetColumnSpan(_idle.Element, 2);
+        Grid.SetColumn(_flagStrip, 0); Grid.SetColumn(_raceContext, 1); Grid.SetColumn(_strip, 2);
+        _root.Children.Add(_flagStrip); _root.Children.Add(_raceContext); _root.Children.Add(_strip);
+        Grid.SetColumnSpan(_idle.Element, 3);
         _idle.Element.Visibility = Visibility.Collapsed;
         _root.Children.Add(_idle.Element);
         // The widget lights as one surface, the way a taskbar button does.
@@ -163,20 +160,20 @@ public sealed class TaskbarWindow : Window
         _lapText.Visibility = singleRow ? Visibility.Collapsed : Visibility.Visible;
         _raceContext.Margin = singleRow ? new Thickness(4, 2, 2, 2) : new Thickness(6, 2, 4, 2);
         if (_snapshot is null) return;
-        var contextWidth = singleRow ? 150 : 100;
+        var contextWidth = ContextWidth;
         _contextColumn.Width = GridLength.Auto;
         _contextColumn.MaxWidth = contextWidth;
         _eventHeader.MaxWidth = contextWidth - _raceContext.Margin.Left - _raceContext.Margin.Right;
         ConstrainRaceText(contextWidth);
     }
 
+    /// <summary>How much room the event block may take. The flag column is inside it, so a flag costs text width.</summary>
+    private double ContextWidth => _settings.UseSingleRowTaskbar ? 170 : 130;
+
     private void ConstrainRaceText(double contextWidth)
     {
         var contextMargin = _raceContext.Margin.Left + _raceContext.Margin.Right;
-        var alertWidth = _alert.Visibility == Visibility.Visible
-            ? _alert.Width + _alert.Margin.Left + _alert.Margin.Right
-            : 0;
-        _raceText.MaxWidth = Math.Max(0, contextWidth - contextMargin - alertWidth);
+        _raceText.MaxWidth = Math.Max(0, contextWidth - contextMargin);
     }
 
     /// <summary>
@@ -219,7 +216,7 @@ public sealed class TaskbarWindow : Window
             _raceContext.Visibility = Visibility.Visible;
             _strip.Visibility = Visibility.Visible;
             _stripColumn.Width = new GridLength(1, GridUnitType.Star);
-            _contextColumn.MaxWidth = 100;
+            _contextColumn.MaxWidth = 130;
             _eventHeader.MaxWidth = 150;
             _host.ApplyWidth(520, 420);
         }
@@ -259,45 +256,85 @@ public sealed class TaskbarWindow : Window
         RefreshFlag();
     }
 
+    /// <summary>
+    /// Paints the widget's edge from the session's flag and writes its code down the strip. A clear or unknown track
+    /// shows nothing at all, so the edge only ever occupies room while it has something to say.
+    /// </summary>
     private void RefreshFlag()
     {
+        if (_snapshot is not null) ConstrainRaceText(ContextWidth);
         AlertKind? transient = _currentAlert?.Kind == AlertKind.Chequered ? AlertKind.Chequered : null;
-        var kind = _snapshot is null ? null : TaskbarFlagDisplay.Resolve(_snapshot.TrackCondition, transient);
-        var show = kind is not null && _snapshot is not null && !IsRallySnapshot(_snapshot);
-        _alert.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        if (_snapshot is not null) ConstrainRaceText(_settings.UseSingleRowTaskbar ? 150 : 100);
-        if (!show || kind is null) return;
-        _secondFlagShape.Visibility = kind == AlertKind.DoubleYellow ? Visibility.Visible : Visibility.Collapsed;
-        _flagShape.Fill = FlagBrush(kind.Value);
-        _secondFlagShape.Fill = _flagShape.Fill;
-        var title = kind.Value switch
+        // A finished session shows the chequered tiles from its lifecycle, so the replay sources — which keep their own
+        // alert arbiter — report the end of a session exactly as the live ones do.
+        var badge = _snapshot is null || IsRallySnapshot(_snapshot)
+            ? new TaskbarFlagBadge(TaskbarFlagStrip.None, null)
+            : TaskbarFlagDisplay.Badge(_snapshot.TrackCondition, transient,
+                finished: _snapshot.Lifecycle == SessionLifecycle.Ended);
+        if (badge.Strip == TaskbarFlagStrip.None)
         {
-            AlertKind.RedFlag => "RED FLAG",
-            AlertKind.DoubleYellow => "DOUBLE YELLOW",
-            AlertKind.Yellow => "YELLOW FLAG",
-            AlertKind.FullCourseYellow => "FULL COURSE YELLOW",
-            _ => "CHEQUERED FLAG"
-        };
-        var detail = kind == AlertKind.Chequered ? _currentAlert?.Detail : null;
-        _alert.ToolTip = string.IsNullOrWhiteSpace(detail) ? title : $"{title}  ·  {detail}";
-        System.Windows.Automation.AutomationProperties.SetName(_alert, title);
+            _flagStrip.Visibility = Visibility.Collapsed;
+            return;
+        }
+        var title = FlagTitle(badge.Strip);
+        _flagStrip.Background = badge.Strip == TaskbarFlagStrip.Finished ? ChequeredFlag.Brush(4) : StripBrush(badge.Strip);
+        // Join the letters as strings: joining the code binds to the params overload and writes it on one line.
+        _flagLabel.Text = badge.Code is { } code
+            ? string.Join(Environment.NewLine, code.ToCharArray().Select(letter => letter.ToString()))
+            : "";
+        _flagLabel.Foreground = LetterBrush(badge.Strip);
+        _flagStrip.Visibility = Visibility.Visible;
+        var detail = badge.Strip == TaskbarFlagStrip.Finished ? _currentAlert?.Detail : null;
+        _flagStrip.ToolTip = string.IsNullOrWhiteSpace(detail) ? title : $"{title}  \u00b7  {detail}";
+        System.Windows.Automation.AutomationProperties.SetName(_flagStrip, title);
     }
 
-    private static System.Windows.Media.Brush FlagBrush(AlertKind kind) => kind switch
+    private string FlagTitle(TaskbarFlagStrip strip) => strip switch
     {
-        AlertKind.RedFlag => Brushes.Red,
-        AlertKind.Chequered => new DrawingBrush(new DrawingGroup
-        {
-            Children = new DrawingCollection
-            {
-                new GeometryDrawing(Brushes.White, null, new RectangleGeometry(new Rect(0, 0, 8, 8))),
-                new GeometryDrawing(Brushes.Black, null, new RectangleGeometry(new Rect(8, 0, 8, 8))),
-                new GeometryDrawing(Brushes.Black, null, new RectangleGeometry(new Rect(0, 8, 8, 8))),
-                new GeometryDrawing(Brushes.White, null, new RectangleGeometry(new Rect(8, 8, 8, 8)))
-            }
-        }) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 8, 8), ViewportUnits = BrushMappingMode.Absolute },
-        _ => Brushes.Gold
+        TaskbarFlagStrip.Caution => CautionTitle(_snapshot!.TrackCondition),
+        TaskbarFlagStrip.RedFlag => "RED FLAG",
+        _ => "CHEQUERED FLAG"
     };
+
+    private static string CautionTitle(TrackCondition condition) => condition switch
+    {
+        TrackCondition.DoubleYellow => "DOUBLE YELLOW",
+        TrackCondition.FullCourseYellow => "FULL COURSE YELLOW",
+        TrackCondition.SafetyCar => "SAFETY CAR",
+        TrackCondition.VirtualSafetyCar or TrackCondition.VirtualSafetyCarEnding => "VIRTUAL SAFETY CAR",
+        _ => "YELLOW FLAG"
+    };
+
+    /// <summary>
+    /// The strip's colours are the flag's own: amber caution, red stopped, chequered finished. They are fixed rather
+    /// than theme-derived because the taskbar is a surface the app does not control.
+    /// </summary>
+    private static readonly Color CautionColour = Color.FromRgb(0xE3, 0xB3, 0x41);
+    private static readonly Color RedFlagColour = Color.FromRgb(0xF8, 0x51, 0x49);
+
+    private static System.Windows.Media.Brush StripBrush(TaskbarFlagStrip state) => state switch
+    {
+        TaskbarFlagStrip.Caution => Frozen(CautionColour),
+        TaskbarFlagStrip.RedFlag => Frozen(RedFlagColour),
+        TaskbarFlagStrip.Finished => ChequeredFlag.Brush(4),
+        _ => Brushes.Transparent
+    };
+
+    /// <summary>
+    /// Caution letters are black or white by contrast against the amber. The red strip takes white letters, which
+    /// read better on that red than the ratio predicts.
+    /// </summary>
+    private static System.Windows.Media.Brush LetterBrush(TaskbarFlagStrip state)
+    {
+        if (state == TaskbarFlagStrip.RedFlag) return Brushes.White;
+        return TaskbarContrast.PrefersBlackText(CautionColour.R, CautionColour.G, CautionColour.B) ? Brushes.Black : Brushes.White;
+    }
+
+    private static SolidColorBrush Frozen(Color colour)
+    {
+        var brush = new SolidColorBrush(colour);
+        brush.Freeze();
+        return brush;
+    }
 
     /// <summary>Redraws the strip by reusing the realized cells instead of rebuilding the visual tree.</summary>
     private void UpdateCells(TimingSnapshot snapshot)

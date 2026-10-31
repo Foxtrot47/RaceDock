@@ -164,6 +164,7 @@ var tests = new (string Name, Action Run)[]
     ("WRC completed to running reopens the stage", WrcCompletedToRunningReopens),
     ("WRC poll failure recovers with confirmation delay", WrcFailureRecoveryConfirmation),
     ("WRC production handler has bounded connection lifetime", WrcHandlerBounds),
+    ("flag letters are chosen by contrast against their strip", FlagLetterContrast),
 };
 var failures = 0;
 foreach (var test in tests)
@@ -315,12 +316,27 @@ static void HiddenF1Substitution()
 
 static void TaskbarFlagsFollowSnapshot()
 {
-    Equal(null, TaskbarFlagDisplay.Resolve(TrackCondition.AllClear, AlertKind.Yellow));
-    Equal(AlertKind.Yellow, TaskbarFlagDisplay.Resolve(TrackCondition.Yellow));
-    Equal(AlertKind.FullCourseYellow, TaskbarFlagDisplay.Resolve(TrackCondition.FullCourseYellow));
-    Equal(AlertKind.DoubleYellow, TaskbarFlagDisplay.Resolve(TrackCondition.DoubleYellow));
-    Equal(AlertKind.RedFlag, TaskbarFlagDisplay.Resolve(TrackCondition.RedFlag));
-    Equal(AlertKind.Chequered, TaskbarFlagDisplay.Resolve(TrackCondition.AllClear, AlertKind.Chequered));
+    // A yellow alert that is not a chequered finish leaves the strip blank on a clear track.
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.None, null), TaskbarFlagDisplay.Badge(TrackCondition.AllClear, AlertKind.Yellow));
+    // The widget's edge carries the flag as a code, and a caution covers the safety car periods as well.
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "YEL"), TaskbarFlagDisplay.Badge(TrackCondition.Yellow));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "YEL"), TaskbarFlagDisplay.Badge(TrackCondition.DoubleYellow));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "FCY"), TaskbarFlagDisplay.Badge(TrackCondition.FullCourseYellow));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "SC"), TaskbarFlagDisplay.Badge(TrackCondition.SafetyCar));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "VSC"), TaskbarFlagDisplay.Badge(TrackCondition.VirtualSafetyCar));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "VSC"), TaskbarFlagDisplay.Badge(TrackCondition.VirtualSafetyCarEnding));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.RedFlag, "RED"), TaskbarFlagDisplay.Badge(TrackCondition.RedFlag));
+    // A clear or unknown track prints nothing and takes no room.
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Finished, null), TaskbarFlagDisplay.Badge(TrackCondition.AllClear, AlertKind.Chequered));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.None, null), TaskbarFlagDisplay.Badge(TrackCondition.AllClear));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.None, null), TaskbarFlagDisplay.Badge(TrackCondition.Unknown));
+    // A session that has ended shows the tiles from its lifecycle: replays keep their own alert arbiter, so no
+    // chequered alert ever reaches the surface they run on.
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Finished, null), TaskbarFlagDisplay.Badge(TrackCondition.AllClear, null, finished: true));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Finished, null), TaskbarFlagDisplay.Badge(TrackCondition.Unknown, null, finished: true));
+    // A caution still wins over the finish: a race that ends under yellow says why it ended.
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "YEL"), TaskbarFlagDisplay.Badge(TrackCondition.Yellow, null, finished: true));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.RedFlag, "RED"), TaskbarFlagDisplay.Badge(TrackCondition.RedFlag, null, finished: true));
 }
 
 static void FastestAndRetired()
@@ -3448,7 +3464,7 @@ static void FullCourseYellowAcrossSeries()
     alerts.ApplyTrackCondition(TrackCondition.FullCourseYellow, "FULL COURSE YELLOW", 12, clock.UtcNow);
     Equal(AlertKind.FullCourseYellow, alerts.Current?.Kind);
     Equal("FULL COURSE YELLOW", alerts.Current?.Title);
-    Equal(AlertKind.FullCourseYellow, TaskbarFlagDisplay.Resolve(TrackCondition.FullCourseYellow));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "FCY"), TaskbarFlagDisplay.Badge(TrackCondition.FullCourseYellow));
     alerts.ApplyTrackCondition(TrackCondition.AllClear, null, 12, clock.UtcNow);
     Equal<RaceAlert?>(null, alerts.Current);
 }
@@ -5686,6 +5702,22 @@ static void WrcFailureRecoveryConfirmation()
     var live = snapshots.Where(s => s.Lifecycle == SessionLifecycle.Live).ToList();
     True(live.Count >= 1);
     Equal("SS1  Harju 1", live[^1].Session);
+}
+
+/// <summary>
+/// The flag letters are black or white by WCAG contrast against the strip colour. Amber and red both read better with
+/// black letters, and a dark or light background picks the colour that reads on it.
+/// </summary>
+static void FlagLetterContrast()
+{
+    // Amber (caution) and red (red flag) are the two strip colours the widget draws.
+    True(TaskbarContrast.PrefersBlackText(0xE3, 0xB3, 0x41));
+    True(TaskbarContrast.PrefersBlackText(0xF8, 0x51, 0x49));
+    // Black and white backgrounds take the opposite letter, which pins down the direction of the rule.
+    False(TaskbarContrast.PrefersBlackText(0x00, 0x00, 0x00));
+    True(TaskbarContrast.PrefersBlackText(0xFF, 0xFF, 0xFF));
+    // The measured ratios behind the choice: amber 10.8:1 with black against 1.95:1 with white.
+    True(Math.Abs(TaskbarContrast.RelativeLuminance(0xE3, 0xB3, 0x41) - 0.50) < 0.02);
 }
 
 static void WrcHandlerBounds()
