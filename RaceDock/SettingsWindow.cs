@@ -99,15 +99,11 @@ public sealed partial class SettingsWindow : FluentWindow
     }
 
     /// <summary>
-    /// Fills the Home schedule section. Failures are already absorbed by the service, so an empty result
-    /// simply shows that no dates are published rather than surfacing an error to the user.
+    /// Fills the Home schedule section from the schedule the widget is already showing, so both surfaces name the
+    /// same next session, keep a due session in place while it waits for data, and count down against one clock.
     /// </summary>
-    public async Task RefreshUpcomingSessionsAsync(UpcomingScheduleService schedule, IReadOnlySet<Championship> enabled, CancellationToken cancellationToken)
-    {
-        var sessions = await schedule.GetUpcomingAsync(enabled, cancellationToken);
-        if (cancellationToken.IsCancellationRequested) return;
-        _draft.SetUpcomingSessions(sessions, DateTimeOffset.UtcNow);
-    }
+    public void ShowSchedule(IReadOnlyList<UpcomingSession> sessions, DateTimeOffset now) =>
+        _draft.SetUpcomingSessions(sessions, now);
 
     public void LoadSettings(UserSettings settings)
     {

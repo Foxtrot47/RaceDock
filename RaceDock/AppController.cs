@@ -336,6 +336,9 @@ public sealed class AppController : IAsyncDisposable
         while (_feedUpdates.TryDequeue(out var snapshot))
         {
             if (snapshot.Championship == Championship.Unknown) continue;
+            // Every feed reports here, so a championship's Settings badge follows its own stream instead of
+            // waiting for the rotation to land on it.
+            UpdateTimingStatuses(snapshot);
             if (snapshot.Lifecycle == SessionLifecycle.Live) _feedSnapshots[snapshot.Championship] = snapshot;
             else if (snapshot.Lifecycle == SessionLifecycle.OffSession) _feedSnapshots.Remove(snapshot.Championship);
             // An ended snapshot keeps the last live classification, mirroring the composite's retention window.
@@ -352,6 +355,10 @@ public sealed class AppController : IAsyncDisposable
         var live = feeds.Select(feed => feed.Championship).ToHashSet();
         foreach (var championship in _feedSnapshots.Keys.Where(championship => !live.Contains(championship)).ToList())
             _feedSnapshots.Remove(championship);
+        // The directory drops a championship when its retention window closes, which is the same moment the widget
+        // stops showing it: the Settings badge ends there too, rather than saying FINISHED until the next session.
+        foreach (var championship in _latestSnapshots.Keys.Where(championship => !live.Contains(championship)).ToList())
+            UpdateTimingStatuses(TimingSnapshot.Hidden(_clock.UtcNow) with { Championship = championship });
         _taskbar?.UpdateLiveFeeds(feeds);
     }
 
@@ -435,11 +442,13 @@ public sealed class AppController : IAsyncDisposable
         try
         {
             var sessions = await _schedule.GetUpcomingAsync(EnabledChampionships(_settings), _lifetime.Token);
-            var refreshed = NextSessionDisplay.Schedule(sessions, _clock.UtcNow);
+            var now = _clock.UtcNow;
+            var refreshed = NextSessionDisplay.Schedule(sessions, now);
             // The widget reads the schedule, so it is replaced on the thread that draws it.
             await _dispatcher.InvokeAsync(() =>
             {
                 _upcoming = refreshed;
+                _settingsWindow?.ShowSchedule(_upcoming, now);
                 UpdateIdleWidget();
             });
         }
@@ -466,26 +475,11 @@ public sealed class AppController : IAsyncDisposable
         _settingsWindow ??= new SettingsWindow(this, _settings, ApplySettingsAsync);
         _settingsWindow.LoadSettings(_settings);
         foreach (var snapshot in _latestSnapshots.Values) _settingsWindow.UpdateSnapshot(snapshot);
+        // The widget's own list is shown first, then refreshed: one reduction of the calendars feeds both surfaces.
+        _settingsWindow.ShowSchedule(_upcoming, _clock.UtcNow);
         _settingsWindow.Show();
         _settingsWindow.Activate();
-        // The schedule comes from third-party calendars, so it loads after the window is already usable.
-        _ = RefreshUpcomingSessionsAsync(_settingsWindow);
-    }
-
-    private async Task RefreshUpcomingSessionsAsync(SettingsWindow window)
-    {
-        try
-        {
-            // Only enabled championships are contacted, so a disabled series never causes a network call.
-            await window.RefreshUpcomingSessionsAsync(_schedule, EnabledChampionships(_settings), _lifetime.Token);
-        }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
-        {
-        }
-        catch (Exception failure)
-        {
-            AppLog.Warning("AppController", "Could not load the published schedule.", failure);
-        }
+        _ = RefreshNextSessionAsync();
     }
 
     internal static HashSet<Championship> EnabledChampionships(UserSettings settings) =>
@@ -505,8 +499,8 @@ public sealed class AppController : IAsyncDisposable
         WindowsStartupRegistration.Apply(_settings.AutoStartOnWindowsBoot);
         _taskbar?.ApplySettings(_settings);
         // Enabling a championship is what allows its calendar to be contacted, so the schedule follows the change.
-        if (restartFeeds && _settingsWindow is { } window) _ = RefreshUpcomingSessionsAsync(window);
         if (restartFeeds) _upcoming = [];
+        if (restartFeeds) _ = RefreshNextSessionAsync();
         UpdateIdleWidget();
         if (restartFeeds && !TestMode) await SwitchSourceAsync(TimingSourceMode.Live, force: true);
     }
