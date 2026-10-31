@@ -1129,7 +1129,7 @@ static void F1AcademyLiveTiming()
     Equal("Alpine", snapshot.Competitors[1].Manufacturer);
     // A wild-card entry's "(WCD)" tag is not part of the name the broadcast shows.
     Equal("Second Driver", snapshot.Competitors[1].Name);
-    Equal("F1A COTA", ChampionshipDisplay.CompactEvent(snapshot));
+    Equal("F1A United States GP", ChampionshipDisplay.CompactEvent(snapshot));
     // A race shows its lap like F1 does, not the countdown the feed also publishes.
     Equal("RAC LAP 8", TaskbarSessionDisplay.Progress(snapshot with { TimeRemaining = "00:09:39" }));
     // Best and last laps and the sectors run so far are published; a blank sector has not been run yet.
@@ -1824,15 +1824,22 @@ static void ChampionshipLabels()
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.Dtm);
     var indyCar = new TimingSnapshot("Ontario Honda Dealers Indy at Markham", "Practice 1", "Streets of Markham", 10, null,
         TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.IndyCar);
-    Equal("F1 Spa", ChampionshipDisplay.CompactEvent(f1));
+    // NASCAR publishes the track's full name, which used to push the venue off a taskbar header.
+    var nascar = new TimingSnapshot("Black's Tire 200 Kennametal Pole Qualifying", "Qualifying", "Martinsville Speedway", 1, null,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.NascarTrucks);
+    var nascarGateway = new TimingSnapshot("Enjoy Illinois 300", "Race", "World Wide Technology Raceway", 12, 200,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.NascarCup);
+    var nascarDaytona = new TimingSnapshot("DAYTONA 500", "Race", "Daytona International Speedway", 44, 200,
+        TrackCondition.AllClear, [], now, SessionLifecycle.Live, Championship: Championship.NascarCup);
+    Equal("F1 Belgian GP", ChampionshipDisplay.CompactEvent(f1));
     Equal("Formula 1 · Belgian Grand Prix", ChampionshipDisplay.FullEvent(f1));
     Equal("WRC Finland", ChampionshipDisplay.CompactEvent(wrc));
     Equal("World Rally Championship · Rally Finland", ChampionshipDisplay.FullEvent(wrc));
-    Equal("GTWC Magny", ChampionshipDisplay.CompactEvent(gtwc));
+    Equal("GTWC Magny-Cours", ChampionshipDisplay.CompactEvent(gtwc));
     Equal("GT World Challenge Europe · Magny-Cours", ChampionshipDisplay.FullEvent(gtwc));
-    Equal("IMSA Road America", ChampionshipDisplay.CompactEvent(imsa));
+    Equal("IMSA SportsCar Endurance GP", ChampionshipDisplay.CompactEvent(imsa));
     Equal("IMSA WeatherTech SportsCar Championship · SportsCar Endurance Grand Prix", ChampionshipDisplay.FullEvent(imsa));
-    Equal("WEC COTA", ChampionshipDisplay.CompactEvent(wec));
+    Equal("WEC Lone Star Le Mans", ChampionshipDisplay.CompactEvent(wec));
     Equal("World Endurance Championship · Lone Star Le Mans", ChampionshipDisplay.FullEvent(wec));
     Equal("ELMS", ChampionshipDisplay.ShortName(Championship.EuropeanLeMansSeries));
     Equal("European Le Mans Series", ChampionshipDisplay.FullName(Championship.EuropeanLeMansSeries));
@@ -1841,13 +1848,16 @@ static void ChampionshipLabels()
     Equal("HY", ChampionshipDisplay.CompactCategory(Championship.WorldEnduranceChampionship, "HYPERCAR"));
     Equal("LMGT3", ChampionshipDisplay.CompactCategory(Championship.WorldEnduranceChampionship, "LMGT3"));
     Equal("HYPERCAR", ChampionshipDisplay.CompactCategory(Championship.Imsa, "HYPERCAR"));
-    Equal("Moto3 Silverstone", ChampionshipDisplay.CompactEvent(moto3));
+    Equal("Moto3 British GP", ChampionshipDisplay.CompactEvent(moto3));
     Equal("Moto3 · British Grand Prix", ChampionshipDisplay.FullEvent(moto3));
-    Equal("FE London", ChampionshipDisplay.CompactEvent(formulaE));
+    Equal("FE London E-Prix", ChampionshipDisplay.CompactEvent(formulaE));
     Equal("Formula E · London E-Prix", ChampionshipDisplay.FullEvent(formulaE));
     Equal("DTM Nürburgring", ChampionshipDisplay.CompactEvent(dtm));
     Equal("DTM · Nürburgring", ChampionshipDisplay.FullEvent(dtm));
-    Equal("INDYCAR Streets of Markham", ChampionshipDisplay.CompactEvent(indyCar));
+    Equal("NASCAR Trucks Black's Tire 200 Kennametal Pole Qualifying", ChampionshipDisplay.CompactEvent(nascar));
+    Equal("NASCAR Cup Enjoy Illinois 300", ChampionshipDisplay.CompactEvent(nascarGateway));
+    Equal("NASCAR Cup DAYTONA 500", ChampionshipDisplay.CompactEvent(nascarDaytona));
+    Equal("INDYCAR Markham Indy", ChampionshipDisplay.CompactEvent(indyCar));
     Equal("NTT INDYCAR SERIES · Markham Indy", ChampionshipDisplay.FullEvent(indyCar));
     // Provider and sponsor boilerplate is shortened consistently everywhere it is presented.
     Equal("Sprint Cup · Round 8", ChampionshipDisplay.ShortEventName(Championship.GtWorldChallengeEurope, "GT WorldChEU pwrd by AWS Sprint Cup Round 8"));
@@ -1856,7 +1866,8 @@ static void ChampionshipLabels()
     Equal("Italian Grand Prix", ChampionshipDisplay.ShortEventName(Championship.Formula1, "Italian Grand Prix"));
     Equal("COTA", ChampionshipDisplay.ShortEventName(Championship.WorldEnduranceChampionship, "Circuit of the Americas"));
     Equal("COTA", ChampionshipDisplay.ShortVenue("Circuit of the Americas"));
-    Equal("MotoGP Silverstone", ChampionshipDisplay.CompactEvent(moto3 with
+    // The compact line names the event, so the circuit a session happens to carry no longer reaches it.
+    Equal("MotoGP British GP", ChampionshipDisplay.CompactEvent(moto3 with
     {
         Championship = Championship.MotoGp,
         Circuit = "MotoGP Silverstone Circuit"

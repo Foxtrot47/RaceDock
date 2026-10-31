@@ -19,12 +19,20 @@ public static class ChampionshipDisplay
     public static string CompactEvent(TimingSnapshot snapshot)
     {
         var championship = ShortName(snapshot.Championship);
-        var eventName = snapshot.Championship == Championship.WorldRallyChampionship
-            ? RemovePrefix(ShortEventName(snapshot.Championship, snapshot.Meeting), "Rally ")
-            : CompactCircuit(snapshot.Circuit, snapshot.Meeting);
+        // The widget names the event, not the circuit: "F1 United States Grand Prix" says which race this is,
+        // while the circuit is one line further down and shared by every session of the weekend.
+        var eventName = ShortEventName(snapshot.Championship, snapshot.Meeting);
+        if (snapshot.Championship == Championship.WorldRallyChampionship) eventName = RemovePrefix(eventName, "Rally ");
         eventName = RemovePrefix(eventName, $"{championship} ");
-        return Join(championship, eventName, " ");
+        return Join(championship, AbbreviateGrandPrix(eventName), " ");
     }
+
+    /// <summary>
+    /// A taskbar header has no room to spell out "Grand Prix", and the flyout below it still says the event in full,
+    /// so the compact line shortens the suffix instead of the event name.
+    /// </summary>
+    private static string AbbreviateGrandPrix(string value) =>
+        value.EndsWith(" Grand Prix", StringComparison.OrdinalIgnoreCase) ? value[..^" Grand Prix".Length] + " GP" : value;
 
     public static string FullEvent(TimingSnapshot snapshot) =>
         Join(FullName(snapshot.Championship), ShortEventName(snapshot.Championship, snapshot.Meeting), " · ");
@@ -118,15 +126,6 @@ public static class ChampionshipDisplay
         Championship.NascarTrucks => "NASCAR CRAFTSMAN Truck Series",
         _ => ""
     };
-
-    private static string CompactCircuit(string circuit, string meeting)
-    {
-        var value = ShortVenue(string.IsNullOrWhiteSpace(circuit) ? meeting : circuit) ?? "";
-        value = RemovePrefix(value, "Circuit de ");
-        if (value.EndsWith(" Circuit", StringComparison.OrdinalIgnoreCase)) value = value[..^8];
-        var hyphen = value.IndexOf('-');
-        return hyphen > 0 ? value[..hyphen] : value;
-    }
 
     private static string RemovePrefix(string value, string prefix) =>
         value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ? value[prefix.Length..] : value;
