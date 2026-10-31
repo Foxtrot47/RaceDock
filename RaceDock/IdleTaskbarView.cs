@@ -89,7 +89,7 @@ internal sealed class IdleTaskbarView
         if (singleRow) ApplySingleRowLayout();
         else ApplyTwoRowLayout();
         ApplyWidth(singleRow);
-        var tooltip = NextSessionDisplay.Tooltip(session, timeZone);
+        var tooltip = NextSessionDisplay.Tooltip(session, now, timeZone);
         _surface.ToolTip = tooltip;
         System.Windows.Automation.AutomationProperties.SetName(_surface, tooltip);
     }

@@ -417,10 +417,11 @@ public sealed class AppController : IAsyncDisposable
         if (_taskbar?.IsClosed == true) _taskbar = null;
         if (_taskbar is { ShowingSnapshot: true }) return;
         var now = _clock.UtcNow;
+        DropWaitingSessionsThatReported(now);
         var upcoming = NextSessionDisplay.Schedule(_upcoming, now);
         _taskbar?.UpdateOverlaySchedule(upcoming, now);
         if (!_settings.ShowNextSessionWhenIdle) { _taskbar?.Hide(); return; }
-        if (_upcoming.Any(session => !session.IsAhead(now, TimeZoneInfo.Local))) _ = RefreshNextSessionAsync();
+        if (_upcoming.Any(session => !NextSessionDisplay.IsScheduled(session, now))) _ = RefreshNextSessionAsync();
         // An exhausted calendar means the feeds, not the schedule, own what happens next.
         if (upcoming.Count == 0)
         {
@@ -429,6 +430,22 @@ public sealed class AppController : IAsyncDisposable
             return;
         }
         EnsureTaskbar().ShowNextSession(upcoming[0], upcoming, now);
+    }
+
+    /// <summary>
+    /// A session that has started is waiting for its timing; the moment that timing reports, the live classification
+    /// owns the widget and the waiting row is done. Sessions still ahead keep their place.
+    /// </summary>
+    private void DropWaitingSessionsThatReported(DateTimeOffset now)
+    {
+        if (_upcoming.Count == 0) return;
+        var reported = _latestSnapshots.Values
+            .Where(snapshot => snapshot.Lifecycle == SessionLifecycle.Live)
+            .Select(snapshot => snapshot.Championship)
+            .ToHashSet();
+        if (reported.Count == 0) return;
+        _upcoming = [.. _upcoming.Where(session =>
+            !(reported.Contains(session.Championship) && NextSessionDisplay.IsWaiting(session, now)))];
     }
 
     /// <summary>Reloads the published schedule. The service caches, so calling this often costs nothing.</summary>
@@ -447,7 +464,11 @@ public sealed class AppController : IAsyncDisposable
             // The widget reads the schedule, so it is replaced on the thread that draws it.
             await _dispatcher.InvokeAsync(() =>
             {
-                _upcoming = refreshed;
+                // Calendars publish only the sessions that have not started, so one that has just gone due would
+                // vanish from the list while its timing has not arrived.
+                var waiting = _upcoming.Where(session =>
+                    NextSessionDisplay.IsWaiting(session, now) && !refreshed.Contains(session));
+                _upcoming = [.. waiting, .. refreshed];
                 _settingsWindow?.ShowSchedule(_upcoming, now);
                 UpdateIdleWidget();
             });

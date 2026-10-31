@@ -58,7 +58,7 @@ internal sealed class ScheduleView
 
         _list.Children.Add(Heading("LATER", $"{sessions.Count - 1} MORE", new Thickness(2, 15, 2, 7)));
         for (var index = 1; index < sessions.Count; index++)
-            _list.Children.Add(Later(sessions[index], timeZone, index == sessions.Count - 1));
+            _list.Children.Add(Later(sessions[index], now, timeZone, index == sessions.Count - 1));
     }
 
     private static Grid Heading(string title, string context, Thickness? margin = null)
@@ -127,11 +127,11 @@ internal sealed class ScheduleView
         countdown.TextAlignment = TextAlignment.Right;
         when.Children.Add(countdown);
         layout.Children.Add(when);
-        card.ToolTip = NextSessionDisplay.Tooltip(session, timeZone);
+        card.ToolTip = NextSessionDisplay.Tooltip(session, now, timeZone);
         return card;
     }
 
-    private static Grid Later(UpcomingSession session, TimeZoneInfo timeZone, bool last)
+    private static Grid Later(UpcomingSession session, DateTimeOffset now, TimeZoneInfo timeZone, bool last)
     {
         var row = new Grid { Margin = new Thickness(2, 0, 2, last ? 2 : 10) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -162,7 +162,7 @@ internal sealed class ScheduleView
         time.TextAlignment = TextAlignment.Right;
         when.Children.Add(time);
         row.Children.Add(when);
-        row.ToolTip = NextSessionDisplay.Tooltip(session, timeZone);
+        row.ToolTip = NextSessionDisplay.Tooltip(session, now, timeZone);
         return row;
     }
 

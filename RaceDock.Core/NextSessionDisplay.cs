@@ -7,12 +7,30 @@ namespace RaceDock.Core;
 /// </summary>
 public static class NextSessionDisplay
 {
-    /// <summary>The soonest session that has not started yet, or <c>null</c> when no calendar reaches that far.</summary>
-    public static UpcomingSession? Next(IEnumerable<UpcomingSession> sessions, DateTimeOffset now, TimeZoneInfo? timeZone = null)
+    /// <summary>
+    /// How long a session that has reached its published start stays listed while its timing has not arrived. The
+    /// calendars publish no end time to wait for instead, so a session that is simply late drops off after this.
+    /// </summary>
+    public static TimeSpan WaitingWindow { get; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>The soonest session that has not started yet, or is due and still waiting for its timing.</summary>
+    public static UpcomingSession? Next(IEnumerable<UpcomingSession> sessions, DateTimeOffset now, TimeZoneInfo? timeZone = null) =>
+        sessions.Where(session => IsScheduled(session, now, timeZone)).MinBy(session => session.StartUtc);
+
+    /// <summary>
+    /// Whether the session is due but has not reported: its published start has passed and it is still inside the
+    /// waiting window. A date-only entry names no moment, so it never waits.
+    /// </summary>
+    public static bool IsWaiting(UpcomingSession session, DateTimeOffset now)
     {
-        var zone = timeZone ?? TimeZoneInfo.Local;
-        return sessions.Where(session => session.IsAhead(now, zone)).MinBy(session => session.StartUtc);
+        if (!session.HasStartTime) return false;
+        var elapsed = now - session.StartUtc;
+        return elapsed >= TimeSpan.Zero && elapsed <= WaitingWindow;
     }
+
+    /// <summary>Whether the schedule still lists the session: ahead of its start, or due and waiting for data.</summary>
+    public static bool IsScheduled(UpcomingSession session, DateTimeOffset now, TimeZoneInfo? timeZone = null) =>
+        session.IsAhead(now, timeZone ?? TimeZoneInfo.Local) || IsWaiting(session, now);
 
     /// <summary>Top line: which championship, and which event.</summary>
     public static string Headline(UpcomingSession session) =>
@@ -23,16 +41,14 @@ public static class NextSessionDisplay
     /// <summary>Bottom line: which session, and when it starts.</summary>
     public static string Detail(UpcomingSession session, DateTimeOffset now, TimeZoneInfo timeZone)
     {
-        var when = When(session, now, timeZone);
+        // A session whose start has passed has nothing left to count down to: it is waiting for its feed.
+        var when = IsWaiting(session, now) ? "Waiting for data" : When(session, now, timeZone);
         return string.IsNullOrWhiteSpace(session.SessionName) ? when : $"{session.SessionName} · {when}";
     }
 
-    /// <summary>Every published session that is still ahead, soonest first, for the schedule list.</summary>
-    public static IReadOnlyList<UpcomingSession> Schedule(IEnumerable<UpcomingSession> sessions, DateTimeOffset now, TimeZoneInfo? timeZone = null)
-    {
-        var zone = timeZone ?? TimeZoneInfo.Local;
-        return sessions.Where(session => session.IsAhead(now, zone)).OrderBy(session => session.StartUtc).ToList();
-    }
+    /// <summary>Every published session the schedule still lists, soonest first.</summary>
+    public static IReadOnlyList<UpcomingSession> Schedule(IEnumerable<UpcomingSession> sessions, DateTimeOffset now, TimeZoneInfo? timeZone = null) =>
+        sessions.Where(session => IsScheduled(session, now, timeZone)).OrderBy(session => session.StartUtc).ToList();
 
     /// <summary>
     /// Schedule row second line: the session, and where it is held. The venue is dropped when the event name
@@ -80,6 +96,7 @@ public static class NextSessionDisplay
     /// </summary>
     public static string RowLead(UpcomingSession session, DateTimeOffset now, TimeZoneInfo timeZone)
     {
+        if (IsWaiting(session, now)) return "waiting for data";
         if (session.StartDate is not { } date) return ChampionshipCalendars.DescribeTimeUntil(session.StartUtc, now);
         var days = date.DayNumber - DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, timeZone).Date).DayNumber;
         return days switch
@@ -98,7 +115,7 @@ public static class NextSessionDisplay
             || venue.Contains(eventName, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The unabbreviated form, for the tooltip that the two short lines cannot carry.</summary>
-    public static string Tooltip(UpcomingSession session, TimeZoneInfo timeZone)
+    public static string Tooltip(UpcomingSession session, DateTimeOffset now, TimeZoneInfo timeZone)
     {
         var name = ChampionshipDisplay.FullName(session.Championship);
         var subject = string.IsNullOrWhiteSpace(session.EventName)
@@ -108,9 +125,9 @@ public static class NextSessionDisplay
         var start = session.StartDate is { } date
             ? $"{date:ddd d MMM}, time TBA"
             : TimeZoneInfo.ConvertTime(session.StartUtc, timeZone).ToString("ddd d MMM, HH:mm");
-        return string.IsNullOrWhiteSpace(session.SessionName)
-            ? $"Next session: {subject} — {start}"
-            : $"Next session: {subject} — {session.SessionName}, {start}";
+        var what = string.IsNullOrWhiteSpace(session.SessionName) ? start : $"{session.SessionName}, {start}";
+        // A session that has started is named by what the reader is waiting for, not by a start time that has gone.
+        return IsWaiting(session, now) ? $"Waiting for data: {subject} — {what}" : $"Next session: {subject} — {what}";
     }
 
     /// <summary>

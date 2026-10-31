@@ -2605,11 +2605,32 @@ static void NextSessionPresentation()
     True(NextSessionDisplay.Detail(next with { StartUtc = new DateTimeOffset(2026, 9, 12, 13, 30, 0, TimeSpan.Zero) }, now, zone).StartsWith("Practice 1 · Sat 12 "));
     Equal("in 1m", NextSessionDisplay.Detail(new(Championship.Dtm, "Sachsenring", null, now.AddSeconds(30)), now, zone));
 
-    // The schedule keeps only what is still ahead, soonest first, whatever order the calendars answered in.
+    // The schedule keeps what is ahead, soonest first, whatever order the calendars answered in.
     var schedule = NextSessionDisplay.Schedule(sessions, now);
     Equal(2, schedule.Count);
     Equal(Championship.Formula1, schedule[0].Championship);
     Equal(Championship.Dtm, schedule[1].Championship);
+
+    // A session that has reached its start stays listed while its timing has not reported, so a row never
+    // disappears without saying what happened to it.
+    var due = new UpcomingSession(Championship.Formula1, "Mexican Grand Prix", "Practice 1", now.AddMinutes(-4));
+    Equal(1, NextSessionDisplay.Schedule([due], now).Count);
+    Equal(Championship.Formula1, NextSessionDisplay.Next([due], now)!.Championship);
+    Equal("Practice 1 · Waiting for data", NextSessionDisplay.Detail(due, now, zone));
+    Equal("waiting for data", NextSessionDisplay.RowLead(due, now, zone));
+    True(NextSessionDisplay.Tooltip(due, now, zone).StartsWith("Waiting for data: "));
+    True(NextSessionDisplay.IsWaiting(due, now));
+    True(NextSessionDisplay.IsScheduled(due, now));
+    // The window ends, so a session that never reports drops off rather than sitting there for a day.
+    var late = due with { StartUtc = now - NextSessionDisplay.WaitingWindow - TimeSpan.FromMinutes(1) };
+    Equal(false, NextSessionDisplay.IsWaiting(late, now));
+    Equal(0, NextSessionDisplay.Schedule([late], now).Count);
+    // A date-only entry names a day, not a moment, so it is never waiting for a start that never existed.
+    var dateOnly = new UpcomingSession(Championship.GtWorldChallengeEurope, "Misano", "Race", now.AddHours(-1))
+    {
+        StartDate = DateOnly.FromDateTime(now.UtcDateTime)
+    };
+    Equal(false, NextSessionDisplay.IsWaiting(dateOnly, now));
 
     var monza = next with { Venue = "Autodromo Nazionale Monza" };
     Equal("Practice 1 · Autodromo Nazionale Monza", NextSessionDisplay.RowSubtitle(monza));
@@ -2639,8 +2660,8 @@ static void NextSessionPresentation()
     Equal("", NextSessionDisplay.RowTime(misano, losAngeles));
     Equal("Fri 15 May", NextSessionDisplay.RowDate(misano, zone));
     Equal("Fri 15 May", NextSessionDisplay.RowDate(misano, losAngeles));
-    False(NextSessionDisplay.Tooltip(misano, losAngeles).Contains("17:00"));
-    True(NextSessionDisplay.Tooltip(misano, losAngeles).EndsWith("Fri 15 May, time TBA"));
+    False(NextSessionDisplay.Tooltip(misano, now, losAngeles).Contains("17:00"));
+    True(NextSessionDisplay.Tooltip(misano, now, losAngeles).EndsWith("Fri 15 May, time TBA"));
     Equal("Fri 15 May", NextSessionDisplay.Detail(misano, now, tokyo));
     True(NextSessionDisplay.GroupDay(misano, now, losAngeles).StartsWith("FRIDAY 15 "));
 
@@ -2665,7 +2686,7 @@ static void NextSessionPresentation()
     // A published clock time still counts down to the instant.
     Equal("in 5 hours", NextSessionDisplay.RowLead(next with { StartUtc = now.AddHours(5) }, now, zone));
 
-    var tooltip = NextSessionDisplay.Tooltip(next with { StartUtc = new DateTimeOffset(2026, 9, 4, 13, 30, 0, TimeSpan.Zero) }, zone);
+    var tooltip = NextSessionDisplay.Tooltip(next with { StartUtc = new DateTimeOffset(2026, 9, 4, 13, 30, 0, TimeSpan.Zero) }, now, zone);
     True(tooltip.StartsWith("Next session: Formula 1 · Italian Grand Prix — Practice 1, Fri 4 "));
     True(tooltip.EndsWith(", 13:30"));
 }

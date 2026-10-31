@@ -197,7 +197,7 @@ public sealed class TaskbarWindow : Window
         _idle.Update(session, now, TimeZoneInfo.Local, _settings.UseSingleRowTaskbar);
         _idle.Element.Visibility = Visibility.Visible;
         System.Windows.Automation.AutomationProperties.SetName(this,
-            NextSessionDisplay.Tooltip(session, TimeZoneInfo.Local));
+            NextSessionDisplay.Tooltip(session, DateTimeOffset.UtcNow, TimeZoneInfo.Local));
         RefreshFlag();
         ApplyIdleWidth();
         if (!IsVisible) Show();
