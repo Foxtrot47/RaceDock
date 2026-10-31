@@ -147,6 +147,7 @@ var tests = new (string Name, Action Run)[]
     ("empty MotoGP gateway responses stay connected and hidden", MotoGpEmptyResponse),
     ("F3 standings include roster teams", F3RosterTeams),
     ("F2 standings include roster teams", F2RosterTeams),
+    ("full course yellow is its own track status", FullCourseYellowStatus),
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
     ("a new session clears the timing the last one left behind", NewSessionClearsPreviousTiming),
     ("F1 qualifying follows the active session part", F1QualifyingParts),
@@ -881,6 +882,21 @@ static void NewSessionClearsPreviousTiming()
     // A delta for the same session changes nothing about the state that is kept.
     processor.ProcessDelta("SessionInfo", JsonNode.Parse("""{"Key":11397,"Status":"Started"}""")!.AsObject(), DateTimeOffset.UtcNow);
     Equal(2, processor.Current.Competitors[0].Lap);
+}
+
+/// <summary>
+/// Full course yellow is its own track status. The feed reader must not read the message "FULL COURSE YELLOW" as a
+/// plain yellow, and the scenario FCY status must reach the same state the Testing page button selects.
+/// </summary>
+static void FullCourseYellowStatus()
+{
+    var (_, _, processor) = Fixture();
+    processor.ProcessDelta("TrackStatus", JsonNode.Parse("""{"Status":"FCY","Message":"FULL COURSE YELLOW"}""")!.AsObject(), DateTimeOffset.UtcNow);
+    Equal(TrackCondition.FullCourseYellow, processor.Current.TrackCondition);
+    processor.ProcessDelta("TrackStatus", JsonNode.Parse("""{"Status":"2","Message":"Yellow flag sector 2"}""")!.AsObject(), DateTimeOffset.UtcNow);
+    Equal(TrackCondition.Yellow, processor.Current.TrackCondition);
+    processor.ProcessDelta("TrackStatus", JsonNode.Parse("""{"Message":"FULL COURSE YELLOW"}""")!.AsObject(), DateTimeOffset.UtcNow);
+    Equal(TrackCondition.FullCourseYellow, processor.Current.TrackCondition);
 }
 
 static void F1PracticeTiming()

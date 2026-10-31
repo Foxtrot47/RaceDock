@@ -80,26 +80,54 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
             Publish(Current with { Lifecycle = SessionLifecycle.OffSession, ConnectionState = ConnectionState.Stale });
     }
 
+    /// <summary>The status codes the feed sends, matched case-insensitively.</summary>
+    private static readonly IReadOnlyDictionary<string, TrackCondition> TrackStatusCodes =
+        new Dictionary<string, TrackCondition>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["2"] = TrackCondition.Yellow, ["YELLOW"] = TrackCondition.Yellow,
+            ["3"] = TrackCondition.DoubleYellow, ["DOUBLEYELLOW"] = TrackCondition.DoubleYellow,
+            ["4"] = TrackCondition.SafetyCar, ["SC"] = TrackCondition.SafetyCar, ["SAFETYCAR"] = TrackCondition.SafetyCar,
+            ["5"] = TrackCondition.RedFlag, ["RED"] = TrackCondition.RedFlag, ["REDFLAG"] = TrackCondition.RedFlag,
+            ["6"] = TrackCondition.VirtualSafetyCar, ["VSC"] = TrackCondition.VirtualSafetyCar, ["VSCDEPLOYED"] = TrackCondition.VirtualSafetyCar,
+            ["7"] = TrackCondition.VirtualSafetyCarEnding, ["VSCENDING"] = TrackCondition.VirtualSafetyCarEnding,
+            ["FCY"] = TrackCondition.FullCourseYellow
+        };
+
+    /// <summary>
+    /// Message fragments that name a condition when no code does, checked in order. A phrase that contains another comes
+    /// first: "VIRTUAL SAFETY CAR" contains "SAFETY CAR".
+    /// </summary>
+    private static readonly (string Fragment, TrackCondition Condition)[] TrackStatusMessages =
+    [
+        ("VSC END", TrackCondition.VirtualSafetyCarEnding),
+        ("VIRTUAL SAFETY CAR", TrackCondition.VirtualSafetyCar),
+        ("SAFETY CAR", TrackCondition.SafetyCar),
+        ("RED", TrackCondition.RedFlag),
+        ("YELLOW", TrackCondition.Yellow)
+    ];
+
+    /// <summary>
+    /// The condition a status names. The feed's status is merged state, so an earlier yellow code can still be present
+    /// when the caution is called: a message that names a full course yellow therefore outranks the generic codes.
+    /// </summary>
+    private static TrackCondition ConditionOf(string? code, string? message)
+    {
+        var key = code?.Trim().ToUpperInvariant();
+        var text = message?.Trim().ToUpperInvariant();
+        if (key is "1" or "ALLCLEAR" or "GREEN") return TrackCondition.AllClear;
+        if (text is not null && text.Contains("FULL COURSE YELLOW", StringComparison.Ordinal)) return TrackCondition.FullCourseYellow;
+        if (key is not null && TrackStatusCodes.TryGetValue(key, out var byCode)) return byCode;
+        if (text is null) return TrackCondition.Unknown;
+        foreach (var (fragment, condition) in TrackStatusMessages)
+            if (text.Contains(fragment, StringComparison.Ordinal)) return condition;
+        return TrackCondition.Unknown;
+    }
+
     private void ProcessTrackStatus(JsonObject? obj)
     {
         var raw = JsonSupport.String(obj?["Status"] ?? obj?["Value"]);
         var message = JsonSupport.String(obj?["Message"]);
-        var next = (raw?.Trim().ToUpperInvariant(), message?.Trim().ToUpperInvariant()) switch
-        {
-            ("1", _) or ("ALLCLEAR", _) or ("GREEN", _) => TrackCondition.AllClear,
-            ("2", _) or ("YELLOW", _) => TrackCondition.Yellow,
-            ("3", _) or ("DOUBLEYELLOW", _) => TrackCondition.DoubleYellow,
-            ("4", _) or ("SC", _) or ("SAFETYCAR", _) => TrackCondition.SafetyCar,
-            ("5", _) or ("RED", _) or ("REDFLAG", _) => TrackCondition.RedFlag,
-            ("6", _) or ("VSC", _) or ("VSCDEPLOYED", _) => TrackCondition.VirtualSafetyCar,
-            ("7", _) or ("VSCENDING", _) => TrackCondition.VirtualSafetyCarEnding,
-            (_, var m) when m?.Contains("VSC END") == true => TrackCondition.VirtualSafetyCarEnding,
-            (_, var m) when m?.Contains("VIRTUAL SAFETY CAR") == true => TrackCondition.VirtualSafetyCar,
-            (_, var m) when m?.Contains("SAFETY CAR") == true => TrackCondition.SafetyCar,
-            (_, var m) when m?.Contains("RED") == true => TrackCondition.RedFlag,
-            (_, var m) when m?.Contains("YELLOW") == true => TrackCondition.Yellow,
-            _ => TrackCondition.Unknown
-        };
+        var next = ConditionOf(raw, message);
         if (next == TrackCondition.Unknown || next == _track) return;
         _track = next;
         alerts.ApplyTrackCondition(next, message, Current.CurrentLap, clock.UtcNow);

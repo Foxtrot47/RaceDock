@@ -167,6 +167,7 @@
             <ToggleButton x:Name="GreenButton" Content="Green" Tag="{x:Static core:ScenarioCommand.Green}" Click="ScenarioCommandButton_Click" />
             <ToggleButton x:Name="YellowButton" Content="Yellow" Tag="{x:Static core:ScenarioCommand.Yellow}" Click="ScenarioCommandButton_Click" />
             <ToggleButton x:Name="DoubleYellowButton" Content="Double yellow" Tag="{x:Static core:ScenarioCommand.DoubleYellow}" Click="ScenarioCommandButton_Click" />
+            <ToggleButton x:Name="FullCourseYellowButton" Content="FCY" Tag="{x:Static core:ScenarioCommand.FullCourseYellow}" Click="ScenarioCommandButton_Click" />
             <ToggleButton x:Name="SafetyCarButton" Content="Safety car" Tag="{x:Static core:ScenarioCommand.SafetyCar}" Click="ScenarioCommandButton_Click" />
             <ToggleButton x:Name="VirtualSafetyCarButton" Content="VSC" Tag="{x:Static core:ScenarioCommand.VirtualSafetyCar}" Click="ScenarioCommandButton_Click" />
             <ToggleButton x:Name="VirtualSafetyCarEndingButton" Content="VSC ending" Tag="{x:Static core:ScenarioCommand.VirtualSafetyCarEnding}" Click="ScenarioCommandButton_Click" />

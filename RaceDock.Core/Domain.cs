@@ -166,7 +166,7 @@ public interface ITimingArchiveSource : ITimingPlaybackSource
     int FrameCount { get; }
 }
 
-public enum ScenarioCommand { Yellow, DoubleYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, Green, FastestLap, RedFlag, Chequered, Disconnect, Stale, Reconnect }
+public enum ScenarioCommand { Yellow, DoubleYellow, FullCourseYellow, SafetyCar, VirtualSafetyCar, VirtualSafetyCarEnding, Green, FastestLap, RedFlag, Chequered, Disconnect, Stale, Reconnect }
 
 public interface IClock { DateTimeOffset UtcNow { get; } }
 public sealed class SystemClock : IClock { public DateTimeOffset UtcNow => DateTimeOffset.UtcNow; }

@@ -21,6 +21,7 @@ public sealed partial class TestingPage : Page
         ScenarioCommand.Green,
         ScenarioCommand.Yellow,
         ScenarioCommand.DoubleYellow,
+        ScenarioCommand.FullCourseYellow,
         ScenarioCommand.SafetyCar,
         ScenarioCommand.VirtualSafetyCar,
         ScenarioCommand.VirtualSafetyCarEnding,
@@ -43,6 +44,7 @@ public sealed partial class TestingPage : Page
         {
             [ScenarioCommand.Yellow] = YellowButton,
             [ScenarioCommand.DoubleYellow] = DoubleYellowButton,
+            [ScenarioCommand.FullCourseYellow] = FullCourseYellowButton,
             [ScenarioCommand.SafetyCar] = SafetyCarButton,
             [ScenarioCommand.VirtualSafetyCar] = VirtualSafetyCarButton,
             [ScenarioCommand.VirtualSafetyCarEnding] = VirtualSafetyCarEndingButton,
@@ -335,6 +337,7 @@ public sealed partial class TestingPage : Page
             TrackCondition.AllClear => ScenarioCommand.Green,
             TrackCondition.Yellow => ScenarioCommand.Yellow,
             TrackCondition.DoubleYellow => ScenarioCommand.DoubleYellow,
+            TrackCondition.FullCourseYellow => ScenarioCommand.FullCourseYellow,
             TrackCondition.SafetyCar => ScenarioCommand.SafetyCar,
             TrackCondition.VirtualSafetyCar => ScenarioCommand.VirtualSafetyCar,
             TrackCondition.VirtualSafetyCarEnding => ScenarioCommand.VirtualSafetyCarEnding,

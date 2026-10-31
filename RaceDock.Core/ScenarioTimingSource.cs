@@ -89,7 +89,8 @@ public sealed class ScenarioTimingSource(TimingStateProcessor processor, IClock 
             ScenarioCommand.Yellow => ("2", "Yellow flag sector 2"), ScenarioCommand.DoubleYellow => ("3", "Double yellow sector 2"),
             ScenarioCommand.SafetyCar => ("4", "Safety car deployed"), ScenarioCommand.VirtualSafetyCar => ("6", "VSC deployed"),
             ScenarioCommand.VirtualSafetyCarEnding => ("7", "VSC ending"), ScenarioCommand.Green => ("1", "All clear"),
-            ScenarioCommand.RedFlag => ("5", "Session red flagged"), _ => ("", "")
+            ScenarioCommand.RedFlag => ("5", "Session red flagged"),
+            ScenarioCommand.FullCourseYellow => ("FCY", "FULL COURSE YELLOW"), _ => ("", "")
         };
         if (status.Length > 0) Feed("TrackStatus", new JsonObject { ["Status"] = status, ["Message"] = message });
         else if (command == ScenarioCommand.FastestLap) Feed("TimingData", new JsonObject { ["Lines"] = new JsonObject { ["1"] = new JsonObject { ["BestLapTime"] = new JsonObject { ["Value"] = "1:26.999", ["OverallFastest"] = true }, ["NumberOfLaps"] = 20 } } });
