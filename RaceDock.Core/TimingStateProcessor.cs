@@ -41,6 +41,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
     {
         if (data is JsonObject obj)
         {
+            if (topic == "SessionInfo" && IsNewSession(obj)) ResetSession();
             if (!_topics.TryGetValue(topic, out var state)) _topics[topic] = state = new();
             JsonSupport.DeepMerge(state, obj);
         }
@@ -49,6 +50,29 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         if (topic == "TimingData") DetectFastestLaps();
         Rebuild(timestamp);
     }
+
+    /// <summary>Drops what the finished session left behind, so the next one does not inherit its laps or positions.</summary>
+    private void ResetSession()
+    {
+        foreach (var topic in SessionTopics) _topics.Remove(topic);
+        _raceControlKeys.Clear(); _lastBestLap.Clear(); _bestLapSectors.Clear(); _capturedSectorLap.Clear();
+        _fastestDriver = null; _fastestSeconds = null; _track = TrackCondition.Unknown;
+    }
+
+    /// <summary>
+    /// Whether the incoming session info names a session the state has not seen. The feed numbers every session,
+    /// and that number changes when practice becomes qualifying or one event becomes the next.
+    /// </summary>
+    private bool IsNewSession(JsonObject sessionInfo) =>
+        JsonSupport.Int(sessionInfo["Key"]) is { } key &&
+        JsonSupport.Int(_topics.GetValueOrDefault("SessionInfo")?["Key"]) is { } current && key != current;
+
+    // Everything a session owns. The driver roster is not included: it belongs to the event, not to one session.
+    private static readonly string[] SessionTopics =
+    [
+        "SessionInfo", "TimingData", "TimingAppData", "TimingStats", "LapCount", "SessionData", "SessionStatus",
+        "TrackStatus", "ExtrapolatedClock", "RaceControlMessages"
+    ];
 
     public void MarkStale(TimeSpan maximumAge)
     {

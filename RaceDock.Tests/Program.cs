@@ -147,6 +147,7 @@ var tests = new (string Name, Action Run)[]
     ("F3 standings include roster teams", F3RosterTeams),
     ("F2 standings include roster teams", F2RosterTeams),
     ("F1 practice timing derives missing live gaps", F1PracticeTiming),
+    ("a new session clears the timing the last one left behind", NewSessionClearsPreviousTiming),
     ("F1 qualifying follows the active session part", F1QualifyingParts),
     ("WRC stage timing preserves live API values", WrcStageTiming),
     ("ended feeds clear composite selection", EndedFeedsClearSelection),
@@ -845,6 +846,40 @@ static void WrcOptionalShakedown()
     var times = api.TryGetShakedownTimesAsync(644, 1, CancellationToken.None).GetAwaiter().GetResult();
     Equal(0, times.Count);
     Equal("events/644/shakedowntimes.json?shakedownNumber=1", handler.Paths.Single());
+}
+
+/// <summary>
+/// The Formula 1 feed keeps publishing between sessions, so the laps, stints and positions of a finished session
+/// must not survive into the next one's classification: a practice session used to open on the race's lap counts.
+/// </summary>
+static void NewSessionClearsPreviousTiming()
+{
+    var (_, _, processor) = Fixture();
+    processor.ProcessInitial(JsonNode.Parse("""
+        {"SessionInfo":{"Key":11396,"Name":"Race","Type":"Race"},
+         "DriverList":{"1":{"Tla":"AAA"}},
+         "TimingData":{"Lines":{"1":{"Position":3,"NumberOfLaps":56,"BestLapTime":{"Value":"1:22.000"}}}},
+         "TimingAppData":{"Lines":{"1":{"Stints":[{"Compound":"HARD","TotalLaps":25}]}}},
+         "LapCount":{"CurrentLap":56,"TotalLaps":56}}
+        """)!.AsObject());
+    Equal(56, processor.Current.Competitors[0].Lap);
+    Equal(25, processor.Current.Competitors[0].TyreAge);
+    Equal(3, processor.Current.Competitors[0].Position);
+
+    // The next event's practice announces itself while the finished race is still the whole state.
+    processor.ProcessDelta("SessionInfo", JsonNode.Parse("""{"Key":11397,"Name":"Practice 1","Type":"Practice"}""")!.AsObject(), DateTimeOffset.UtcNow);
+    Equal(0, processor.Current.Competitors.Count);
+    Equal(0, processor.Current.CurrentLap);
+
+    // What the new session publishes replaces it; nothing is inherited from the race.
+    processor.ProcessDelta("TimingData", JsonNode.Parse("""{"Lines":{"1":{"Position":1,"NumberOfLaps":2}}}""")!.AsObject(), DateTimeOffset.UtcNow);
+    Equal(2, processor.Current.Competitors[0].Lap);
+    Equal(null, processor.Current.Competitors[0].TyreAge);
+    Equal(1, processor.Current.Competitors[0].Position);
+
+    // A delta for the same session changes nothing about the state that is kept.
+    processor.ProcessDelta("SessionInfo", JsonNode.Parse("""{"Key":11397,"Status":"Started"}""")!.AsObject(), DateTimeOffset.UtcNow);
+    Equal(2, processor.Current.Competitors[0].Lap);
 }
 
 static void F1PracticeTiming()
