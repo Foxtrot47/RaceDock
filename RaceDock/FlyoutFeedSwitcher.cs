@@ -27,7 +27,7 @@ internal sealed class FlyoutFeedSwitcher
 
     private readonly WrapPanel _chips = new();
     private readonly List<Championship> _feeds = [];
-    private readonly HashSet<Championship> _ended = [];
+    private readonly HashSet<Championship> _finished = [];
     private readonly Dictionary<Championship, ToggleButton> _tabs = [];
     private ToggleButton? _auto;
     private Championship? _selected;
@@ -51,16 +51,16 @@ internal sealed class FlyoutFeedSwitcher
     }
 
     /// <summary>
-    /// Shows <paramref name="feeds"/> in rotation order. A championship in <paramref name="ended"/> is kept in
-    /// place as a disabled tab, so a finished session is explained without a sentence under the strip.
+    /// Shows <paramref name="feeds"/> in rotation order. A championship in <paramref name="finished"/> is drawn as
+    /// finished but stays selectable, because its classification is still what the panel can show.
     /// </summary>
-    public void SetFeeds(IReadOnlyList<Championship> feeds, IReadOnlySet<Championship> ended)
+    public void SetFeeds(IReadOnlyList<Championship> feeds, IReadOnlySet<Championship> finished)
     {
-        if (feeds.SequenceEqual(_feeds) && ended.SetEquals(_ended)) return;
+        if (feeds.SequenceEqual(_feeds) && finished.SetEquals(_finished)) return;
         _feeds.Clear();
         _feeds.AddRange(feeds);
-        _ended.Clear();
-        _ended.UnionWith(ended);
+        _finished.Clear();
+        _finished.UnionWith(finished);
         Rebuild();
     }
 
@@ -87,7 +87,7 @@ internal sealed class FlyoutFeedSwitcher
         foreach (var championship in _feeds)
         {
             var feed = championship;
-            var tab = CreateFeedTab(feed, _ended.Contains(feed));
+            var tab = CreateFeedTab(feed, _finished.Contains(feed));
             tab.Click += (_, _) => SelectionChanged?.Invoke(feed);
             _tabs[feed] = tab;
             _chips.Children.Add(tab);
@@ -113,19 +113,19 @@ internal sealed class FlyoutFeedSwitcher
         return CreateTab(content, "Follow the taskbar rotation");
     }
 
-    private static ToggleButton CreateFeedTab(Championship feed, bool ended)
+    private static ToggleButton CreateFeedTab(Championship feed, bool finished)
     {
         var label = new TextBlock
         {
             Text = ChampionshipDisplay.ShortName(feed),
             VerticalAlignment = VerticalAlignment.Center
         };
-        if (ended) label.SetResourceReference(Control.ForegroundProperty, "TextFillColorDisabledBrush");
+        if (finished) label.SetResourceReference(Control.ForegroundProperty, "TextFillColorSecondaryBrush");
 
-        var mark = ChampionshipLogo.CreateMark(feed, MarkSize, ended);
+        var mark = ChampionshipLogo.CreateMark(feed, MarkSize, finished);
         mark.Margin = new Thickness(0, 0, 5, 0);
         mark.VerticalAlignment = VerticalAlignment.Center;
-        if (ended) mark.Opacity = MutedMarkOpacity;
+        if (finished) mark.Opacity = MutedMarkOpacity;
 
         var content = new StackPanel
         {
@@ -135,14 +135,11 @@ internal sealed class FlyoutFeedSwitcher
         content.Children.Add(mark);
         content.Children.Add(label);
 
-        var tab = CreateTab(content, $"Show {ChampionshipDisplay.FullName(feed)} timing", ChampionshipAccent.For(feed));
-        if (ended)
-        {
-            // A feed that has ended keeps its place but cannot be selected, and still explains itself in a tooltip.
-            tab.IsEnabled = false;
-            tab.SetResourceReference(Control.BorderBrushProperty, "TextFillColorDisabledBrush");
-            ToolTipService.SetShowOnDisabled(tab, true);
-        }
+        // A finished session keeps its place and stays selectable for as long as its classification can be shown:
+        // the strip and the panel then always agree about which series is on screen.
+        var tab = CreateTab(content,
+            finished ? $"Show {ChampionshipDisplay.FullName(feed)} final classification" : $"Show {ChampionshipDisplay.FullName(feed)} timing",
+            ChampionshipAccent.For(feed));
         return tab;
     }
 

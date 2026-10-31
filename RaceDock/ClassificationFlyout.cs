@@ -361,18 +361,25 @@ public sealed class ClassificationFlyout : Window
     {
         var selected = _selection.IsFollowingRotation ? null : _selection.PinnedChampionship;
         var feeds = _liveFeeds.Select(feed => feed.Championship).ToList();
-        var ended = _liveFeeds.Where(feed => feed.Retained).Select(feed => feed.Championship).ToHashSet();
-        // A pinned panel outlives its feed's retention window; keeping the tab explains what is still on screen.
-        if (_hasLiveFeedDirectory && selected is { } pinned && !feeds.Contains(pinned))
-        {
-            feeds.Add(pinned);
-            ended.Add(pinned);
-        }
+        var finished = _liveFeeds.Where(feed => feed.Retained).Select(feed => feed.Championship).ToHashSet();
+        // The strip follows the panel, not only the directory: a pin outlives its feed's retention window, and the
+        // source can drop a feed a moment before the next rotation replaces what is on screen. Either way the
+        // classification the reader is looking at keeps its own tab.
+        if (_hasLiveFeedDirectory)
+            foreach (var shown in new[] { selected, OnScreenFeed() }.OfType<Championship>())
+            {
+                if (!feeds.Contains(shown)) feeds.Add(shown);
+                finished.Add(shown);
+            }
         _feedSwitcher.AllowAuto = !IsPinned;
-        _feedSwitcher.SetFeeds(feeds, ended);
+        _feedSwitcher.SetFeeds(feeds, finished);
         _feedSwitcher.SetSelected(selected);
         _feedSwitcher.Element.Visibility = ShouldShowFeedBar() ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    /// <summary>The championship whose classification the panel is drawing, independent of how it was chosen.</summary>
+    private Championship? OnScreenFeed() =>
+        _snapshot is { Championship: not Championship.Unknown } snapshot ? snapshot.Championship : null;
 
     private bool ShouldShowFeedBar()
     {
