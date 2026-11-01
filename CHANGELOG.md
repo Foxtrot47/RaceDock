@@ -2,6 +2,34 @@
 
 All notable RaceDock changes are recorded here. Release packages include the corresponding version entry.
 
+## [1.6.0] — 2026-11-01
+
+### Added
+
+- The taskbar widget shows the track flag on its edge: a code for a caution, safety car, virtual safety car or red flag, and chequered tiles once the session is over.
+- The classification flyout marks a finished session with a chequered strip.
+- A session that is due keeps its place on the idle taskbar and in the schedule while its own feed has not reported it yet.
+- An F1 Academy round is named after the grand prix it supports, not the Formula 1 circuit it shares.
+
+### Changed
+
+- The widget names the event rather than the circuit, so two weekends at the same track read differently.
+- NASCAR event titles are shortened to fit a schedule row, and the titles the 2026 calendars publish are kept in the test fixtures.
+- Manufacturer and team marks are on by default in the flyout as well as the widget, and a saved choice still wins.
+- Virtual energy sits beside lap time in the default column order, ahead of the sector columns.
+- A full-course yellow message is read alongside the track code, so a stale yellow code cannot mask it.
+
+### Fixed
+
+- Each session starts from a clean timing state instead of inheriting the laps, stints and positions of the one before it.
+- Settings follows the feed and the schedule the widget is showing.
+- A finished feed stays selectable while its classification is on screen.
+- The widget's chequered marker comes from the session it is displaying and is withdrawn when the next session starts, so it no longer appears beside another series or silences the alerts that follow.
+- The flyout marks a feed as finished only once its session has ended, so a running series keeps the colours of its mark.
+- The release link and the check button on the updates page respond to clicks.
+- An F1 Academy feature race reads as a race instead of borrowing the Formula 2 and 3 feature code.
+- A feed dump started while a source is already connected opens with that source's initial state, so the recording replays instead of being rejected.
+
 ## [1.5.0] — 2026-10-30
 
 ### Added
