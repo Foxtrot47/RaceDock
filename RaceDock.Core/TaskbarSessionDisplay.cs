@@ -103,7 +103,10 @@ public static partial class TaskbarSessionDisplay
             var shortLabel = ParseLabel(snapshot.SessionShortName ?? "");
             if (shortLabel.Code != "LIVE") return shortLabel;
         }
-        return ParseLabel(StripMotorcycleCategory(snapshot.Session));
+        var label = ParseLabel(StripMotorcycleCategory(snapshot.Session));
+        // F1 Academy's other two races of the weekend already read RAC, so its feature race is named the same way
+        // rather than borrowing the FEA code that separates a Formula 2 or 3 feature from its sprint.
+        return snapshot.Championship == Championship.F1Academy && label.Code == "FEA" ? label with { Code = "RAC" } : label;
     }
 
     private static string StripMotorcycleCategory(string session)

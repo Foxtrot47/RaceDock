@@ -3079,6 +3079,10 @@ static void TaskbarSessionLabels()
     ];
     foreach (var (session, text) in names)
         Equal(text, TaskbarSessionDisplay.Progress(snapshot with { Session = session }));
+    // F1 Academy calls its third race a feature race; its other two already read RAC, so it does as well.
+    Equal("RAC 12/57", TaskbarSessionDisplay.Progress(snapshot with { Championship = Championship.F1Academy, Session = "Feature Race" }));
+    // A Formula 2 or 3 feature race keeps the code that tells it apart from the sprint.
+    Equal("FEA 12/57", TaskbarSessionDisplay.Progress(snapshot with { Championship = Championship.Formula2, Session = "Feature Race" }));
 
     foreach (var championship in new[] { Championship.MotoGp, Championship.Moto2, Championship.Moto3 })
     {
