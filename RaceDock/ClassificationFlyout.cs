@@ -364,13 +364,12 @@ public sealed class ClassificationFlyout : Window
         var selected = _selection.IsFollowingRotation ? null : _selection.PinnedChampionship;
         var feeds = _liveFeeds.Select(feed => feed.Championship).ToList();
         var finished = _liveFeeds.Where(feed => feed.Retained).Select(feed => feed.Championship).ToHashSet();
-        // The strip follows the panel, not only the directory: a pin outlives its feed's retention window, and the
-        // source can drop a feed a moment before the next rotation replaces what is on screen. Either way the
-        // classification the reader is looking at keeps its own tab.
+        // The strip follows the panel as well as the directory: a feed the directory has dropped keeps its tab, and
+        // reads as finished, while the classification the reader is looking at stays on screen.
         if (_hasLiveFeedDirectory)
-            foreach (var shown in new[] { selected, OnScreenFeed() }.OfType<Championship>())
+            foreach (var shown in new[] { selected, OnScreenFeed() }.OfType<Championship>().Where(feed => !feeds.Contains(feed)))
             {
-                if (!feeds.Contains(shown)) feeds.Add(shown);
+                feeds.Add(shown);
                 finished.Add(shown);
             }
         _feedSwitcher.AllowAuto = !IsPinned;

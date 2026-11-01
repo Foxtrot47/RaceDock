@@ -47,7 +47,6 @@ internal static class ChampionshipLogo
 
     private static readonly HashSet<Championship> MonochromeArtwork =
     [
-        Championship.F1Academy,
         Championship.MotoGp,
         Championship.Moto2,
         Championship.Moto3,
