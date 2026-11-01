@@ -57,12 +57,12 @@ public sealed record ChampionshipDisplaySettings
         FlyoutColumn.Gap,
         FlyoutColumn.Interval,
         FlyoutColumn.LapTime,
+        FlyoutColumn.Energy,
         FlyoutColumn.Sectors,
         FlyoutColumn.Splits,
         FlyoutColumn.Tyre,
         FlyoutColumn.Category,
-        FlyoutColumn.Status,
-        FlyoutColumn.Energy
+        FlyoutColumn.Status
     ];
 
     /// <summary>

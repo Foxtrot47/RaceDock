@@ -54,6 +54,7 @@ var tests = new (string Name, Action Run)[]
     ("practice and qualifying report best laps, races report last laps", SessionLapTimeMode),
     ("stored classification column orders are repaired", FlyoutColumnOrderNormalization),
     ("manufacturer logos are on by default and a saved choice still wins", LogoDefaultsFollowTheUser),
+    ("energy sits beside lap time in the default column order", EnergyFollowsLapTime),
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
     ("hidden championships stay disabled and out of sight", ChampionshipVisibility),
     ("the experimental flyout blur stays off until asked for", FlyoutBlurSettings),
@@ -1546,6 +1547,14 @@ static void LogoDefaultsFollowTheUser()
     } }.DisplayFor(Championship.Formula1).FlyoutUseManufacturerLogos);
 }
 
+/// <summary>Energy is read alongside lap time: it sits directly after it and before the sector columns.</summary>
+static void EnergyFollowsLapTime()
+{
+    var order = new ChampionshipDisplaySettings().FlyoutColumnOrder.ToList();
+    Equal(order.IndexOf(FlyoutColumn.LapTime) + 1, order.IndexOf(FlyoutColumn.Energy));
+    True(order.IndexOf(FlyoutColumn.Energy) < order.IndexOf(FlyoutColumn.Sectors));
+}
+
 static void FlyoutColumnOrderNormalization()
 {
     Equal(3, (int)FlyoutColumn.Tyre);
@@ -1587,7 +1596,8 @@ static void FlyoutColumnOrderNormalization()
         FlyoutColumnOrder = [FlyoutColumn.Status, FlyoutColumn.Status, (FlyoutColumn)99, FlyoutColumn.Tyre]
     }.Normalize().FlyoutColumnOrder;
     // The columns that were named keep their position, then the missing ones follow in the canonical order.
-    Equal("Status,Tyre,Gap,Interval,LapTime,Sectors,Splits,Category,Energy", string.Join(",", repaired));
+    var missing = ChampionshipDisplaySettings.DefaultColumnOrder.Where(column => column is not (FlyoutColumn.Status or FlyoutColumn.Tyre));
+    Equal("Status,Tyre," + string.Join(",", missing), string.Join(",", repaired));
 
     var canonical = string.Join(",", ChampionshipDisplaySettings.DefaultColumnOrder);
     Equal(canonical, string.Join(",", new ChampionshipDisplaySettings { FlyoutColumnOrder = [] }.Normalize().FlyoutColumnOrder));
