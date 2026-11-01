@@ -5731,9 +5731,9 @@ static void WrcHandlerBounds()
 static (FakeClock clock, AlertArbiter alerts, TimingStateProcessor processor) Fixture() { var c = new FakeClock(); var a = new AlertArbiter(c); return (c, a, new TimingStateProcessor(c, a)); }
 static JsonObject BaseState() => JsonNode.Parse("""{"SessionInfo":{"Name":"Race","Meeting":{"Name":"Test","Circuit":{"ShortName":"Ring"}}},"TrackStatus":{"Status":"1"},"DriverList":{"1":{"Tla":"AAA"},"2":{"Tla":"BBB"}},"TimingData":{"Lines":{"1":{"Position":1,"NumberOfLaps":1},"2":{"Position":2,"GapToLeader":"+1.0","NumberOfLaps":1}}}}""")!.AsObject();
 static void Track(TimingStateProcessor p, string status) => p.ProcessDelta("TrackStatus", new JsonObject { ["Status"] = status }, DateTimeOffset.UtcNow);
-static void True(bool value) { if (!value) throw new Exception("Expected true."); }
-static void False(bool value) { if (value) throw new Exception("Expected false."); }
-static void Equal<T>(T expected, T actual) { if (!EqualityComparer<T>.Default.Equals(expected, actual)) throw new Exception($"Expected '{expected}', got '{actual}'."); }
+static void True(bool value, [System.Runtime.CompilerServices.CallerLineNumber] int line = 0) { if (!value) throw new Exception($"Expected true (line {line})."); }
+static void False(bool value, [System.Runtime.CompilerServices.CallerLineNumber] int line = 0) { if (value) throw new Exception($"Expected false (line {line})."); }
+static void Equal<T>(T expected, T actual, [System.Runtime.CompilerServices.CallerLineNumber] int line = 0) { if (!EqualityComparer<T>.Default.Equals(expected, actual)) throw new Exception($"Expected '{expected}', got '{actual}' (line {line})."); }
 static string FixtureText(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Wrc", name));
 static JsonObject SectorFixture(string name) => JsonNode.Parse(File.ReadAllText(
     Path.Combine(AppContext.BaseDirectory, "Fixtures", "Sectors", name)))!.AsObject();

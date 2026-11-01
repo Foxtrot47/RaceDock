@@ -229,8 +229,11 @@ internal static class FeedServerTests
                 }
                 finally
                 {
-                    foreach (var source in new ILiveTimingSource[] { f1Source, fiaSource, gtwcSource, wecSource, nascarSource })
-                        source.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    DisposeWithin("formula1", f1Source);
+                    DisposeWithin("formula2", fiaSource);
+                    DisposeWithin("gtwc", gtwcSource);
+                    DisposeWithin("wec", wecSource);
+                    DisposeWithin("nascar", nascarSource);
                     nascarFeed.Dispose();
                 }
             }
@@ -250,6 +253,14 @@ internal static class FeedServerTests
         });
         host.StartAsync().GetAwaiter().GetResult();
         return host;
+    }
+
+    /// <summary>Disposes a source or fails by name, so a stalled shutdown is reported as the stream that stalled.</summary>
+    private static void DisposeWithin(string stream, ILiveTimingSource source, int seconds = 20)
+    {
+        var disposal = source.DisposeAsync().AsTask();
+        if (!disposal.Wait(TimeSpan.FromSeconds(seconds)))
+            throw new Exception($"The {stream} source did not dispose within {seconds} seconds.");
     }
 
     private static TimingSnapshot Await(ConcurrentQueue<TimingSnapshot> snapshots,
