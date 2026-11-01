@@ -121,6 +121,7 @@ public sealed class F1LiveTimingSource(TimingStateProcessor processor, IClock cl
                 root.TryGetProperty("result", out var initial) && initial.ValueKind == JsonValueKind.Object)
             {
                 var state = (JsonObject)JsonNode.Parse(initial.GetRawText())!;
+                FeedDump.RememberInitial("formula1", part);
                 UpdateClock(state["ExtrapolatedClock"]);
                 processor.ProcessInitial(state);
                 continue;

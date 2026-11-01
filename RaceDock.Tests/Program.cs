@@ -25,6 +25,7 @@ var tests = new (string Name, Action Run)[]
     ("pre-session F1 grid remains hidden", PreSessionF1Grid),
     ("chequered flag does not outlive its session", ChequeredFlagDoesNotOutliveItsSession),
     ("archived F1 startup data remains hidden", ArchivedF1Startup),
+    ("a recording opens with the state its source already held", FeedDumpOpensWithTheConnectedState),
     ("scenario timeline integration", ScenarioIntegration),
     ("active feeds rotate at the display interval", FeedRotation),
     ("completed classifications remain visible for the configured interval", CompletedClassificationRetention),
@@ -2014,6 +2015,57 @@ static void FeedDumpCapture()
 
         FeedDump.Stop();
         Equal(null, FeedDump.Folder);
+    }
+    finally
+    {
+        FeedDump.Stop();
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+    }
+}
+
+/// <summary>
+/// A recording started while the feed is already connected never sees the initial state, so it opens with the state
+/// its source last held instead of being unreplayable.
+/// </summary>
+static void FeedDumpOpensWithTheConnectedState()
+{
+    var root = Path.Combine(Path.GetTempPath(), $"racedock-dump-{Guid.NewGuid():N}");
+    try
+    {
+        // The connection's initial state arrived before recording began.
+        FeedDump.RememberInitial("formula1", System.Text.Json.JsonSerializer.Serialize(new
+        {
+            type = 3,
+            invocationId = "1",
+            result = new
+            {
+                SessionInfo = new { Name = "Qualifying", Meeting = new { Name = "Mexico City Grand Prix", Circuit = new { ShortName = "Mexico City" } } },
+                SessionStatus = new { Status = "Started", Started = "Started" },
+                DriverList = new Dictionary<string, object> { ["11"] = new { Tla = "PER" }, ["27"] = new { Tla = "HUL" } },
+                TimingData = new { Lines = new Dictionary<string, object>
+                {
+                    ["11"] = new { Position = 1, NumberOfLaps = 3, BestLapTime = new { Value = "1:17.100" } },
+                    ["27"] = new { Position = 2, NumberOfLaps = 3, BestLapTime = new { Value = "1:17.400" } }
+                } }
+            }
+        }));
+        var folder = FeedDump.Start(root);
+        FeedDump.Record("formula1", "{\"type\":1,\"target\":\"feed\",\"arguments\":[\"LapCount\",{\"CurrentLap\":4}]}\u001e");
+        FeedDump.Stop();
+
+        var path = Path.Combine(folder, "formula1.ndjson");
+        var source = F1FeedDumpReplaySource.CreateAsync(path, new FakeClock()).GetAwaiter().GetResult();
+        try
+        {
+            Equal("Mexico City Grand Prix · Qualifying", source.ArchiveName);
+            Equal(2, source.FrameCount);
+            var seen = new List<TimingSnapshot>();
+            source.SnapshotReceived += seen.Add;
+            source.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Equal(SessionLifecycle.Live, seen[0].Lifecycle);
+            Equal("PER", seen[0].Competitors[0].Code);
+        }
+        finally { source.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
     }
     finally
     {

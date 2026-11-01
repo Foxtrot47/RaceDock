@@ -14,6 +14,7 @@ namespace RaceDock.Core;
 public static class FeedDump
 {
     private static readonly Dictionary<string, StreamWriter> Writers = [];
+    private static readonly Dictionary<string, string> InitialStates = [];
     private static readonly object Gate = new();
     private static string? _folder;
 
@@ -31,6 +32,9 @@ public static class FeedDump
             var folder = Path.Combine(root, $"feed-dump-{DateTime.Now:yyyyMMdd-HHmmss}");
             Directory.CreateDirectory(folder);
             _folder = folder;
+            // Seeded first: a source connected before the recording began never sends its initial state again.
+            var started = DateTimeOffset.UtcNow;
+            foreach (var (source, payload) in InitialStates) Write(source, new FeedDumpEntry(started, payload));
             return folder;
         }
     }
@@ -48,19 +52,33 @@ public static class FeedDump
         lock (Gate)
         {
             if (_folder is null) return;
-            try
-            {
-                // Shared for reading so a dump can be tailed while the session is still running.
-                if (!Writers.TryGetValue(source, out var writer))
-                    Writers[source] = writer = new StreamWriter(
-                        new FileStream(Path.Combine(_folder, $"{source}.ndjson"), FileMode.Append, FileAccess.Write, FileShare.Read))
-                    { AutoFlush = true };
-                writer.WriteLine(JsonSerializer.Serialize(new FeedDumpEntry(DateTimeOffset.UtcNow, payload)));
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                StopCore();
-            }
+            Write(source, new FeedDumpEntry(DateTimeOffset.UtcNow, payload));
+        }
+    }
+
+    /// <summary>Keeps the state a source received when it connected, so a later recording can open with it.</summary>
+    public static void RememberInitial(string source, string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return;
+        lock (Gate) InitialStates[source] = payload;
+    }
+
+    /// <summary>Appends one entry. Callers hold <see cref="Gate"/>.</summary>
+    private static void Write(string source, FeedDumpEntry entry)
+    {
+        if (_folder is null) return;
+        try
+        {
+            // Shared for reading so a dump can be tailed while the session is still running.
+            if (!Writers.TryGetValue(source, out var writer))
+                Writers[source] = writer = new StreamWriter(
+                    new FileStream(Path.Combine(_folder, $"{source}.ndjson"), FileMode.Append, FileAccess.Write, FileShare.Read))
+                { AutoFlush = true };
+            writer.WriteLine(JsonSerializer.Serialize(entry));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            StopCore();
         }
     }
 
