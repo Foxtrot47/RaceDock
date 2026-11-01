@@ -7,6 +7,7 @@ var tests = new (string Name, Action Run)[]
     ("deep merge and mixed primitive fields", DeepMerge),
     ("leader gaps, intervals, ordering and missing values", TimingParsing),
     ("F1 timed sessions use best-lap deltas", F1TimedSessionDeltas),
+    ("F1 driver swaps replace the car's driver", F1DriverSwapReplacesCarDriver),
     ("F1 sectors preserve current and best-lap timing", F1SectorTiming),
     ("F1 mini-sectors follow the lap in progress", F1MiniSectors),
     ("tied F1 times produce one leader", TiedF1Times),
@@ -189,6 +190,31 @@ static void TimingParsing()
 {
     var (_, _, processor) = Fixture(); processor.ProcessInitial(JsonNode.Parse("""{"DriverList":{"1":{"Tla":"AAA"},"2":{"Tla":"BBB"},"3":{"Tla":"CCC"}},"TimingData":{"Lines":{"1":{"Position":"2","GapToLeader":{"Value":"+1.2"},"IntervalToPositionAhead":0.4},"2":{"Position":1,"GapToLeader":0},"3":{"Position":"3","GapToLeader":"-","IntervalToPositionAhead":{"Value":"+2.0"}}}}}""")!.AsObject());
     Equal("BBB", processor.Current.Competitors[0].Code); Equal("LEAD", processor.Current.Competitors[0].GapToLeader); Equal("+1.2", processor.Current.Competitors[1].GapToLeader); Equal("0.4", processor.Current.Competitors[1].IntervalToPositionAhead); Equal(null, processor.Current.Competitors[2].GapToLeader);
+}
+
+/// <summary>A driver change arrives as a DriverList update for the car number; a car that stopped keeps its driver.</summary>
+static void F1DriverSwapReplacesCarDriver()
+{
+    var (_, _, processor) = Fixture();
+    processor.ProcessInitial(JsonNode.Parse("""
+    {"DriverList":{"31":{"Tla":"OCO","FullName":"Esteban OCON","TeamName":"Haas F1 Team","RacingNumber":"31"},
+                   "87":{"Tla":"BEA","FullName":"Oliver BEARMAN","TeamName":"Haas F1 Team","RacingNumber":"87"}},
+     "TimingData":{"Lines":{"31":{"Position":"22","Retired":true,"Stopped":true,"ShowPosition":true,"NumberOfLaps":4},
+                            "87":{"Position":"21","NumberOfLaps":9,"ShowPosition":true}}}}
+    """)!.AsObject());
+    processor.ProcessDelta("DriverList", JsonNode.Parse("""
+    {"50":{"Tla":"HIR","FullName":"Ryo HIRAKAWA","RacingNumber":"50"}}
+    """)!, new DateTimeOffset(2026, 10, 31, 17, 32, 58, TimeSpan.Zero));
+    processor.ProcessDelta("TimingData", JsonNode.Parse("""
+    {"Lines":{"50":{"Position":"20","NumberOfLaps":1,"ShowPosition":true}}}
+    """)!, new DateTimeOffset(2026, 10, 31, 17, 33, 0, TimeSpan.Zero));
+
+    var byNumber = processor.Current.Competitors.ToDictionary(c => c.DriverId);
+    Equal("HIR", byNumber["50"].Code);
+    Equal("Ryo HIRAKAWA", byNumber["50"].Name);
+    Equal("OCO", byNumber["31"].Code);
+    True(byNumber["31"].Retired);
+    Equal("BEA", byNumber["87"].Code);
 }
 
 static void F1TimedSessionDeltas()
