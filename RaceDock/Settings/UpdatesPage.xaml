@@ -15,11 +15,12 @@
                  Opacity="0.75"
                  TextWrapping="Wrap" />
 
+      <!-- The card carries its own buttons, so it must stay hit-testable: disabling hit testing on it would also
+           disable the release link and the check button inside it. -->
       <ui:CardAction x:Name="UpdateCard"
                      Margin="0,20,0,0"
                      Padding="16,12"
                      IsChevronVisible="False"
-                     IsHitTestVisible="False"
                      Visibility="Collapsed">
         <Grid>
           <Grid.ColumnDefinitions>
@@ -48,7 +49,6 @@
             <ui:Button x:Name="CheckButton"
                        Content="Check for updates"
                        Icon="{ui:SymbolIcon ArrowSync24}"
-                       IsHitTestVisible="True"
                        Click="Check_Click" />
           </StackPanel>
         </Grid>
