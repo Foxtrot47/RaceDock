@@ -9,12 +9,11 @@ public sealed record TaskbarFlagBadge(TaskbarFlagStrip Strip, string? Code);
 public static class TaskbarFlagDisplay
 {
     /// <summary>
-    /// The badge for a track condition. A clear track and an unknown one both print nothing: the strip is there to say
-    /// what needs saying, so a green flag takes no room at all. Safety car periods count as cautions and say which,
-    /// and a session that has ended shows the chequered tiles whether or not a chequered alert reached the surface:
-    /// replay sources keep their own alert arbiter, so the end of a session is read from its lifecycle instead.
+    /// The badge for the selected snapshot. A clear track and an unknown one both print nothing: the strip is there to
+    /// say what needs saying, so a green flag takes no room at all. Safety car periods count as cautions and say which;
+    /// the chequered tiles come only from that snapshot's ended lifecycle, never a shared transient alert.
     /// </summary>
-    public static TaskbarFlagBadge Badge(TrackCondition trackCondition, AlertKind? transientAlert = null, bool finished = false)
+    public static TaskbarFlagBadge Badge(TrackCondition trackCondition, bool finished = false)
     {
         return trackCondition switch
         {
@@ -23,7 +22,7 @@ public static class TaskbarFlagDisplay
             TrackCondition.SafetyCar => new(TaskbarFlagStrip.Caution, "SC"),
             TrackCondition.VirtualSafetyCar or TrackCondition.VirtualSafetyCarEnding => new(TaskbarFlagStrip.Caution, "VSC"),
             TrackCondition.RedFlag => new(TaskbarFlagStrip.RedFlag, "RED"),
-            _ => finished || transientAlert == AlertKind.Chequered
+            _ => finished
                 ? new(TaskbarFlagStrip.Finished, null)
                 : new(TaskbarFlagStrip.None, null)
         };

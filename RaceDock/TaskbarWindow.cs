@@ -263,12 +263,11 @@ public sealed class TaskbarWindow : Window
     private void RefreshFlag()
     {
         if (_snapshot is not null) ConstrainRaceText(ContextWidth);
-        AlertKind? transient = _currentAlert?.Kind == AlertKind.Chequered ? AlertKind.Chequered : null;
-        // A finished session shows the chequered tiles from its lifecycle, so the replay sources — which keep their own
-        // alert arbiter — report the end of a session exactly as the live ones do.
+        // A finish belongs to the selected snapshot's lifecycle. The alert arbiter is shared across feeds, so a
+        // transient chequered alert could otherwise mark a different championship's currently selected session.
         var badge = _snapshot is null || IsRallySnapshot(_snapshot)
             ? new TaskbarFlagBadge(TaskbarFlagStrip.None, null)
-            : TaskbarFlagDisplay.Badge(_snapshot.TrackCondition, transient,
+            : TaskbarFlagDisplay.Badge(_snapshot.TrackCondition,
                 finished: _snapshot.Lifecycle == SessionLifecycle.Ended);
         if (badge.Strip == TaskbarFlagStrip.None)
         {

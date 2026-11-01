@@ -316,8 +316,7 @@ static void HiddenF1Substitution()
 
 static void TaskbarFlagsFollowSnapshot()
 {
-    // A yellow alert that is not a chequered finish leaves the strip blank on a clear track.
-    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.None, null), TaskbarFlagDisplay.Badge(TrackCondition.AllClear, AlertKind.Yellow));
+    // A transient alert from another feed cannot mark the selected session's clear track as chequered.
     // The widget's edge carries the flag as a code, and a caution covers the safety car periods as well.
     Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "YEL"), TaskbarFlagDisplay.Badge(TrackCondition.Yellow));
     Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "YEL"), TaskbarFlagDisplay.Badge(TrackCondition.DoubleYellow));
@@ -327,16 +326,14 @@ static void TaskbarFlagsFollowSnapshot()
     Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "VSC"), TaskbarFlagDisplay.Badge(TrackCondition.VirtualSafetyCarEnding));
     Equal(new TaskbarFlagBadge(TaskbarFlagStrip.RedFlag, "RED"), TaskbarFlagDisplay.Badge(TrackCondition.RedFlag));
     // A clear or unknown track prints nothing and takes no room.
-    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Finished, null), TaskbarFlagDisplay.Badge(TrackCondition.AllClear, AlertKind.Chequered));
     Equal(new TaskbarFlagBadge(TaskbarFlagStrip.None, null), TaskbarFlagDisplay.Badge(TrackCondition.AllClear));
     Equal(new TaskbarFlagBadge(TaskbarFlagStrip.None, null), TaskbarFlagDisplay.Badge(TrackCondition.Unknown));
-    // A session that has ended shows the tiles from its lifecycle: replays keep their own alert arbiter, so no
-    // chequered alert ever reaches the surface they run on.
-    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Finished, null), TaskbarFlagDisplay.Badge(TrackCondition.AllClear, null, finished: true));
-    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Finished, null), TaskbarFlagDisplay.Badge(TrackCondition.Unknown, null, finished: true));
+    // Only the selected session's lifecycle can put the finish tiles on the taskbar.
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Finished, null), TaskbarFlagDisplay.Badge(TrackCondition.AllClear, finished: true));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Finished, null), TaskbarFlagDisplay.Badge(TrackCondition.Unknown, finished: true));
     // A caution still wins over the finish: a race that ends under yellow says why it ended.
-    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "YEL"), TaskbarFlagDisplay.Badge(TrackCondition.Yellow, null, finished: true));
-    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.RedFlag, "RED"), TaskbarFlagDisplay.Badge(TrackCondition.RedFlag, null, finished: true));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "YEL"), TaskbarFlagDisplay.Badge(TrackCondition.Yellow, finished: true));
+    Equal(new TaskbarFlagBadge(TaskbarFlagStrip.RedFlag, "RED"), TaskbarFlagDisplay.Badge(TrackCondition.RedFlag, finished: true));
 }
 
 static void FastestAndRetired()
