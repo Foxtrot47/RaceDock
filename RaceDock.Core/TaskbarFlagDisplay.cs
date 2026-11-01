@@ -9,9 +9,8 @@ public sealed record TaskbarFlagBadge(TaskbarFlagStrip Strip, string? Code);
 public static class TaskbarFlagDisplay
 {
     /// <summary>
-    /// The badge for the selected snapshot. A clear track and an unknown one both print nothing: the strip is there to
-    /// say what needs saying, so a green flag takes no room at all. Safety car periods count as cautions and say which;
-    /// the chequered tiles come only from that snapshot's ended lifecycle, never a shared transient alert.
+    /// The strip for a track condition. A clear or unknown track prints nothing, safety car periods count as cautions,
+    /// and only an ended session shows the chequered tiles.
     /// </summary>
     public static TaskbarFlagBadge Badge(TrackCondition trackCondition, bool finished = false)
     {

@@ -12,6 +12,7 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
     private readonly Dictionary<string, SectorTimingSet> _bestLapSectors = [];
     private readonly Dictionary<string, string> _capturedSectorLap = [];
     private TrackCondition _track = TrackCondition.Unknown;
+    private string? _lastStatusText;
     private string? _fastestDriver;
     private double? _fastestSeconds;
     private ConnectionState _connection = ConnectionState.Disconnected;
@@ -29,7 +30,9 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
     public void ProcessInitial(JsonObject initial)
     {
         _topics.Clear(); _raceControlKeys.Clear(); _lastBestLap.Clear(); _bestLapSectors.Clear(); _capturedSectorLap.Clear();
-        _fastestDriver = null; _fastestSeconds = null; _track = TrackCondition.Unknown;
+        _fastestDriver = null; _fastestSeconds = null; _track = TrackCondition.Unknown; _lastStatusText = null;
+        // The initial state is authoritative, so a finish left over from before a reconnect goes with it.
+        alerts.Dismiss(AlertKind.Chequered);
         foreach (var pair in initial)
             if (pair.Value is JsonObject value) _topics[pair.Key] = (JsonObject)value.DeepClone();
         ProcessTrackStatus(_topics.GetValueOrDefault("TrackStatus"));
@@ -56,7 +59,8 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
     {
         foreach (var topic in SessionTopics) _topics.Remove(topic);
         _raceControlKeys.Clear(); _lastBestLap.Clear(); _bestLapSectors.Clear(); _capturedSectorLap.Clear();
-        _fastestDriver = null; _fastestSeconds = null; _track = TrackCondition.Unknown;
+        _fastestDriver = null; _fastestSeconds = null; _track = TrackCondition.Unknown; _lastStatusText = null;
+        alerts.Dismiss(AlertKind.Chequered);
     }
 
     /// <summary>
@@ -185,6 +189,11 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
         var classificationReady = !requiresTimedClassification || standings.Any(HasTimedResult);
         var qualifyingSession = IsQualifyingSession(info, sessionName);
         var betweenQualifyingParts = qualifyingSession && qualifyingPart is >= 1 and < 3;
+        // F1 keeps reporting "Started" until it publishes the finish, so only a fresh start says the chequered flag
+        // has been superseded: a new session, or the next qualifying part.
+        var startedAgain = IsRunningSessionStatus(statusText) && !IsRunningSessionStatus(_lastStatusText);
+        _lastStatusText = statusText;
+        if (startedAgain) alerts.Dismiss(AlertKind.Chequered);
         var lifecycle = SessionLifecycleFor(
             standings.Count, statusText, !qualifyingSession && alerts.Current?.Kind == AlertKind.Chequered,
             classificationReady, betweenQualifyingParts);
@@ -407,6 +416,10 @@ public sealed class TimingStateProcessor(IClock clock, IAlertArbiter alerts)
 
     private static bool IsEndedSessionStatus(string? value) => value?.Trim().ToUpperInvariant() is
         "FINISHED" or "FINALISED" or "FINALIZED" or "ENDED" or "ENDS" or "COMPLETE" or "COMPLETED";
+
+    /// <summary>Whether the feed reports a session that has been started. F1 repeats this for every qualifying part.</summary>
+    private static bool IsRunningSessionStatus(string? value) =>
+        string.Equals(value?.Trim(), "Started", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsPreSessionStatus(string? value) =>
         string.Equals(value?.Trim(), "Inactive", StringComparison.OrdinalIgnoreCase);

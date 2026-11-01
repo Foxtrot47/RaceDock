@@ -182,4 +182,6 @@ public interface IAlertArbiter
     void ApplyTrackCondition(TrackCondition condition, string? detail, int? lap, DateTimeOffset timestamp);
     void Tick();
     void Clear();
+    /// <summary>Withdraws an alert of this kind whose moment has passed, so it stops outranking what follows.</summary>
+    void Dismiss(AlertKind kind);
 }

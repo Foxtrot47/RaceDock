@@ -64,6 +64,12 @@ public sealed class AlertArbiter(IClock clock) : IAlertArbiter
         if (_expires is not null && clock.UtcNow >= _expires) Set(null, null);
     }
 
+    /// <summary>Withdraws a spent alert so it stops outranking what follows, without letting it be raised again.</summary>
+    public void Dismiss(AlertKind kind)
+    {
+        if (Current?.Kind == kind) Set(null, null);
+    }
+
     public void Clear()
     {
         _seen.Clear();

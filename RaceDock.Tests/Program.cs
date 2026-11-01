@@ -23,6 +23,7 @@ var tests = new (string Name, Action Run)[]
     ("DPI geometry and Explorer recovery", GeometryAndRecovery),
     ("stale and off-session transitions", FreshnessAndVisibility),
     ("pre-session F1 grid remains hidden", PreSessionF1Grid),
+    ("chequered flag does not outlive its session", ChequeredFlagDoesNotOutliveItsSession),
     ("archived F1 startup data remains hidden", ArchivedF1Startup),
     ("scenario timeline integration", ScenarioIntegration),
     ("active feeds rotate at the display interval", FeedRotation),
@@ -316,7 +317,6 @@ static void HiddenF1Substitution()
 
 static void TaskbarFlagsFollowSnapshot()
 {
-    // A transient alert from another feed cannot mark the selected session's clear track as chequered.
     // The widget's edge carries the flag as a code, and a caution covers the safety car periods as well.
     Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "YEL"), TaskbarFlagDisplay.Badge(TrackCondition.Yellow));
     Equal(new TaskbarFlagBadge(TaskbarFlagStrip.Caution, "YEL"), TaskbarFlagDisplay.Badge(TrackCondition.DoubleYellow));
@@ -473,6 +473,48 @@ static void PreSessionF1Grid()
     race["SessionStatus"] = new JsonObject { ["Status"] = "Started", ["Started"] = "Started" };
     raceProcessor.ProcessInitial(race);
     Equal(SessionLifecycle.Live, raceProcessor.Current.Lifecycle);
+}
+
+/// <summary>
+/// A chequered flag closes the session it was shown in: F1 publishes "Started" for the session that follows, and the
+/// alert raised at the previous finish must not keep it closed or silence the alerts of the session now running.
+/// </summary>
+static void ChequeredFlagDoesNotOutliveItsSession()
+{
+    var (clock, alerts, processor) = Fixture();
+    processor.ProcessInitial(JsonNode.Parse("""
+        {"SessionInfo":{"Key":11399,"Name":"Practice 3","Type":"Practice","Meeting":{"Name":"Mexico City Grand Prix"}},
+         "SessionStatus":{"Status":"Started","Started":"Started"},
+         "DriverList":{"11":{"Tla":"PER"},"27":{"Tla":"HUL"}},
+         "TimingData":{"Lines":{"11":{"Position":1,"NumberOfLaps":12,"BestLapTime":{"Value":"1:18.000"}},
+                                "27":{"Position":2,"NumberOfLaps":11,"BestLapTime":{"Value":"1:18.400"}}}}}
+        """)!.AsObject());
+    Equal(SessionLifecycle.Live, processor.Current.Lifecycle);
+    processor.ProcessDelta("RaceControlMessages", JsonNode.Parse("""
+        {"Messages":{"40":{"Utc":"2026-10-31T18:30:00","Lap":20,"Category":"Flag","Flag":"CHEQUERED","Message":"CHEQUERED FLAG"}}}
+        """)!, clock.UtcNow);
+    Equal(AlertKind.Chequered, alerts.Current!.Kind);
+    Equal(SessionLifecycle.Ended, processor.Current.Lifecycle);
+
+    // The next session is a race, so the chequered alert is the only thing that could still keep it closed.
+    processor.ProcessDelta("SessionInfo", JsonNode.Parse("""
+        {"Key":11404,"Name":"Race","Path":"2026/2026-11-01_Mexico_City_Grand_Prix/2026-11-01_Race/"}
+        """)!, clock.UtcNow);
+    processor.ProcessDelta("SessionStatus", new JsonObject { ["Status"] = "Started", ["Started"] = "Started" }, clock.UtcNow);
+    processor.ProcessDelta("TimingData", new JsonObject
+    {
+        ["Lines"] = new JsonObject
+        {
+            ["11"] = new JsonObject { ["Position"] = 1, ["NumberOfLaps"] = 1 },
+            ["27"] = new JsonObject { ["Position"] = 2, ["NumberOfLaps"] = 1 }
+        }
+    }, clock.UtcNow);
+    True(alerts.Current?.Kind != AlertKind.Chequered);
+    Equal(SessionLifecycle.Live, processor.Current.Lifecycle);
+
+    // Alerts of the running session are heard again: a caution is no longer outranked by the old finish.
+    Track(processor, "2");
+    Equal(AlertKind.Yellow, alerts.Current!.Kind);
 }
 
 static void ArchivedF1Startup()
@@ -5756,6 +5798,7 @@ sealed class RecordingAlerts : IAlertArbiter
         TrackConditions.Add(condition);
     public void Tick() { }
     public void Clear() => Current = null;
+    public void Dismiss(AlertKind kind) { if (Current?.Kind == kind) Clear(); }
 }
 
 sealed class FakeClock : IClock
