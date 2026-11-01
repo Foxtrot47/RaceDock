@@ -53,6 +53,7 @@ var tests = new (string Name, Action Run)[]
     ("sponsored event titles have stable display names", EventNameShortening),
     ("practice and qualifying report best laps, races report last laps", SessionLapTimeMode),
     ("stored classification column orders are repaired", FlyoutColumnOrderNormalization),
+    ("manufacturer logos are on by default and a saved choice still wins", LogoDefaultsFollowTheUser),
     ("user settings persist and normalize safe ranges", UserSettingsPersistence),
     ("hidden championships stay disabled and out of sight", ChampionshipVisibility),
     ("the experimental flyout blur stays off until asked for", FlyoutBlurSettings),
@@ -1529,6 +1530,22 @@ static void FiaRosterTeams(string series, string season, Championship championsh
         Equal(driver.Team, snapshot.Competitors.Single(x => x.Code == driver.Code).Team);
 }
 
+/// <summary>
+/// Manufacturer and team marks start on in both surfaces, for every series the capabilities do not rule out. A choice
+/// the user saved is kept, so the default only reaches settings that never stored one.
+/// </summary>
+static void LogoDefaultsFollowTheUser()
+{
+    True(new ChampionshipDisplaySettings().FlyoutUseManufacturerLogos);
+    True(new UserSettings().DisplayFor(Championship.Formula1).FlyoutUseManufacturerLogos);
+    True(new UserSettings().DisplayFor(Championship.F1Academy).FlyoutUseManufacturerLogos);
+    True(new UserSettings().DisplayFor(Championship.F1Academy).TaskbarUseManufacturerLogos);
+    False(new UserSettings { ChampionshipDisplay = new ChampionshipDisplayProfiles
+    {
+        Formula1 = new ChampionshipDisplaySettings { FlyoutUseManufacturerLogos = false }
+    } }.DisplayFor(Championship.Formula1).FlyoutUseManufacturerLogos);
+}
+
 static void FlyoutColumnOrderNormalization()
 {
     Equal(3, (int)FlyoutColumn.Tyre);
@@ -2445,12 +2462,13 @@ static void UserSettingsPersistence()
         Equal(5, invalid.TaskbarCompetitorCount);
         Equal(5, invalid.FlyoutCompetitorCount);
 
-        // A first run draws manufacturer marks on the widget, while the retired global flag only
-        // still speaks for the flyout.
+        // A first run draws manufacturer marks on both surfaces. A file that predates per-series settings keeps
+        // whatever the retired global flag said, so an explicit "off" there is still honoured.
         var fresh = new UserSettings().Normalize();
         True(fresh.DisplayFor(Championship.Formula1).TaskbarUseManufacturerLogos);
-        False(fresh.DisplayFor(Championship.Formula1).FlyoutUseManufacturerLogos);
+        True(fresh.DisplayFor(Championship.Formula1).FlyoutUseManufacturerLogos);
         False(fresh.DisplayFor(Championship.Formula2).TaskbarUseManufacturerLogos);
+        False(new UserSettings { UseManufacturerLogos = false }.Normalize().DisplayFor(Championship.Formula1).FlyoutUseManufacturerLogos);
         var legacyGlobal = new UserSettings { UseManufacturerLogos = true }.Normalize();
         True(legacyGlobal.DisplayFor(Championship.Formula1).TaskbarUseManufacturerLogos);
         True(legacyGlobal.DisplayFor(Championship.Formula1).FlyoutUseManufacturerLogos);

@@ -35,7 +35,7 @@ public sealed record ChampionshipDisplaySettings
 
     public int FlyoutCompetitorCount { get; init; } = 20;
     public bool FlyoutShowTeamNames { get; init; } = true;
-    public bool FlyoutUseManufacturerLogos { get; init; }
+    public bool FlyoutUseManufacturerLogos { get; init; } = true;
     public bool FlyoutShowPositionColors { get; init; } = true;
     // Interval to the car ahead is the more useful figure in every session type, so the gap to the
     // leader is available but off by default.
@@ -145,8 +145,7 @@ public sealed record ChampionshipDisplaySettings
     internal static ChampionshipDisplaySettings FromLegacy(UserSettings settings) => new()
     {
         TaskbarCompetitorCount = settings.DriverCount,
-        // The widget draws manufacturer marks by default, so the retired global flag only carries
-        // over to the flyout, where marks stay off until they are asked for.
+        // Marks are on by default in both places, so the retired global flag carries over to the flyout as it was.
         FlyoutUseManufacturerLogos = settings.UseManufacturerLogos,
         FlyoutShowPositionColors = settings.ShowPositionColors
     };
@@ -157,7 +156,7 @@ public sealed record ChampionshipDisplayProfiles
     public ChampionshipDisplaySettings Formula1 { get; init; } = new();
     public ChampionshipDisplaySettings Formula2 { get; init; } = new();
     public ChampionshipDisplaySettings Formula3 { get; init; } = new();
-    public ChampionshipDisplaySettings F1Academy { get; init; } = AcademyDefaults(new());
+    public ChampionshipDisplaySettings F1Academy { get; init; } = new();
     public ChampionshipDisplaySettings MotoGp { get; init; } = new();
     public ChampionshipDisplaySettings Moto2 { get; init; } = new();
     public ChampionshipDisplaySettings Moto3 { get; init; } = new();
@@ -226,7 +225,7 @@ public sealed record ChampionshipDisplayProfiles
         Formula1 = (Formula1 ?? new()).Normalize(),
         Formula2 = (Formula2 ?? new()).Normalize(),
         Formula3 = (Formula3 ?? new()).Normalize(),
-        F1Academy = (F1Academy ?? AcademyDefaults(new())).Normalize(),
+        F1Academy = (F1Academy ?? new()).Normalize(),
         MotoGp = (MotoGp ?? new()).Normalize(),
         Moto2 = (Moto2 ?? new()).Normalize(),
         Moto3 = (Moto3 ?? new()).Normalize(),
@@ -249,7 +248,7 @@ public sealed record ChampionshipDisplayProfiles
         Formula1 = settings,
         Formula2 = settings,
         Formula3 = settings,
-        F1Academy = AcademyDefaults(settings),
+        F1Academy = settings,
         MotoGp = settings,
         Moto2 = settings,
         Moto3 = settings,
@@ -266,10 +265,6 @@ public sealed record ChampionshipDisplayProfiles
         NascarXfinity = settings,
         NascarTrucks = settings
     };
-
-    /// <summary>F1 Academy entries are known by the backer each driver carries, so its marks start on in the flyout as well as the widget.</summary>
-    private static ChampionshipDisplaySettings AcademyDefaults(ChampionshipDisplaySettings settings) =>
-        settings with { TaskbarUseManufacturerLogos = true, FlyoutUseManufacturerLogos = true };
 }
 
 public sealed record UserSettings
@@ -340,7 +335,7 @@ public sealed record UserSettings
     public int CompletedSessionRetentionMinutes { get; init; } = 5;
     public int DriverCount { get; init; } = 5;
     public bool ShowPositionColors { get; init; } = true;
-    public bool UseManufacturerLogos { get; init; }
+    public bool UseManufacturerLogos { get; init; } = true;
     public bool AutoStartOnWindowsBoot { get; init; } = true;
 
     /// <summary>Keeps the widget on the taskbar between sessions, counting down to the next published
